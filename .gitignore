@@ -1,6 +1,4 @@
-data/2025
-data/pvp8k
-data/pvp10k
+data/
 .venv
 .ruff_cache
 .pytest_cache
