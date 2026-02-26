@@ -3,9 +3,9 @@ data/pvp8k
 data/pvp10k
 .venv
 .ruff_cache
+.pytest_cache
 __pycache__
 .ipynb_checkpoints
 *.pyc
 .python-version
-.pytest_cache
 plan.md
