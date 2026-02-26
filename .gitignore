@@ -1,1 +1,10 @@
-data
+data/2025
+data/pvp8k
+data/pvp10k
+.venv
+.ruff_cache
+__pycache__
+.ipynb_checkpoints
+*.pyc
+.python-version
+.pytest_cache

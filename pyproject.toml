@@ -11,8 +11,66 @@ dependencies = [
     "pandas>=3.0.1",
     "pyspm>=0.6.3",
     "requests>=2.32.5",
+    "sam2>=1.1.0",
     "scikit-image>=0.26.0",
     "torch>=2.10.0",
     "torchvision>=0.25.0",
     "tqdm>=4.67.3",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+indent-width = 4
+
+# Что проверять
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "A",   # builtins
+    "C4",  # comprehensions
+    "DTZ", # datetime
+    "SIM", # simplify
+    "PIE", # misc
+    "T20", # print
+    "RET", # return
+    "RUF", # Ruff-specific
+]
+
+ignore = [
+    "E501",   # line length (управляется formatter)
+    "B008",   # функции в аргументах (норм для numpy/scipy)
+]
+
+fix = true
+show-fixes = true
+
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["your_package_name"]
+combine-as-imports = true
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = ["classmethod", "pydantic.validator"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["T20", "S101"]
