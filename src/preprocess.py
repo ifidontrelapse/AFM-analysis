@@ -41,10 +41,10 @@ def flatten_lines(z: np.ndarray, poly_order: int = 1) -> np.ndarray:
     Построчное выравнивание, удаление тренда полиномиальной кривой.
 
     Args:
-        z: 2D array representing the AFM Z-map.
-        poly_order: Degree of the polynomial to fit (default is 1 for linear).
+        z: топология образца
+        poly_order: степень полинома для выравнивания (по умолчанию 1 - линейный тренд)
     Returns:
-        Flattened Z-map with the fitted polynomial trend removed from each line.
+        result: выровненная топология
     """
     result = np.empty_like(z)
     xi = np.arange(z.shape[1])
@@ -62,6 +62,12 @@ def get_substrate_map(z: np.ndarray, radius_px: int) -> np.ndarray:
     получая точную топологию поверхности.
     
     radius_px должен быть БОЛЬШЕ радиуса самой крупной частицы в пикселях.
+
+    Args:
+        z: топология образца
+        radius_px: радиус в пикселях для morphological opening
+    Returns:
+        топология подложки
     """
     return morph_opening(z, disk(radius_px)).astype(np.float32)
 
