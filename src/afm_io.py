@@ -13,33 +13,26 @@ import os
 import re
 
 
-# =========================
-# ВНУТРЕННИЙ кастомный парсер Bruker/Nanoscope
-# =========================
-
 def _read_nanoscope_z(file_path: str) -> np.ndarray:
-    """
-    Кастомное чтение Bruker/Nanoscope (.spm, .000, .001).
-
-    Возвращает:
-        2D массив высот в нанометрах (float32)
-    """
-
     HEADER_READ_BYTES = 65536
 
-    # --- читаем ASCII header ---
     with open(file_path, "rb") as f:
         raw = f.read(HEADER_READ_BYTES)
 
     header = raw.split(b"\x1A")[0].decode("latin-1", errors="ignore")
 
-    # --- ищем блоки *Ciao image list ---
     blocks = header.split("\\*Ciao image list")
     if len(blocks) < 2:
         raise ValueError("Ciao image list blocks not found")
 
-    # выбираем первый блок (обычно Height)
-    blk = blocks[1]
+    # Ищем блок Height явно, не просто первый блок
+    blk = None
+    for b in blocks[1:]:
+        if '"Height"' in b:
+            blk = b
+            break
+    if blk is None:
+        blk = blocks[1]
 
     def find_int(pattern: str):
         m = re.search(pattern, blk)
@@ -47,81 +40,82 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
 
     data_offset = find_int(r"Data offset\s*:\s*(\d+)")
     data_length = find_int(r"Data length\s*:\s*(\d+)")
-    samps = find_int(r"Samps/line\s*:\s*(\d+)")
-    lines = find_int(r"Number of lines\s*:\s*(\d+)")
-    bpp = find_int(r"Bytes/pixel\s*:\s*(\d+)")
+    samps       = find_int(r"Samps/line\s*:\s*(\d+)")
+    lines       = find_int(r"Number of lines\s*:\s*(\d+)")
+    bpp         = find_int(r"Bytes/pixel\s*:\s*(\d+)")
 
     if None in (data_offset, data_length, samps, lines, bpp):
         raise ValueError("Header fields missing in SPM file")
 
-    # --- парсим Z-scale ---
-    # V/LSB
-    v_match = re.search(r"\(([^)]+)\s*V/LSB\)", blk)
-    if not v_match:
-        raise ValueError("V/LSB not found")
+    # Число ПОСЛЕ скобок = реальный Z диапазон скана в вольтах
+    zscale_match = re.search(
+        r"@2:Z scale:[^\n]*\([^)]+\)\s*([\d.eE+-]+)\s*V",
+        blk
+    )
+    if not zscale_match:
+        raise ValueError("Z scale voltage not found")
+    z_scale_v = float(zscale_match.group(1))   # 9.238140 V
 
-    v_per_lsb = float(v_match.group(1))
-
-    # Zsens nm/V
-    zsens_match = re.search(r"Zsens[^\n]*?([0-9.]+)\s*nm/V", header)
+    # Zsens — точный паттерн, не поймает ZsensSens
+    zsens_match = re.search(
+        r"@Sens\.\s*Zsens\s*:\s*V\s+([\d.eE+-]+)\s*nm/V",
+        header
+    )
     if not zsens_match:
         raise ValueError("Zsens nm/V not found")
+    nm_per_v = float(zsens_match.group(1))     # 11.42934 nm/V
 
-    nm_per_v = float(zsens_match.group(1))
-    z_scale = v_per_lsb * nm_per_v
+    z_scale = z_scale_v * nm_per_v / 32768     # 0.003222 nm/LSB
 
-    # --- читаем бинарные данные ---
     dtype = np.int16 if bpp == 2 else np.int32
 
     with open(file_path, "rb") as f:
         f.seek(data_offset)
-        raw = np.frombuffer(f.read(data_length), dtype=dtype)
+        raw_data = np.frombuffer(f.read(data_length), dtype=dtype)
 
-    z = raw[: lines * samps].reshape((lines, samps)).astype(np.float32)
-    z *= z_scale  # в нм
+    z = raw_data[:lines * samps].reshape((lines, samps)).astype(np.float32)
+    z *= z_scale
 
-    return z
+    # В блоке изображения (blk) после нахождения Height
+    scan_match = re.search(
+        r"Scan Size:\s*([\d.]+)\s*([\d.]+)\s*(~m|nm|um|µm)",
+        blk
+    )
+    if scan_match:
+        scan_size = float(scan_match.group(1))
+        unit = scan_match.group(3)
+        if unit in ('~m', 'um', 'µm'):
+            scan_size_nm = scan_size * 1000   # µm → нм
+        else:
+            scan_size_nm = scan_size          # уже в нм
+    else:
+        scan_size_nm = None
 
+    pixel_size_nm = scan_size_nm / samps     # нм/пиксель
 
-# =========================
-# Публичный интерфейс
-# =========================
+    return scan_size_nm, pixel_size_nm, z
 
 def load_afm(file_path: str, fmt: str) -> np.ndarray:
     """
     Загрузка AFM данных из различных форматов
-    и генерация топологических карт (в нанометрах).
+    и генерация топологических карт.
 
     Supported formats:
-    - "spm": Bruker .spm / .000 / .001 (custom parser)
-    - "ibw": Asylum .ibw via igor
-    - "gwy": Gwyddion .gwy via pygwyfile
+    - "spm": Bruker .spm / .000
     - "npy": raw NumPy array
 
     Args:
         file_path: путь к файлу AFM
-        fmt: формат ("spm", "ibw", "gwy", "npy")
+        fmt: формат ("spm", "npy")
 
     Returns:
-        2D numpy array (float32) — Z-map в нанометрах.
+        2d numpy array — топология образца в нанометрах.
     """
 
     if fmt == "npy":
         z = np.load(file_path).astype(np.float32)
-
     elif fmt == "spm":
         z = _read_nanoscope_z(file_path)
-
-    elif fmt == "ibw":
-        import igor.binarywave as bw
-        data = bw.load(file_path)
-        z = (data["wave"]["wData"][:, :, 0] * 1e9).astype(np.float32)
-
-    elif fmt == "gwy":
-        import pygwyfile
-        gwy = pygwyfile.load(file_path)
-        z = (pygwyfile.util.get_datafield(gwy, "/0/data") * 1e9).astype(np.float32)
-
     else:
         raise ValueError(f"Unsupported format: {fmt}")
 
