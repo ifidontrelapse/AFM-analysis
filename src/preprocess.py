@@ -73,7 +73,8 @@ def get_substrate_map(z: np.ndarray, radius_px: int) -> np.ndarray:
 
 
 def estimate_radius_otsu(z_above: np.ndarray,
-                          pixel_size_nm: float) -> dict:
+                          pixel_size_nm: float,
+                          min_size_pixel: float) -> dict:
     """
     Оценка типичного радиуса частиц через бинаризацию Otsu.
     
@@ -83,7 +84,8 @@ def estimate_radius_otsu(z_above: np.ndarray,
     Args:
         z_above:       z - substrate (частицы над подложкой)
         pixel_size_nm: нм/пиксель = scan_size_nm / z.shape[0]
-    
+        min_size_pixel:   минимальный размер частицы в пикселях
+
     Returns:
         dict с типичным радиусом, диапазоном и числом найденных объектов
     """
@@ -99,6 +101,11 @@ def estimate_radius_otsu(z_above: np.ndarray,
         )
 
     radii_px = np.array([p.equivalent_diameter_area / 2 for p in props])
+
+    # Фильтруем шум сразу — объекты меньше min_size_pixel не могут быть частицами
+    valid        = radii_px >= min_size_pixel
+    radii_px     = radii_px[valid]
+    radii_nm     = radii_px * pixel_size_nm
     radii_nm = radii_px * pixel_size_nm
 
     typical_radius_px = float(np.median(radii_px))
@@ -139,7 +146,7 @@ def estimate_rough_radius(z: np.ndarray, pixel_size_nm: float, min_size_pixel: f
     if len(props) == 0:
         print("Warning: Не найдено объектов для оценки радиуса. Вероятно, изображение слишком ровное или зашумленное." \
         "\nПо умолчанию использован радиус, равный 1% от размера изображения.")
-        return max(int(z_flat.shape[1] * 0.01), min_size_pixel)
+        return max(int(z.shape[1] * 0.01), min_size_pixel)
 
     # Медиана площадей -> эквивалентный радиус
     median_area   = np.median([p.area for p in props])
@@ -154,7 +161,8 @@ def estimate_rough_radius(z: np.ndarray, pixel_size_nm: float, min_size_pixel: f
 def build_substrate_map(z: np.ndarray,
                          pixel_size_nm: float,
                          min_size_nm: float = 5,
-                         manual_radius_px: float = None) -> tuple:
+                         manual_radius_px: float = None
+                         ) -> tuple:
     """
     Построение карты подложки с возможностью автоматической оценки радиуса для morphological opening.
     
@@ -163,7 +171,8 @@ def build_substrate_map(z: np.ndarray,
         pixel_size_nm: нм/пиксель = scan_size_nm / z.shape[0]
         min_size_nm: минимальный размер частицы в нм (для ограничения радиуса при автоматической оценке)
         manual_radius_px: радиус для opening без автоматической оценки
-    
+        min_radius_px: минимальный радиус частицы в пикселях
+
     Returns:
         substrate:      карта подложки (float32)
         z_above:        z_flat - substrate (только частицы)
@@ -174,7 +183,7 @@ def build_substrate_map(z: np.ndarray,
     if manual_radius_px is not None:
         substrate = get_substrate_map(z, manual_radius_px)
         z_above   = z - substrate
-        sizes = estimate_radius_otsu(z_above, pixel_size_nm)
+        sizes = estimate_radius_otsu(z_above, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm))
     # Двухстадийная оценка радиуса через грубое приближение -> Otsu, исходя из минимального радиуса частиц (по умолчанию 5 нм)
     else:
         # Грубое приближение радиуса
@@ -183,7 +192,7 @@ def build_substrate_map(z: np.ndarray,
         z_above_rough   = z - rough_substrate
 
         # Оценка радиуса через Otsu
-        sizes = estimate_radius_otsu(z_above_rough, pixel_size_nm)
+        sizes = estimate_radius_otsu(z_above_rough, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm))
         opening_radius = max(int(sizes["typical_radius_px"] * 2.5), 5)
 
         # Финальная топология с вычетом подложки

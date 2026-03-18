@@ -209,3 +209,83 @@ def afm_viewer(
     fig.canvas.mpl_connect("button_press_event", on_click)
 
     return fig, ax, ax_profile, im
+
+def plot_detections(z_above: np.ndarray,
+                    blobs: np.ndarray,
+                    pixel_size_nm: float,
+                    figsize: tuple = (14, 5)) -> None:
+    """
+    Визуализация результатов LoG детекции.
+
+    Панель 1: z_above с кружками вокруг каждой частицы
+    Панель 2: гистограмма радиусов в нм
+
+    Args:
+        z_above:       z_flat - substrate
+        blobs:         результат detect_particles (N, 4)
+        pixel_size_nm: нм/пиксель
+        figsize:       размер фигуры
+    """
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+    # ── Панель 1: изображение с детекциями ────────────────────
+    ax = axes[0]
+    im = ax.imshow(z_above, cmap="afmhot", origin="lower")
+    plt.colorbar(im, ax=ax, label="Z, нм", fraction=0.046, pad=0.04)
+
+    for blob in blobs:
+        y, x, sigma, _ = blob
+        radius_px = sigma * np.sqrt(2)
+        circle = plt.Circle(
+            (x, y), radius_px,
+            color="cyan", fill=False, linewidth=1.2, alpha=0.8
+        )
+        ax.add_patch(circle)
+        ax.plot(x, y, "+", color="cyan", markersize=4, markeredgewidth=0.8)
+
+    # Физические оси в нм
+    h, w = z_above.shape
+    ticks_px = np.linspace(0, w - 1, 5)
+    ax.set_xticks(ticks_px)
+    ax.set_yticks(np.linspace(0, h - 1, 5))
+    ax.set_xticklabels([f"{v * pixel_size_nm:.0f}" for v in ticks_px])
+    ax.set_yticklabels([f"{v * pixel_size_nm:.0f}" for v in np.linspace(0, h - 1, 5)])
+    ax.set_xlabel("X, нм")
+    ax.set_ylabel("Y, нм")
+    ax.set_title(f"LoG детекция: {len(blobs)} частиц", fontsize=11)
+
+    # ── Панель 2: гистограмма радиусов ────────────────────────
+    ax = axes[1]
+
+    if len(blobs) > 0:
+        radius_nm = blobs[:, 3]
+        ax.hist(
+            radius_nm, bins=20,
+            color="steelblue", edgecolor="white", linewidth=0.7
+        )
+        ax.axvline(
+            np.median(radius_nm), color="gold",
+            linestyle="--", linewidth=1.5,
+            label=f"Медиана: {np.median(radius_nm):.1f} нм"
+        )
+        ax.axvline(
+            np.mean(radius_nm), color="tomato",
+            linestyle="--", linewidth=1.5,
+            label=f"Среднее: {np.mean(radius_nm):.1f} нм"
+        )
+        ax.set_xlabel("Радиус, нм")
+        ax.set_ylabel("Количество частиц")
+        ax.set_title("Распределение радиусов (LoG)", fontsize=11)
+        ax.legend(fontsize=9)
+        ax.grid(alpha=0.3)
+    else:
+        ax.text(0.5, 0.5, "Частицы не найдены",
+                ha="center", va="center", transform=ax.transAxes,
+                fontsize=12)
+
+    plt.suptitle(
+        f"Детекция  |  pixel={pixel_size_nm:.2f} нм/пкс  |  N={len(blobs)}",
+        fontsize=12
+    )
+    plt.tight_layout()
+    plt.show()

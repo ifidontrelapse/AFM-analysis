@@ -65,7 +65,7 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
         raise ValueError("Zsens nm/V not found")
     nm_per_v = float(zsens_match.group(1))     # 11.42934 nm/V
 
-    z_scale = z_scale_v * nm_per_v / 32768     # 0.003222 nm/LSB
+    z_scale = z_scale_v * nm_per_v / 65536
 
     dtype = np.int16 if bpp == 2 else np.int32
 
