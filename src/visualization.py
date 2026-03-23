@@ -210,28 +210,23 @@ def afm_viewer(
 
     return fig, ax, ax_profile, im
 
-def plot_detections(z_above: np.ndarray,
-                    blobs: np.ndarray,
-                    pixel_size_nm: float,
-                    figsize: tuple = (14, 5)) -> None:
+def plot_detections(
+    z_above: np.ndarray,
+    blobs: np.ndarray,
+    pixel_size_nm: float,
+    axes: plt.Axes
+):
     """
     Визуализация результатов LoG детекции.
 
     Панель 1: z_above с кружками вокруг каждой частицы
     Панель 2: гистограмма радиусов в нм
 
-    Args:
-        z_above:       z_flat - substrate
-        blobs:         результат detect_particles (N, 4)
-        pixel_size_nm: нм/пиксель
-        figsize:       размер фигуры
+    Returns:
+        axes
     """
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
 
-    # ── Панель 1: изображение с детекциями ────────────────────
-    ax = axes[0]
-    im = ax.imshow(z_above, cmap="afmhot", origin="lower")
-    plt.colorbar(im, ax=ax, label="Z, нм", fraction=0.046, pad=0.04)
+    axes.imshow(z_above, cmap="afmhot", origin="lower")
 
     for blob in blobs:
         y, x, sigma, _ = blob
@@ -240,52 +235,50 @@ def plot_detections(z_above: np.ndarray,
             (x, y), radius_px,
             color="cyan", fill=False, linewidth=1.2, alpha=0.8
         )
-        ax.add_patch(circle)
-        ax.plot(x, y, "+", color="cyan", markersize=4, markeredgewidth=0.8)
-
-    # Физические оси в нм
+        axes.add_patch(circle)
+        axes.plot(x, y, "+", color="cyan", markersize=4, markeredgewidth=0.8)
     h, w = z_above.shape
     ticks_px = np.linspace(0, w - 1, 5)
-    ax.set_xticks(ticks_px)
-    ax.set_yticks(np.linspace(0, h - 1, 5))
-    ax.set_xticklabels([f"{v * pixel_size_nm:.0f}" for v in ticks_px])
-    ax.set_yticklabels([f"{v * pixel_size_nm:.0f}" for v in np.linspace(0, h - 1, 5)])
-    ax.set_xlabel("X, нм")
-    ax.set_ylabel("Y, нм")
-    ax.set_title(f"LoG детекция: {len(blobs)} частиц", fontsize=11)
+    ticks_py = np.linspace(0, h - 1, 5)
+    axes.set_xticks(ticks_px)
+    axes.set_yticks(ticks_py)
+    axes.set_xticklabels([f"{v * pixel_size_nm:.0f}" for v in ticks_px])
+    axes.set_yticklabels([f"{v * pixel_size_nm:.0f}" for v in ticks_py])
+    axes.set_xlabel("X, nm")
+    axes.set_ylabel("Y, nm")
+    axes.set_title(f"LoG detection: {len(blobs)} particles", fontsize=11)
 
-    # ── Панель 2: гистограмма радиусов ────────────────────────
-    ax = axes[1]
+    return axes
 
+def plot_detections_histogram(
+    blobs: np.ndarray,
+    axes: plt.Axes,
+):
     if len(blobs) > 0:
         radius_nm = blobs[:, 3]
-        ax.hist(
+        axes.hist(
             radius_nm, bins=20,
             color="steelblue", edgecolor="white", linewidth=0.7
         )
-        ax.axvline(
+        axes.axvline(
             np.median(radius_nm), color="gold",
             linestyle="--", linewidth=1.5,
             label=f"Медиана: {np.median(radius_nm):.1f} нм"
         )
-        ax.axvline(
+        axes.axvline(
             np.mean(radius_nm), color="tomato",
             linestyle="--", linewidth=1.5,
             label=f"Среднее: {np.mean(radius_nm):.1f} нм"
         )
-        ax.set_xlabel("Радиус, нм")
-        ax.set_ylabel("Количество частиц")
-        ax.set_title("Распределение радиусов (LoG)", fontsize=11)
-        ax.legend(fontsize=9)
-        ax.grid(alpha=0.3)
+        axes.set_xlabel("Радиус, нм")
+        axes.set_ylabel("Количество частиц")
+        axes.set_title("Распределение радиусов (LoG)", fontsize=11)
+        axes.legend(fontsize=9)
+        axes.grid(alpha=0.3)
     else:
-        ax.text(0.5, 0.5, "Частицы не найдены",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=12)
-
-    plt.suptitle(
-        f"Детекция  |  pixel={pixel_size_nm:.2f} нм/пкс  |  N={len(blobs)}",
-        fontsize=12
-    )
-    plt.tight_layout()
-    plt.show()
+        axes.text(
+            0.5, 0.5, "Частицы не найдены",
+            ha="center", va="center", transform=axes.transAxes,
+            fontsize=12
+        )
+    return axes
