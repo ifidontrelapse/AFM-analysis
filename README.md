@@ -1,152 +1,239 @@
 # AFM Nanoparticle Analysis
 
-Однопроходный пайплайн для загрузки AFM-карт высот, удаления фона, детекции наночастиц и измерения их высоты.
+Automated pipeline for loading AFM height maps, background removal, nanoparticle detection, and height measurement.
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)
 
-## Что делает проект
+---
 
-AFM, или атомно-силовая микроскопия, даёт карту высот поверхности: каждый пиксель хранит локальную высоту в нанометрах. Для наночастиц это особенно полезно, потому что именно высота позволяет отделить реальные объекты от фона, оценить распределение размеров и сравнить разные образцы без перехода к косвенным метрикам.
+## What It Does
 
-В этом проекте собран автоматический пайплайн для обработки таких карт. Он загружает AFM-файл, убирает глобальный наклон и построчный тренд, оценивает поверхность подложки через morphological opening, выделяет частицы над подложкой, подбирает параметры LoG-детекции и измеряет высоту каждой найденной частицы относительно локального baseline.
+Atomic Force Microscopy (AFM) produces a height map where every pixel stores the local height in nanometers. This project automates the full analysis chain:
 
-На выходе получается `pandas.DataFrame`, где каждая строка соответствует отдельной частице. В таблице есть координаты, оценка радиуса, максимальная высота, средняя высота по маске, выбранный baseline и служебные признаки качества измерения, например размер опорного кольца вокруг частицы.
+1. Load a Bruker Nanoscope `.spm` file and decode calibrated height values.
+2. Remove global tilt (least-squares plane fit) and per-line polynomial drift.
+3. Estimate the substrate surface via morphological opening.
+4. Detect particles above the substrate using Laplacian-of-Gaussian (LoG).
+5. Measure each particle's height relative to a local ring baseline.
 
-## Схема пайплайна
+The output is a `pandas.DataFrame` — one row per particle — with coordinates, LoG radius, max height, mean height, and baseline diagnostics.
 
-```text
-+-------------------+      +------------------------------+      +------------------------------+      +------------------------------+      +----------------------+
-| Загрузка          | ---> | Предобработка                | ---> | Детекция                     | ---> | Измерение                    | ---> | Результаты            |
-| src.afm_io        |      | src.preprocess               |      | src.detection                |      | src.measure                  |      | pandas.DataFrame      |
-| load_afm()        |      | flatten_plane()             |      | estimate_log_params()        |      | create_circular_mask()       |      | measure_all_baseline()|
-| _read_nanoscope_z()|     | flatten_lines()             |      | estimate_log_threshold_*()   |      | get_clean_ring()             |      | CSV/статистика/графики|
-|                    |     | build_substrate_map()       |      | detect_particles()           |      | measure_height()             |      |                      |
-+-------------------+      | get_substrate_map()         |      | _filter_boundary_blobs()     |      | measure_all_baseline()       |      +----------------------+
-                           +------------------------------+      +------------------------------+      +------------------------------+
+---
 
+## Pipeline Overview
 
 ```
+┌──────────────┐   ┌──────────────────────────────┐   ┌───────────────────────────┐   ┌──────────────────────────┐   ┌─────────────────┐
+│  I/O         │→  │  Preprocessing               │→  │  Detection               │→  │  Measurement             │→  │  Results        │
+│  afm_io.py   │   │  preprocess.py               │   │  detection.py            │   │  measure.py              │   │  DataFrame      │
+│  load_afm()  │   │  flatten_plane()             │   │  estimate_log_params()   │   │  create_circular_mask()  │   │  CSV / plots    │
+│              │   │  flatten_lines()             │   │  estimate_log_threshold_ │   │  get_clean_ring()        │   │                 │
+│              │   │  build_substrate_map()       │   │    adaptive()            │   │  measure_height()        │   │                 │
+│              │   │  get_substrate_map()         │   │  detect_particles()      │   │  measure_all_baseline()  │   │                 │
+└──────────────┘   └──────────────────────────────┘   └───────────────────────────┘   └──────────────────────────┘   └─────────────────┘
+```
 
-## Установка
+An experimental SAM 2 path (`src/sam2_pipeline.py`, `sam2.ipynb`) is available for mask-based segmentation as an alternative to LoG.
+
+---
+
+## Installation
 
 ```bash
+# Requires uv (https://docs.astral.sh/uv/)
 uv sync
 ```
 
-## Быстрый старт
+PyTorch is pulled from the CUDA 11.8 index. Edit `pyproject.toml` to switch to CPU or a different CUDA version.
+
+SAM 2 is installed from its GitHub source; model checkpoints must be downloaded separately and placed in `checkpoints/`:
+
+```bash
+# Example — download SAM 2 base+ checkpoint
+wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt \
+     -O checkpoints/sam2.1_hiera_base_plus.pt
+```
+
+---
+
+## Quick Start
 
 ```python
 from src.afm_io import load_afm
 from src.preprocess import flatten_plane, flatten_lines, build_substrate_map
 from src.detection import detect_particles
 from src.measure import measure_all_baseline
+
+# 1. Load
 scan_size_nm, pixel_size_nm, z = load_afm("data/sample.spm", fmt="spm")
+
+# 2. Preprocess
 z_flat = flatten_lines(flatten_plane(z), poly_order=1)
-substrate, z_above, opening_radius, sizes = build_substrate_map(z_flat, pixel_size_nm, min_size_nm=5)
+substrate, z_above, opening_radius, sizes = build_substrate_map(
+    z_flat, pixel_size_nm, min_size_nm=5
+)
+
+# 3. Detect
 blobs = detect_particles(z_above, pixel_size_nm, sizes, overlap=0.4)
+
+# 4. Measure
 df = measure_all_baseline(z_flat, z_above, blobs, outer_px=5, inner_erode_px=3)
 print(df.head())
 ```
 
-## Описание модулей
+Batch preprocessing of a whole directory:
 
-### Модуль загрузки: `src/afm_io.py`
+```bash
+python preprocess_batch.py data/raw/ data/preprocessed/
+```
 
-В репозитории нет `loader.py`; его роль выполняет `src/afm_io.py`. Этот модуль отвечает за чтение AFM-данных, разбор заголовка Nanoscope и возврат карты высот в нанометрах. Здесь же объявлен задел под генерацию синтетических данных для демонстраций и тестов.
+This recursively finds all files with numeric extensions (`.001`, `.002`, …), applies the preprocessing pipeline, and saves `z_above` as a `.jpg` mirroring the input directory structure.
 
-| Функция | Описание из docstring | Ключевые параметры |
+---
+
+## Project Structure
+
+```
+AFM-analysis/
+├── src/
+│   ├── afm_io.py          # File I/O — Bruker Nanoscope .spm and .npy
+│   ├── preprocess.py      # Plane/line flattening, substrate estimation
+│   ├── detection.py       # LoG-based particle detection
+│   ├── measure.py         # Height measurement, ring baseline
+│   ├── visualization.py   # Static plots, interactive viewer
+│   └── sam2_pipeline.py   # SAM 2 helpers (AFM→RGB conversion, mask overlay)
+├── notebooks/
+│   ├── afm_gold_nanoparticles.ipynb  # End-to-end analysis on real data
+│   ├── preprocessing.ipynb           # Preprocessing exploration
+│   └── sam2.ipynb                    # SAM 2 segmentation experiments
+├── preprocess_batch.py    # CLI batch processor
+├── tests/
+│   └── test_io.py
+├── checkpoints/           # Model weights (not committed)
+├── data/                  # Raw AFM files (not committed)
+├── docs/images/           # Pipeline figures
+└── pyproject.toml
+```
+
+---
+
+## Module Reference
+
+### `src/afm_io.py` — I/O
+
+| Function | Description |
+|---|---|
+| `load_afm(file_path, fmt)` | Load an AFM file. `fmt="spm"` returns `(scan_size_nm, pixel_size_nm, z)`; `fmt="npy"` returns `z`. |
+| `make_synthetic_afm(size, n_particles, seed)` | Planned — not yet implemented. |
+
+`load_afm` with `fmt="spm"` calls `_read_nanoscope_z`, which parses the Bruker Nanoscope header, extracts the Z-scale calibration (`Zsens` + `@2:Z scale`), and returns calibrated float32 heights in nanometres.
+
+### `src/preprocess.py` — Preprocessing
+
+| Function | Key parameters | Description |
 |---|---|---|
-| `load_afm` | `Загрузка AFM данных из различных форматов и генерация топологических карт.` | `file_path`, `fmt` |
-| `make_synthetic_afm` | `Генерация синтетической AFM Z-карты с заданным количеством частиц и размером.` | `size`, `n_particles`, `seed` |
+| `flatten_plane(z)` | — | Remove global tilt via least-squares plane fit. |
+| `flatten_lines(z, poly_order=1)` | `poly_order` | Row-by-row polynomial detrending. |
+| `get_substrate_map(z, radius_px)` | `radius_px` | Morphological opening — substrate estimate. `radius_px` must exceed the largest particle radius. |
+| `estimate_radius_otsu(z_above, pixel_size_nm, min_size_pixel)` | — | Otsu binarization → connected components → median equivalent radius. Raises `ValueError` if no objects found. |
+| `estimate_rough_radius(z, pixel_size_nm, min_size_pixel, scale=1.7)` | `scale` | Fast radius estimate from median+std threshold. Falls back to 1% of image width if nothing is found. |
+| `build_substrate_map(z, pixel_size_nm, min_size_nm=5, manual_radius_px=None)` | `manual_radius_px` | Two-stage auto-estimation (rough → Otsu) or manual radius. Returns `(substrate, z_above, opening_radius, sizes)`. |
 
-### Модуль предобработки: `src/preprocess.py`
+### `src/detection.py` — Detection
 
-Этот модуль приводит сырую AFM-карту к виду, пригодному для измерений. Он убирает наклон плоскости, корректирует построчный тренд, оценивает характерный размер частиц и строит карту подложки, которая затем вычитается из выровненного изображения.
+| Function | Description |
+|---|---|
+| `estimate_log_params(sizes)` | Derives `min_sigma` / `max_sigma` from Otsu radii. |
+| `estimate_log_threshold(z_above)` | Simple threshold: `3 × noise_std / z_max`. |
+| `estimate_log_threshold_adaptive(z_above, params, percentile=20)` | Runs LoG at minimal threshold, takes the `percentile`-th response — robust across samples. |
+| `detect_particles(z_above, pixel_size_nm, sizes, overlap=0.3, threshold=None, percentile=20)` | Full detection: sigma range → adaptive threshold → `blob_log` → boundary filter. Returns `(N, 4)` array `[y, x, sigma_px, radius_nm]`. |
 
-| Функция | Описание из docstring | Ключевые параметры |
-|---|---|---|
-| `flatten_plane` | `Коррекция общего наклона плоскости методом МНК.` | `z` |
-| `flatten_lines` | `Построчное выравнивание, удаление тренда полиномиальной кривой.` | `z`, `poly_order` |
-| `get_substrate_map` | `Оценка поверхности подложки без частиц.` | `z`, `radius_px` |
-| `estimate_radius_otsu` | `Оценка типичного радиуса частиц через бинаризацию Otsu.` | `z_above`, `pixel_size_nm`, `min_size_pixel` |
-| `estimate_rough_radius` | `Оценка стартового радиуса из изображения без констант.` | `z`, `pixel_size_nm`, `min_size_pixel`, `scale` |
-| `build_substrate_map` | `Построение карты подложки с возможностью автоматической оценки радиуса для morphological opening.` | `z`, `pixel_size_nm`, `min_size_nm`, `manual_radius_px` |
+### `src/measure.py` — Measurement
 
-### Модуль детекции: `src/detection.py`
+| Function | Description |
+|---|---|
+| `create_circular_mask(shape, cy, cx, radius)` | Boolean disk mask. |
+| `get_clean_ring(mask_particle, substrate_mask, outer_px, inner_erode_px)` | Ring around particle, restricted to substrate pixels (removes overlapping neighbours automatically). |
+| `measure_height(z_flat, mask_particle, substrate_mask, global_baseline, ...)` | `height = max(z inside mask) − median(z in ring)`. Falls back to global baseline when ring < `min_ring_px`. |
+| `measure_all_baseline(z_flat, z_above, blobs, outer_px=5, inner_erode_px=3)` | Runs `measure_height` for every blob. Drops particles with `height ≤ 0`. Returns DataFrame. |
 
-Этот модуль подбирает диапазон `sigma` для LoG, оценивает порог детекции и возвращает массив найденных частиц с координатами и физическим радиусом. После первичной детекции пограничные объекты дополнительно отбрасываются, чтобы не включать усечённые частицы.
+### `src/visualization.py` — Visualization
 
-| Функция | Описание из docstring | Ключевые параметры |
-|---|---|---|
-| `estimate_log_params` | `Вычисляет диапазон sigma для LoG из результатов estimate_radius_otsu.` | `sizes` |
-| `estimate_log_threshold` | `Автоматический порог для LoG из шума подложки.` | `z_above` |
-| `estimate_log_threshold_adaptive` | `Адаптивный порог из распределения откликов LoG.` | `z_above`, `params`, `percentile` |
-| `detect_particles` | `Детекция частиц методом Laplacian of Gaussian (LoG).` | `z_above`, `pixel_size_nm`, `sizes`, `overlap`, `threshold`, `percentile` |
+| Function | Description |
+|---|---|
+| `plot_afm(ax, z, scan_size_nm, ...)` | Static AFM height map on a matplotlib axis. |
+| `afm_viewer(z, scan_size_nm, ...)` | Interactive viewer with crosshair, hover tooltip, and two-point height profile. |
+| `plot_detections(z_above, blobs, pixel_size_nm, axes)` | LoG detection overlay (cyan circles). |
+| `plot_detections_histogram(blobs, axes)` | Radius histogram with median/mean lines. |
 
-## Параметры
+### `src/sam2_pipeline.py` — SAM 2 (experimental)
 
-| Параметр | Значение по умолчанию | Что делает | Увеличивать, если | Уменьшать, если |
+| Function | Description |
+|---|---|
+| `afm_to_rgb(z, colormap, clip_percentile)` | Converts float Z-map to uint8 RGB for SAM 2 input. |
+| `overlay_masks(rgb_img, sam_results, alpha)` | Overlays SAM 2 segmentation masks with random colors. |
+
+---
+
+## Parameters
+
+| Parameter | Default | Effect | Increase when | Decrease when |
 |---|---|---|---|---|
-| `opening_radius_px` | `auto` через `build_substrate_map(..., manual_radius_px=None)` | Радиус структурного элемента для morphological opening при оценке подложки | На подложке остаются широкие “холмы” от крупных частиц | Фон начинает чрезмерно сглаживаться и “съедает” локальную структуру |
-| `log_threshold` | `None`, тогда `detect_particles()` использует адаптивный порог | Минимальная сила LoG-отклика, с которой blob считается частицей | Много ложных срабатываний на шуме или шероховатости подложки | Теряются слабоконтрастные или низкие частицы |
-| `overlap` | `0.3` | Допустимое перекрытие между двумя LoG-блобами до их слияния | В плотных кластерах одна частица разбивается на несколько почти совпадающих детекций | Близкие частицы ошибочно сливаются в один объект |
-| `inner_erode_px` | `3` | Отступ от края маски перед построением baseline-кольца | Склон частицы всё ещё попадает в baseline | Кольцо становится слишком узким и не хватает опорных пикселей |
-| `outer_px` | `5` | Ширина внешнего кольца, из которого берётся локальный baseline | Нужно больше пикселей подложки для устойчивой медианы | В кольцо попадают соседи или неоднородный фон |
-| `min_height_nm` | не задан в API | Нижний фильтр по высоте для постобработки результатов | Нужно убрать шумовые объекты после измерения | Важно сохранить самые низкие частицы |
+| `opening_radius_px` | auto | Structural element radius for morphological opening | Substrate retains wide humps from large particles | Background over-smoothed, eating fine structure |
+| `log_threshold` | None (adaptive) | Minimum LoG response to count as a particle | Many false positives on noise | Missing faint / low particles |
+| `overlap` | `0.3` | Allowed overlap between two LoG blobs before merging | Dense clusters split into duplicates | Close particles wrongly merged |
+| `inner_erode_px` | `3` | Inward margin from mask edge before building baseline ring | Particle slope leaks into baseline | Ring too narrow, too few baseline pixels |
+| `outer_px` | `5` | Ring width for local baseline | More substrate pixels needed for stable median | Neighbours or uneven background enter the ring |
 
-`min_height_nm` упомянут здесь как практический пользовательский порог, но в текущих функциях проекта он явно не реализован: сейчас код отбрасывает только объекты с `height_nm <= 0`.
+---
 
-## Формат результата
+## Output Format
 
-`measure_all_baseline()` возвращает `DataFrame` со следующими колонками:
+`measure_all_baseline()` returns a DataFrame with the following columns:
 
-| Колонка | Тип | Смысл |
+| Column | Type | Meaning |
 |---|---|---|
-| `particle_id` | `int` | Порядковый идентификатор частицы в массиве `blobs` |
-| `x_px`, `y_px` | `int` | Координаты центра частицы в пикселях |
-| `sigma_px` | `float` | Параметр `sigma`, найденный LoG |
-| `radius_nm` | `float` | Радиус частицы в нанометрах, вычисленный из `sigma_px` |
-| `method` | `str` | Метод измерения, сейчас всегда `baseline_circle` |
-| `height_nm` | `float` | Максимальная высота частицы относительно baseline |
-| `mean_nm` | `float` | Средняя высота внутри маски относительно baseline |
-| `baseline_nm` | `float` | Значение локального или глобального baseline |
-| `area_px` | `int` | Площадь круговой маски частицы в пикселях |
-| `ring_px` | `int` | Число пикселей в очищенном baseline-кольце |
-| `baseline_source` | `str` | Источник baseline: `ring` или `global` |
+| `particle_id` | `int` | Index in the `blobs` array |
+| `x_px`, `y_px` | `int` | Particle centre in pixels |
+| `sigma_px` | `float` | LoG sigma (pixels) |
+| `radius_nm` | `float` | Particle radius in nm (`sigma × √2 × pixel_size_nm`) |
+| `method` | `str` | Always `baseline_circle` |
+| `height_nm` | `float` | Max height above local baseline |
+| `mean_nm` | `float` | Mean height inside mask above baseline |
+| `baseline_nm` | `float` | Local ring or global baseline value |
+| `area_px` | `int` | Circular mask area in pixels |
+| `ring_px` | `int` | Number of clean ring pixels used for baseline |
+| `baseline_source` | `str` | `ring` or `global` |
 
-Пример реалистичного вывода:
+---
 
-| particle_id | x_px | y_px | sigma_px | radius_nm | method | height_nm | mean_nm | baseline_nm | area_px | ring_px | baseline_source |
-|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---|
-| 0 | 100 | 78 | 5.58 | 30.81 | baseline_circle | 23.05 | 13.80 | -1.84 | 193 | 315 | ring |
-| 1 | 170 | 191 | 4.48 | 24.76 | baseline_circle | 20.05 | 14.79 | 0.09 | 129 | 214 | ring |
-| 2 | 108 | 51 | 4.48 | 24.76 | baseline_circle | 15.92 | 12.55 | -1.64 | 129 | 280 | ring |
-| 3 | 177 | 36 | 3.39 | 18.71 | baseline_circle | 15.70 | 13.09 | 0.06 | 69 | 230 | ring |
+## Example Output
 
-## Примеры рисунков
+| particle_id | x_px | y_px | sigma_px | radius_nm | height_nm | mean_nm | baseline_nm | ring_px | baseline_source |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 0 | 100 | 78 | 5.58 | 30.8 | 23.05 | 13.80 | −1.84 | 315 | ring |
+| 1 | 170 | 191 | 4.48 | 24.8 | 20.05 | 14.79 | 0.09 | 214 | ring |
 
-Ниже показаны примеры, сгенерированные на синтетической AFM-карте отдельным standalone-скриптом без изменения ноутбука.
+---
 
-![Исходная и выровненная AFM-карта](docs/images/afm_raw_vs_flat.png)
+## Pipeline Figures
 
-![Карта подложки и карта частиц над подложкой](docs/images/substrate_and_z_above.png)
+![Raw vs flattened AFM](images/log.png)
+![Substrate and z_above](images/yolo_sam2_comparison.png)
+![LoG detection overlay](images/example_measurement.png)
+![Height histogram](images/height_distribution.png)
+![Resulting histograms](images/results.png)
 
-![LoG-детекция с окружностями](docs/images/log_detection_overlay.png)
+---
 
-![Гистограмма высот частиц](docs/images/height_histogram.png)
+## Known Limitations
 
-## Ограничения и известные особенности
-
-- В `src/afm_io.py` функция `make_synthetic_afm()` пока объявлена, но не реализована (`pass`).
-- `load_afm()` в docstring обещает поддержку `.spm`, `.ibw`, `.gwy` и `.npy`, но фактически реализованы только ветки `fmt="spm"` и `fmt="npy"`.
-- Для `fmt="spm"` текущая реализация `load_afm()` возвращает результат `_read_nanoscope_z()`, то есть кортеж `(scan_size_nm, pixel_size_nm, z)`, а не только `2d numpy array`, как написано в docstring.
-- В `get_substrate_map()` явно указано, что `radius_px` должен быть больше радиуса самой крупной частицы в пикселях; иначе подложка будет оценена неправильно.
-- `estimate_radius_otsu()` выбрасывает `ValueError`, если бинаризация Otsu не нашла ни одного объекта.
-- `estimate_rough_radius()` при пустой детекции печатает предупреждение и возвращает запасной радиус, равный 1% ширины изображения или `min_size_pixel`.
-- `detect_particles()` нормирует изображение как `z_above / z_above.max()`, поэтому для пустых или вырожденных карт без положительного сигнала нужна дополнительная осторожность.
-- При отсутствии локального кольца `measure_height()` переключается на глобальный baseline по всей подложке, что повышает устойчивость, но может скрывать локальные вариации фона.
-
-## Ноутбук
-
-Ноутбук [afm_gold_nanoparticles.ipynb](/home/matsu/AFM-analysis/afm_gold_nanoparticles.ipynb) показывает полный сценарий анализа: загрузка `.001/.spm`, предобработка, Otsu-оценка размеров, LoG-детекция, baseline-измерение высот и итоговые гистограммы. Для рисунков в этом README код из ноутбука не менялся: визуализации были воспроизведены отдельно на синтетических данных, потому что исходный notebook ожидает реальный AFM-файл из `data/`.
+- `make_synthetic_afm()` is declared but not implemented (`pass`). Synthetic data for testing must be created manually.
+- `load_afm(fmt="spm")` returns a 3-tuple `(scan_size_nm, pixel_size_nm, z)`, not a bare 2-D array as the docstring states.
+- `load_afm` docstring advertises `.ibw` and `.gwy` support; only `spm` and `npy` are implemented.
+- `detect_particles` normalises by `z_above.max()` — will divide by zero on an all-zero or negative-only map.
+- `estimate_radius_otsu` raises `ValueError` if Otsu finds no objects.
+- `estimate_rough_radius` falls back to 1% of image width and prints a warning to stdout.
+- When the local baseline ring has fewer than `min_ring_px` pixels, `measure_height` falls back to a global baseline, which may mask local background variation.
+- The SAM 2 path is experimental and has no CLI or notebook-agnostic entry point yet.

@@ -3,22 +3,35 @@ name = "afm-analysis"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "ipykernel>=7.2.0",
     "ipympl>=0.10.0",
     "matplotlib>=3.10.8",
-    "numpy>=2.4.2",
-    "pandas>=3.0.1",
+    "numpy>=2.2.0,<3.0",
+    "opencv-python>=4.10.0",
+    "pandas>=2.2.0",
+    "patched-yolo-infer>=1.3.10",
     "pyspm>=0.6.3",
     "requests>=2.32.5",
     "sam-2",
     "sam2>=1.1.0",
-    "scikit-image>=0.26.0",
-    "torch>=2.10.0",
-    "torchvision>=0.25.0",
+    "scikit-image>=0.24.0",
+    "torch",
+    "torchvision",
     "tqdm>=4.67.3",
+    "ultralytics>=8.4.41",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu118" }
+torchvision = { index = "pytorch-cu118" }
+sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
 
 [tool.ruff]
 target-version = "py311"
@@ -76,6 +89,3 @@ classmethod-decorators = ["classmethod", "pydantic.validator"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["T20", "S101"]
-
-[tool.uv.sources]
-sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
