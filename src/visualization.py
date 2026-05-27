@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from src.types import PipelineResult, Detection
+
 
 def plot_afm(
     ax: plt.Axes,
@@ -282,3 +284,108 @@ def plot_detections_histogram(
             fontsize=12
         )
     return axes
+
+
+def plot_pipeline_result(
+    result: PipelineResult,
+    z_result: np.ndarray,
+    scan_size_nm: float,
+) -> plt.Figure:
+    """
+    Visualise a PipelineResult in a single figure.
+
+    Layout depends on mode:
+
+    mode="detect"  → two panels:
+        [0] z_result with detection circles
+        [1] radius distribution histogram
+
+    mode="segment" → three panels:
+        [0] z_result with SAM2 mask overlay + detection centres
+        [1] radius distribution histogram
+        [2] height distribution histogram
+
+    Args:
+        result:       PipelineResult from run_pipeline()
+        z_result:     z_flat - substrate array (same one passed to run_pipeline)
+        scan_size_nm: full scan size in nm (from PreprocessingResult.scan_size_nm)
+
+    Returns:
+        matplotlib Figure
+    """
+    from src.segmentation import overlay_masks, afm_to_rgb
+
+    is_segment = result.mode == "segment" and len(result.masks) > 0
+    n_cols     = 3 if is_segment else 2
+    fig, axes  = plt.subplots(1, n_cols, figsize=(6 * n_cols, 5))
+
+    pixel_size_nm = result.pixel_size_nm
+
+    # ── Panel 0: image + detections or masks ─────────────────────────────────
+    ax = axes[0]
+
+    if is_segment:
+        rgb     = afm_to_rgb(z_result)
+        overlay = overlay_masks(rgb, result.masks, alpha=0.45)
+        ax.imshow(overlay, origin="lower")
+        ax.set_title(f"SAM2 masks — {len(result.masks)} particles")
+    else:
+        ax.imshow(z_result, cmap="afmhot", origin="lower")
+        ax.set_title(f"Detections — {len(result.detections)} particles")
+
+    for det in result.detections:
+        circle = plt.Circle(
+            (det.x_px, det.y_px), det.radius_px,
+            color="cyan", fill=False, linewidth=1.0, alpha=0.7,
+        )
+        ax.add_patch(circle)
+        ax.plot(det.x_px, det.y_px, "+", color="cyan", markersize=4, markeredgewidth=0.8)
+
+    h, w     = z_result.shape
+    ticks_px = np.linspace(0, w - 1, 5)
+    ticks_py = np.linspace(0, h - 1, 5)
+    ax.set_xticks(ticks_px)
+    ax.set_yticks(ticks_py)
+    ax.set_xticklabels([f"{v * pixel_size_nm:.0f}" for v in ticks_px])
+    ax.set_yticklabels([f"{v * pixel_size_nm:.0f}" for v in ticks_py])
+    ax.set_xlabel("X, nm")
+    ax.set_ylabel("Y, nm")
+
+    # ── Panel 1: radius histogram ─────────────────────────────────────────────
+    ax       = axes[1]
+    radii_nm = np.array([d.radius_nm for d in result.detections])
+    if len(radii_nm) > 0:
+        ax.hist(radii_nm, bins=30, color="steelblue", edgecolor="white", alpha=0.85)
+        ax.axvline(np.median(radii_nm), color="gold", linestyle="--", linewidth=1.5,
+                   label=f"Median: {np.median(radii_nm):.1f} nm")
+        ax.axvline(np.mean(radii_nm), color="tomato", linestyle="--", linewidth=1.5,
+                   label=f"Mean: {np.mean(radii_nm):.1f} nm")
+        ax.legend(fontsize=9)
+    ax.set_xlabel("Radius, nm")
+    ax.set_ylabel("Count")
+    ax.set_title(f"Radius distribution  (n={len(radii_nm)})")
+    ax.grid(alpha=0.3)
+
+    # ── Panel 2: height histogram (segment mode only) ─────────────────────────
+    if is_segment:
+        ax        = axes[2]
+        height_nm = result.measurements["height_nm"].dropna()
+        if len(height_nm) > 0:
+            ax.hist(height_nm, bins=30, color="darkorange", edgecolor="white", alpha=0.85)
+            ax.axvline(height_nm.median(), color="gold", linestyle="--", linewidth=1.5,
+                       label=f"Median: {height_nm.median():.1f} nm")
+            ax.axvline(height_nm.mean(), color="tomato", linestyle="--", linewidth=1.5,
+                       label=f"Mean: {height_nm.mean():.1f} nm")
+            ax.legend(fontsize=9)
+        ax.set_xlabel("Height, nm")
+        ax.set_ylabel("Count")
+        ax.set_title(f"Height distribution  (n={len(height_nm)})")
+        ax.grid(alpha=0.3)
+
+    plt.suptitle(
+        f"{result.detector_name.upper()} + {result.mode}  |  "
+        f"scan {scan_size_nm:.0f} nm  |  {pixel_size_nm:.2f} nm/px",
+        fontsize=12,
+    )
+    plt.tight_layout()
+    return fig

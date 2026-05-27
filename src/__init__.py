@@ -1,11 +1,4 @@
-"""
-АСМ анализ: утилиты для загрузки данных, препроцессинга, детекции и измерений.
-"""
+"""AFM nanoparticle analysis — public API."""
 
-__all__ = [
-    "afm_io",
-    "preprocess",
-    "detection",
-    "measure",
-    "sam2_pipeline",
-]
+from .pipeline import run_pipeline, PipelineConfig, PipelineResult
+from .detection import Detection, LogDetector, YoloDetector
