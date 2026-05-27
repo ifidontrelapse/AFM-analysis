@@ -14,6 +14,8 @@ import numpy as np
 import os
 import re
 
+from src.types import AFMRawData, MicroscopyData
+
 
 def _read_nanoscope_z(file_path: str) -> np.ndarray:
     HEADER_READ_BYTES = 65536
@@ -97,31 +99,42 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
 
     return scan_size_nm, pixel_size_nm, z
 
-def load_afm(file_path: str, fmt: str) -> np.ndarray:
+def load_afm(
+    file_path: str,
+    fmt: str,
+    pixel_size_nm: float | None = None,
+    scan_size_nm: float | None = None,
+) -> "AFMRawData":
     """
-    Загрузка AFM данных из различных форматов
-    и генерация топологических карт.
+    Load a raw AFM file.
 
-    Supported formats:
-    - "spm": Bruker .spm / .000
-    - "npy": raw NumPy array
+    For "spm": pixel_size_nm and scan_size_nm are extracted from the file header.
+    For "npy": no metadata is stored in the file — pass them explicitly,
+               or they default to 1.0 / array_size if unknown.
 
     Args:
-        file_path: путь к файлу AFM
-        fmt: формат ("spm", "npy")
+        file_path:     path to the file
+        fmt:           "spm" or "npy"
+        pixel_size_nm: nm/pixel — required for "npy", ignored for "spm"
+        scan_size_nm:  full scan size in nm — required for "npy", ignored for "spm"
 
     Returns:
-        2d numpy array — топология образца в нанометрах.
+        AFMRawData with z_raw (float32, nm), pixel_size_nm, scan_size_nm
     """
+    if fmt == "spm":
+        scan_size, px_size, z = _read_nanoscope_z(file_path)
+        return AFMRawData(z_raw=z, pixel_size_nm=px_size, scan_size_nm=scan_size)
 
-    if fmt == "npy":
+    elif fmt == "npy":
         z = np.load(file_path).astype(np.float32)
-    elif fmt == "spm":
-        z = _read_nanoscope_z(file_path)
+        return AFMRawData(
+            z_raw=z,
+            pixel_size_nm=pixel_size_nm or 1.0,
+            scan_size_nm=scan_size_nm or float(z.shape[0]),
+        )
+
     else:
         raise ValueError(f"Unsupported format: {fmt}")
-
-    return z
 
 
 def make_synthetic_afm(size: int = 256, n_particles: int = 40, seed: int = 42) -> np.ndarray:
@@ -149,7 +162,6 @@ def load_microscopy_image(
         MicroscopyData
     """
     import cv2
-    from src.types import MicroscopyData
 
     image = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)
     if image is None:

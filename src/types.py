@@ -13,6 +13,16 @@ import numpy as np
 import pandas as pd
 
 
+# ── I/O ───────────────────────────────────────────────────────────────────────
+
+@dataclass
+class AFMRawData:
+    """Raw output of load_afm — before any preprocessing."""
+    z_raw:         np.ndarray
+    pixel_size_nm: float
+    scan_size_nm:  float
+
+
 # ── Preprocessing ─────────────────────────────────────────────────────────────
 
 @dataclass

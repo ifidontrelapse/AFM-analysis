@@ -46,28 +46,23 @@ def run_preprocessing(
     Returns:
         PreprocessingResult with all arrays and metadata
     """
-    # 1. Load
-    scan_size_nm, pixel_size_nm, z_raw = load_afm(str(file_path), fmt=fmt)
+    raw = load_afm(str(file_path), fmt=fmt)
 
-    # 2. Flatten plane
-    z_plane = flatten_plane(z_raw)
+    z_plane = flatten_plane(raw.z_raw)
+    z_flat  = flatten_lines(z_plane)
 
-    # 3. Flatten lines
-    z_flat = flatten_lines(z_plane)
-
-    # 4. Build substrate map + estimate sizes
     substrate, z_result, opening_radius, sizes = build_substrate_map(
         z_flat,
-        pixel_size_nm,
+        raw.pixel_size_nm,
     )
 
     return PreprocessingResult(
-        z_raw=z_raw,
+        z_raw=raw.z_raw,
         z_flat=z_flat,
         z_result=z_result,
         substrate=substrate,
-        pixel_size_nm=pixel_size_nm,
-        scan_size_nm=scan_size_nm,
+        pixel_size_nm=raw.pixel_size_nm,
+        scan_size_nm=raw.scan_size_nm,
         sizes=sizes,
         opening_radius=opening_radius,
     )
