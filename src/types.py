@@ -27,6 +27,19 @@ class PreprocessingResult:
     opening_radius: int          # morphological opening radius used
 
 
+# ── SEM / TEM ─────────────────────────────────────────────────────────────────
+
+@dataclass
+class MicroscopyData:
+    """
+    Image data for SEM or TEM — no preprocessing, no height map.
+    Geometry (area, radius, circularity) is derived from segmentation masks.
+    """
+    image:        np.ndarray
+    nm_per_pixel: float | None             # None if physical scale is unknown
+    modality:     Literal["sem", "tem"]
+
+
 # ── Detection ─────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -71,6 +84,7 @@ class PipelineResult:
     detections:    list[Detection]
     masks:         list[dict]     # empty if mode="detect"
     measurements:  pd.DataFrame   # empty if mode="detect"
-    pixel_size_nm: float
+    pixel_size_nm: float | None   # None if nm_per_pixel was unknown
     detector_name: str
     mode:          str
+    modality:      str            # "afm" | "sem" | "tem"

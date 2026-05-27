@@ -179,3 +179,59 @@ def measure_all_baseline(z_flat: np.ndarray,
     df = pd.DataFrame(results)
 
     return df
+
+
+def measure_geometry_from_mask(
+    mask: np.ndarray,
+    nm_per_pixel: float | None,
+) -> dict:
+    """
+    Compute geometric properties of a particle from its binary mask.
+    Used for SEM/TEM where no height map is available.
+
+    Args:
+        mask:          boolean mask of a single particle
+        nm_per_pixel:  physical scale; if None, nm values are returned as None
+
+    Returns:
+        dict with keys:
+            area_px, area_nm2,
+            radius_px, radius_nm,
+            circularity,       (4π·area / perimeter², 1.0 = perfect circle)
+            aspect_ratio       (major_axis / minor_axis)
+    """
+    from skimage.measure import label, regionprops
+
+    props = regionprops(label(mask))
+    if not props:
+        return {
+            'area_px': 0, 'area_nm2': None,
+            'radius_px': 0.0, 'radius_nm': None,
+            'circularity': None, 'aspect_ratio': None,
+        }
+
+    p           = props[0]
+    area_px     = int(p.area)
+    perimeter   = float(p.perimeter) if p.perimeter > 0 else 1.0
+    radius_px   = float(p.equivalent_diameter_area / 2)
+    circularity = float(4 * np.pi * area_px / perimeter ** 2)
+    aspect_ratio = float(
+        p.major_axis_length / p.minor_axis_length
+        if p.minor_axis_length > 0 else 1.0
+    )
+
+    if nm_per_pixel is not None:
+        area_nm2  = area_px   * nm_per_pixel ** 2
+        radius_nm = radius_px * nm_per_pixel
+    else:
+        area_nm2  = None
+        radius_nm = None
+
+    return {
+        'area_px':      area_px,
+        'area_nm2':     area_nm2,
+        'radius_px':    radius_px,
+        'radius_nm':    radius_nm,
+        'circularity':  circularity,
+        'aspect_ratio': aspect_ratio,
+    }

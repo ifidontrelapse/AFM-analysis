@@ -38,57 +38,81 @@ def overlay_masks(rgb_img: np.ndarray, sam_results: list[dict], alpha: float = 0
 
 def _run_sam2_single(
     predictor,
-    z_flat: np.ndarray,
-    substrate_mask: np.ndarray,
+    z_flat: np.ndarray | None,
+    substrate_mask: np.ndarray | None,
+    nm_per_pixel: float | None,
     point_coords: np.ndarray,
     box: np.ndarray,
     outer_ring_px: int,
     inner_erode_px: int,
 ) -> dict | None:
     """
-    Run SAM2 on a single particle and measure its height.
-    Returns None if ring is too small (particle is skipped).
+    Run SAM2 on a single particle.
+
+    AFM  (z_flat is not None): ring-baseline height measurement.
+    SEM/TEM (z_flat is None):  geometry from mask.
+
+    Returns None if the particle should be skipped.
     """
+    from src.measure import measure_geometry_from_mask
+
     masks_pred, scores, _ = predictor.predict(
         point_coords=point_coords,
         point_labels=np.array([1]),
         box=box,
         multimask_output=True,
     )
-    mask = masks_pred[np.argmax(scores)].astype(bool)
+    mask  = masks_pred[np.argmax(scores)].astype(bool)
+    cx    = float(point_coords[0, 0])
+    cy    = float(point_coords[0, 1])
+    score = float(np.max(scores))
 
-    mask_inner = binary_erosion(mask, iterations=inner_erode_px)
-    if mask_inner.sum() < 3:
-        mask_inner = mask
+    if z_flat is not None:
+        # ── AFM: ring-baseline height ─────────────────────────────────────────
+        mask_inner = binary_erosion(mask, iterations=inner_erode_px)
+        if mask_inner.sum() < 3:
+            mask_inner = mask
 
-    ring = binary_dilation(mask, iterations=outer_ring_px) & (~mask) & substrate_mask
-    if ring.sum() < 5:
-        return None
+        ring = (
+            binary_dilation(mask, iterations=outer_ring_px)
+            & (~mask)
+            & substrate_mask
+        )
+        if ring.sum() < 5:
+            return None
 
-    baseline = float(np.median(z_flat[ring]))
-    peak     = float(z_flat[mask_inner].max())
-    cx, cy   = float(point_coords[0, 0]), float(point_coords[0, 1])
+        baseline = float(np.median(z_flat[ring]))
+        peak     = float(z_flat[mask_inner].max())
 
-    return {
-        'x_px':         cx,
-        'y_px':         cy,
-        'mask':         mask,
-        'mask_inner':   mask_inner,
-        'ring':         ring,
-        'score':        float(np.max(scores)),
-        'height_nm':    peak - baseline,
-        'baseline_nm':  baseline,
-        'peak_nm':      peak,
-        'mask_area_px': int(mask.sum()),
-    }
+        return {
+            'x_px': cx, 'y_px': cy,
+            'mask': mask, 'mask_inner': mask_inner, 'ring': ring,
+            'score': score,
+            'height_nm':    peak - baseline,
+            'baseline_nm':  baseline,
+            'peak_nm':      peak,
+            'mask_area_px': int(mask.sum()),
+        }
+
+    else:
+        # ── SEM/TEM: geometry from mask ───────────────────────────────────────
+        geom = measure_geometry_from_mask(mask, nm_per_pixel)
+        if geom['area_px'] == 0:
+            return None
+
+        return {
+            'x_px': cx, 'y_px': cy,
+            'mask': mask, 'score': score,
+            **geom,
+        }
 
 
 def run_sam2_from_blobs(
     predictor,
-    z_flat: np.ndarray,
-    z_result: np.ndarray,
+    z_flat: np.ndarray | None,
+    image: np.ndarray,
     blobs: np.ndarray,
-    pixel_size_nm: float = 1.0,
+    nm_per_pixel: float | None = None,
     outer_ring_px: int = 5,
     inner_erode_px: int = 2,
 ) -> tuple[pd.DataFrame, list[dict]]:
@@ -97,18 +121,21 @@ def run_sam2_from_blobs(
 
     Args:
         predictor:      initialised SAM2ImagePredictor
-        z_flat:         flattened Z-map (nm)
-        z_result:       z_flat - substrate
+        z_flat:         flattened Z-map (nm) — None for SEM/TEM
+        image:          z_result for AFM; raw image array for SEM/TEM
         blobs:          (N, 4) array [cy, cx, sigma, r_nm] from detect_particles
-        pixel_size_nm:  nm/pixel
-        outer_ring_px:  ring width for baseline estimation
-        inner_erode_px: mask erosion before peak extraction
+        nm_per_pixel:   nm/pixel (None if unknown)
+        outer_ring_px:  ring width for AFM baseline estimation
+        inner_erode_px: mask erosion before AFM peak extraction
     Returns:
-        (DataFrame with height measurements, list of mask dicts)
+        (DataFrame with measurements, list of mask dicts)
     """
-    z_rgb = afm_to_rgb(z_result)
+    z_rgb = afm_to_rgb(image)
     predictor.set_image(z_rgb)
-    substrate_mask = (z_result < threshold_otsu(z_result)).astype(bool)
+    substrate_mask = (
+        (image < threshold_otsu(image)).astype(bool)
+        if z_flat is not None else None
+    )
 
     records, masks = [], []
 
@@ -117,7 +144,7 @@ def run_sam2_from_blobs(
         pad = max(3, r * 0.15)
 
         res = _run_sam2_single(
-            predictor, z_flat, substrate_mask,
+            predictor, z_flat, substrate_mask, nm_per_pixel,
             point_coords=np.array([[cx, cy]]),
             box=np.array([cx - r - pad, cy - r - pad,
                           cx + r + pad, cy + r + pad]),
@@ -127,27 +154,31 @@ def run_sam2_from_blobs(
         if res is None:
             continue
 
-        records.append({
-            'x_px':          res['x_px'],
-            'y_px':          res['y_px'],
-            'height_nm':     res['height_nm'],
-            'baseline_nm':   res['baseline_nm'],
-            'peak_nm':       res['peak_nm'],
-            'mask_area_px':  res['mask_area_px'],
-            'score':         res['score'],
-            'log_radius_nm': r * pixel_size_nm,
-        })
-        masks.append({k: res[k] for k in
-            ('x_px', 'y_px', 'mask', 'mask_inner', 'ring', 'score')})
+        record = {'x_px': res['x_px'], 'y_px': res['y_px'], 'score': res['score']}
+        for k in ('height_nm', 'baseline_nm', 'peak_nm', 'mask_area_px',
+                  'area_nm2', 'radius_nm', 'circularity', 'aspect_ratio', 'area_px'):
+            if k in res:
+                record[k] = res[k]
+        if z_flat is not None:
+            record['log_radius_nm'] = r * nm_per_pixel if nm_per_pixel else None
+        records.append(record)
+
+        mask_entry = {'x_px': res['x_px'], 'y_px': res['y_px'],
+                      'mask': res['mask'], 'score': res['score']}
+        if 'mask_inner' in res:
+            mask_entry['mask_inner'] = res['mask_inner']
+            mask_entry['ring']       = res['ring']
+        masks.append(mask_entry)
 
     return pd.DataFrame(records), masks
 
 
 def run_sam2_from_boxes(
     predictor,
-    z_flat: np.ndarray,
-    z_result: np.ndarray,
+    z_flat: np.ndarray | None,
+    image: np.ndarray,
     boxes_xyxy: np.ndarray,
+    nm_per_pixel: float | None = None,
     outer_ring_px: int = 5,
     inner_erode_px: int = 2,
 ) -> tuple[pd.DataFrame, list[dict]]:
@@ -156,17 +187,21 @@ def run_sam2_from_boxes(
 
     Args:
         predictor:      initialised SAM2ImagePredictor
-        z_flat:         flattened Z-map (nm)
-        z_result:       z_flat - substrate
-        boxes_xyxy:     (N, 4) float — boxes in z_result coordinate space
-        outer_ring_px:  ring width for baseline estimation
-        inner_erode_px: mask erosion before peak extraction
+        z_flat:         flattened Z-map (nm) — None for SEM/TEM
+        image:          z_result for AFM; raw image array for SEM/TEM
+        boxes_xyxy:     (N, 4) float — boxes in image coordinate space
+        nm_per_pixel:   nm/pixel (None if unknown)
+        outer_ring_px:  ring width for AFM baseline estimation
+        inner_erode_px: mask erosion before AFM peak extraction
     Returns:
-        (DataFrame with height measurements, list of mask dicts)
+        (DataFrame with measurements, list of mask dicts)
     """
-    z_rgb = afm_to_rgb(z_result)
+    z_rgb = afm_to_rgb(image)
     predictor.set_image(z_rgb)
-    substrate_mask = (z_result < threshold_otsu(z_result)).astype(bool)
+    substrate_mask = (
+        (image < threshold_otsu(image)).astype(bool)
+        if z_flat is not None else None
+    )
 
     records, masks = [], []
 
@@ -175,7 +210,7 @@ def run_sam2_from_boxes(
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
 
         res = _run_sam2_single(
-            predictor, z_flat, substrate_mask,
+            predictor, z_flat, substrate_mask, nm_per_pixel,
             point_coords=np.array([[cx, cy]]),
             box=np.array([x1, y1, x2, y2]),
             outer_ring_px=outer_ring_px,
@@ -184,17 +219,19 @@ def run_sam2_from_boxes(
         if res is None:
             continue
 
-        records.append({
-            'x_px':         res['x_px'],
-            'y_px':         res['y_px'],
-            'height_nm':    res['height_nm'],
-            'baseline_nm':  res['baseline_nm'],
-            'peak_nm':      res['peak_nm'],
-            'mask_area_px': res['mask_area_px'],
-            'sam_score':    res['score'],
-        })
-        masks.append({k: res[k] for k in
-            ('x_px', 'y_px', 'mask', 'mask_inner', 'ring', 'score')}
-            | {'box': box})
+        record = {'x_px': res['x_px'], 'y_px': res['y_px'], 'sam_score': res['score']}
+        for k in ('height_nm', 'baseline_nm', 'peak_nm', 'mask_area_px',
+                  'area_nm2', 'radius_nm', 'circularity', 'aspect_ratio', 'area_px'):
+            if k in res:
+                record[k] = res[k]
+        records.append(record)
+
+        mask_entry = {'x_px': res['x_px'], 'y_px': res['y_px'],
+                      'mask': res['mask'], 'score': res['score'],
+                      'box': box}
+        if 'mask_inner' in res:
+            mask_entry['mask_inner'] = res['mask_inner']
+            mask_entry['ring']       = res['ring']
+        masks.append(mask_entry)
 
     return pd.DataFrame(records), masks

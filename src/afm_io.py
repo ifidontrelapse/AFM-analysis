@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 import os
 import re
@@ -128,3 +130,33 @@ def make_synthetic_afm(size: int = 256, n_particles: int = 40, seed: int = 42) -
     Планируется.
     """
     pass
+
+
+def load_microscopy_image(
+    file_path: str,
+    modality: Literal["sem", "tem"],
+    nm_per_pixel: float | None = None,
+) -> "MicroscopyData":
+    """
+    Load a SEM or TEM image from disk. No preprocessing applied.
+
+    Args:
+        file_path:    path to image file (JPEG, PNG, TIFF, etc.)
+        modality:     "sem" or "tem"
+        nm_per_pixel: physical scale; None if unknown
+
+    Returns:
+        MicroscopyData
+    """
+    import cv2
+    from src.types import MicroscopyData
+
+    image = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise FileNotFoundError(f"Could not read image: {file_path}")
+
+    return MicroscopyData(
+        image=image,
+        nm_per_pixel=nm_per_pixel,
+        modality=modality,
+    )
