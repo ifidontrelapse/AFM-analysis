@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from skimage.filters import threshold_otsu
+from scipy.ndimage import binary_dilation, binary_erosion
 
 
 def afm_to_rgb(z: np.ndarray, colormap: str = "afmhot", clip_percentile: float = 99.0) -> np.ndarray:
@@ -31,3 +34,151 @@ def overlay_masks(rgb_img: np.ndarray, sam_results: list[dict], alpha: float = 0
                 alpha * color[c] + (1 - alpha) * overlay[:, :, c][r["mask"]]
             )
     return overlay.clip(0, 255).astype(np.uint8)
+
+
+def run_sam2_from_blobs(
+    predictor,
+    z_flat: np.ndarray,
+    z_result: np.ndarray,
+    blobs: np.ndarray,
+    pixel_size_nm: float = 1.0,
+    outer_ring_px: int = 5,
+    inner_erode_px: int = 2,
+) -> tuple[pd.DataFrame, list[dict]]:
+    """
+    SAM2 segmentation using LoG blob centres as point + box prompts.
+
+    Args:
+        predictor:      initialised SAM2ImagePredictor
+        z_flat:         flattened Z-map (nm)
+        z_result:       z_flat - substrate
+        blobs:          (N, 4) array [cy, cx, sigma, r_nm] from detect_particles
+        pixel_size_nm:  nm/pixel
+        outer_ring_px:  ring width for baseline estimation
+        inner_erode_px: mask erosion before peak extraction
+    Returns:
+        (DataFrame with height measurements, list of mask dicts)
+    """
+    z_rgb = afm_to_rgb(z_result)
+    predictor.set_image(z_rgb)
+
+    substrate_mask = (z_result < threshold_otsu(z_result)).astype(bool)
+
+    records, masks = [], []
+
+    for cy, cx, sigma, r_nm in blobs:
+        r   = sigma * np.sqrt(2)
+        pad = max(3, r * 0.15)
+
+        masks_pred, scores, _ = predictor.predict(
+            point_coords=np.array([[cx, cy]]),
+            point_labels=np.array([1]),
+            box=np.array([cx - r - pad, cy - r - pad, cx + r + pad, cy + r + pad]),
+            multimask_output=True,
+        )
+        mask = masks_pred[np.argmax(scores)].astype(bool)
+
+        mask_inner = binary_erosion(mask, iterations=inner_erode_px)
+        if mask_inner.sum() < 3:
+            mask_inner = mask
+
+        ring = binary_dilation(mask, iterations=outer_ring_px) & (~mask) & substrate_mask
+        if ring.sum() < 5:
+            continue
+
+        baseline = float(np.median(z_flat[ring]))
+        peak     = float(z_flat[mask_inner].max())
+
+        records.append({
+            'x_px':          cx,
+            'y_px':          cy,
+            'height_nm':     peak - baseline,
+            'baseline_nm':   baseline,
+            'peak_nm':       peak,
+            'mask_area_px':  int(mask.sum()),
+            'log_radius_nm': r * pixel_size_nm,
+        })
+        masks.append({
+            'x_px':       cx,
+            'y_px':       cy,
+            'mask':       mask,
+            'mask_inner': mask_inner,
+            'ring':       ring,
+            'score':      float(np.max(scores)),
+        })
+
+    return pd.DataFrame(records), masks
+
+
+def run_sam2_from_boxes(
+    predictor,
+    z_flat: np.ndarray,
+    z_result: np.ndarray,
+    boxes_xyxy: np.ndarray,
+    outer_ring_px: int = 5,
+    inner_erode_px: int = 2,
+) -> tuple[pd.DataFrame, list[dict]]:
+    """
+    SAM2 segmentation using bounding box prompts (from YOLO or any other detector).
+
+    Args:
+        predictor:      initialised SAM2ImagePredictor
+        z_flat:         flattened Z-map (nm)
+        z_result:       z_flat - substrate
+        boxes_xyxy:     (N, 4) float — boxes in z_result coordinate space
+        outer_ring_px:  ring width for baseline estimation
+        inner_erode_px: mask erosion before peak extraction
+    Returns:
+        (DataFrame with height measurements, list of mask dicts)
+    """
+    z_rgb = afm_to_rgb(z_result)
+    predictor.set_image(z_rgb)
+
+    substrate_mask = (z_result < threshold_otsu(z_result)).astype(bool)
+
+    records, masks = [], []
+
+    for box in boxes_xyxy:
+        x1, y1, x2, y2 = box
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+
+        masks_pred, scores, _ = predictor.predict(
+            point_coords=np.array([[cx, cy]]),
+            point_labels=np.array([1]),
+            box=np.array([x1, y1, x2, y2]),
+            multimask_output=True,
+        )
+        mask = masks_pred[np.argmax(scores)].astype(bool)
+
+        mask_inner = binary_erosion(mask, iterations=inner_erode_px)
+        if mask_inner.sum() < 3:
+            mask_inner = mask
+
+        ring = binary_dilation(mask, iterations=outer_ring_px) & (~mask) & substrate_mask
+        if ring.sum() < 5:
+            continue
+
+        baseline = float(np.median(z_flat[ring]))
+        peak     = float(z_flat[mask_inner].max())
+
+        records.append({
+            'x_px':         cx,
+            'y_px':         cy,
+            'height_nm':    peak - baseline,
+            'baseline_nm':  baseline,
+            'peak_nm':      peak,
+            'mask_area_px': int(mask.sum()),
+            'sam_score':    float(np.max(scores)),
+        })
+        masks.append({
+            'x_px':       cx,
+            'y_px':       cy,
+            'box':        box,
+            'mask':       mask,
+            'mask_inner': mask_inner,
+            'ring':       ring,
+            'score':      float(np.max(scores)),
+        })
+
+    return pd.DataFrame(records), masks
