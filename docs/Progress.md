@@ -7,6 +7,63 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-03 — M1 · `M1-T03` Ruff configuration repair
+
+**Task:** M1-T03 (complete)
+**Branch:** `chore/ruff-config`
+**Scientific impact:** none — `capture.py` reports `characterization baseline stable (9 groups)`
+
+### Done
+
+- **Removed `fix = true` / `show-fixes`.** `ruff check .` was rewriting source files as a
+  side effect of being asked a question — 66 automatic edits to the scientific core, from
+  a command the documentation told people to run. Fixing is now explicit: `ruff check --fix`.
+- Moved `select` / `ignore` under `[tool.ruff.lint]`; the deprecation warning is gone
+  (stderr is now empty).
+- `target-version` `py311` → `py312`; the project requires `>=3.12`.
+- `known-first-party` `["your_package_name"]` → `["src"]` (unedited template value; it
+  becomes the real package in M2-T01).
+- `classmethod-decorators`: dropped `pydantic.validator` — pydantic is not a dependency.
+- `per-file-ignores`: dropped `S101`; the `S` (bandit) family is not selected, so the
+  entry was dead configuration. Backlog **B-056**.
+- Excluded `*.ipynb` from lint. Notebooks are experiments, not interfaces
+  (PROJECT_RULES §7); their 68 findings are import order and prints in exploratory cells.
+  Notebook hygiene is M1-T09.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| Config deprecation warning | gone — stderr empty |
+| `ruff check .` modifies the tree | **no** — `git diff --exit-code` clean after every run |
+| `src/` findings before vs after | **identical** — `--statistics` diff is empty |
+| Total findings | 196 → **128** (the 68 excluded are all notebooks) |
+| `ruff format --check .` | runs; 18 files would be reformatted (not fixed here — M2) |
+| Characterization | zero drift |
+
+### Correction to the M1-T02 baseline
+
+The `src/` figure recorded in M1-T02 was **109, not 108**. I produced the 108 by summing
+a `--statistics` listing that I had truncated with `head -20`, dropping the last row
+(`W291 trailing-whitespace`, 1). The commit message of `13857e5`, and `STATE.md` /
+`TASKS.md` before this entry, carry the wrong number.
+
+The distribution is otherwise unchanged, and the invariant this task was checked against
+still holds: the configuration repair changed **nothing** about what is reported — the
+before/after statistics diff is empty. Corrected everywhere in the living documents;
+the commit message of `13857e5` is history and stays as written.
+
+Burn-down target for M2 is therefore **109 findings in `src/`**, of which 44 are the
+ambiguous-unicode signature of the Russian text (D-22) and 13 are `print` (D-23).
+
+### Next
+
+`M1-T04` — mypy configuration. 30 errors today with default settings; the task is to
+choose strictness for new code and a baseline exclusion for `src/` until M2 lands, not to
+fix the errors.
+
+---
+
 ## 2026-08-03 — M1 · `M1-T02` Dev dependencies and quality baseline
 
 **Task:** M1-T02 (complete)
@@ -32,7 +89,8 @@ after the environment change
 
 Measured, nothing fixed. These are the numbers M2 has to drive to zero.
 
-**ruff — 196 findings total, 108 in `src/`** (66 auto-fixable)
+**ruff — 196 findings total, 109 in `src/`** (66 auto-fixable)
+*(corrected in the M1-T03 entry above; this session recorded 108 from a truncated listing)*
 
 | Rule | src/ | What it is |
 |---|---:|---|
@@ -45,7 +103,7 @@ Measured, nothing fixed. These are the numbers M2 has to drive to zero.
 | RUF046 | 2 | unnecessary `int()` cast — **adjacent to D-10**, the opening-radius rounding defect |
 | RUF013 | 2 | implicit `Optional` — the unknown-scale contract (**D-07**) |
 | A005 | 1 | `src/types.py` shadows the stdlib `types` module — a real M2-T02 constraint |
-| others | 7 | B007, C408, N806, PIE790, RUF022, SIM108, UP037 |
+| others | 8 | B007, C408, N806, PIE790, RUF022, SIM108, UP037 ×2 |
 
 The remaining 88 findings are in notebooks, `preprocess_batch.py` and
 `tests/characterization/capture.py`.
@@ -103,7 +161,7 @@ Recorded as backlog **B-055**.
 ### Not done, deliberately
 
 No finding was fixed. Repairing the ruff configuration is M1-T03, the mypy configuration
-is M1-T04, and the 108 `src/` findings are M2 work — under the protection of the golden
+is M1-T04, and the 109 `src/` findings are M2 work — under the protection of the golden
 file, not before it.
 
 ### Next

@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-03 · **Active:** `M1-T03`
+**Updated:** 2026-08-03 · **Active:** `M1-T04`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -30,8 +30,8 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | ID | Task | Detail | Status |
 |---|---|---|---|
 | M1-T01 | Untrack build artifacts and weights; rewrite `.gitignore` | Done 2026-08-03: 2 877 → **77** tracked files; 2 800 `node_modules` untracked; 26 MB `yolov8s-world.pt` removed from the index before it entered history; junk deleted; `plan.md` archived; `.claude/settings.json` shared. Zero golden drift. D-19 | [x] |
-| M1-T02 | Declare dev dependencies | Done 2026-08-03: pytest 9.1.1, pytest-cov 7.1.0, ruff 0.16.1, mypy 2.3.0. Baseline measured — 196 ruff findings (108 in `src/`), 30 mypy errors, 1 failing test. No runtime version moved; golden stable. D-20 | [x] |
-| M1-T03 | Repair the ruff configuration | Deprecated top-level `select`/`ignore` → `[tool.ruff.lint]`; `known-first-party` is still the template value; `target-version` says py311 while the project requires 3.12 | [ ] |
+| M1-T02 | Declare dev dependencies | Done 2026-08-03: pytest 9.1.1, pytest-cov 7.1.0, ruff 0.16.1, mypy 2.3.0. Baseline measured — 196 ruff findings (109 in `src/`), 30 mypy errors, 1 failing test. No runtime version moved; golden stable. D-20 | [x] |
+| M1-T03 | Repair the ruff configuration | Done 2026-08-03: removed `fix = true` (`ruff check` was rewriting sources), moved `select`/`ignore` to `[tool.ruff.lint]`, py311 → py312, fixed `known-first-party`, dropped dead `S101`, excluded notebooks. `src/` findings unchanged at 109 — repair only | [x] |
 | M1-T04 | Add mypy configuration | Strict for new code, baseline exclusions for `src/` until M2 | [ ] |
 | M1-T05 | Wire the characterization harness into pytest | `tests/characterization/test_golden.py` calling the existing runner; ~100 s, mark `slow` | [ ] |
 | M1-T06 | Replace `tests/test_io.py` | No assertions, catches the wrong exception, references a path absent from a clean checkout. Replace with a synthetic-SPM round-trip test. D-20 | [ ] |

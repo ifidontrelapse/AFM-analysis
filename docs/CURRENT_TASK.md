@@ -1,43 +1,33 @@
 # CURRENT TASK
 
-**ID:** `M1-T03`
-**Title:** Repair the ruff configuration
+**ID:** `M1-T04`
+**Title:** Add the mypy configuration
 **Milestone:** M1 — Repository hygiene & quality gates
 **Status:** selected — not started
-**Branch to use:** `chore/ruff-config`
+**Branch to use:** `chore/mypy-config`
 **Estimated size:** S
-**Risk to scientific output:** none, **if** `fix = true` is removed first — see the risk table
+**Risk to scientific output:** none — configuration only, no source edits
 **Selected:** 2026-08-03
 
 ---
 
 ## Why this task is next
 
-M1-T02 installed ruff and ran it for the first time in the project's history. The
-configuration is not merely stale — one setting makes the tool actively dangerous:
-
-```toml
-fix = true          # `ruff check .` REWRITES source files
-show-fixes = true
-```
-
-Asking ruff a question currently changes 66 files' worth of code as a side effect. Any
-contributor — or agent — who runs the documented `ruff check .` performs an unreviewed
-refactor of the scientific core. That must be off before anyone is told to run the gate.
-
-Three further defects, all confirmed by running the tool:
+mypy is installed (2.3.0) and has never been configured. Run with defaults it reports
+**30 errors in 9 files**, and one of them is a real defect the audit found by execution:
 
 ```
-warning: The top-level linter settings are deprecated in favour of their counterparts
-in the `lint` section:  'ignore' -> 'lint.ignore',  'select' -> 'lint.select'
+src/pipeline.py:110: error: Argument 4 to "run_sam2_from_blobs" has incompatible type
+"ndarray[...] | None"; expected "ndarray[...]"  [arg-type]
 ```
 
-- `target-version = "py311"` on a project that requires `>=3.12` — `UP` rules are
-  therefore not proposing 3.12-era idioms
-- `known-first-party = ["your_package_name"]` — an unedited template value, so `I001`
-  (11 findings in `src/`) is sorting imports against a package that does not exist
+That is the SEM/TEM path, where `z_flat` is `None` by construction (`pipeline.py:53`).
+A configured type checker turns that class of defect from "discovered by running it on
+real data" into "caught before commit" — which is the entire argument for M3 and M4 being
+survivable.
 
-Reference: `docs/audit/2026-07-28-baseline-audit.md` — defect **D-20**.
+The configuration question is not "how do we get to zero errors". It is **what posture
+lets M2 proceed without either lying about the state of `src/` or blocking on it.**
 
 ---
 
@@ -45,56 +35,54 @@ Reference: `docs/audit/2026-07-28-baseline-audit.md` — defect **D-20**.
 
 **In scope**
 
-1. **Remove `fix = true`** (and `show-fixes`, which is meaningless without it). Fixing
-   becomes explicit: `ruff check --fix`.
-2. Move `select` / `ignore` under `[tool.ruff.lint]`; the deprecation warning must disappear.
-3. `target-version = "py312"`.
-4. `known-first-party = ["src"]` for now — it becomes the real package name in M2-T01,
-   which is why this is a one-line change and not a decision.
-5. Review `per-file-ignores`: `"tests/*" = ["T20", "S101"]` references `S101`, but the
-   `S` (bandit) rules are not selected. Either select `S` or drop the dead entry.
-6. Decide the notebook policy: ruff currently lints `*.ipynb`, which contributes 88 of the
-   196 findings. Notebooks are experiments, not interfaces (PROJECT_RULES §7) — exclude
-   them from lint, and record that decision here.
-7. Re-measure and confirm the `src/` count is unchanged by configuration alone (it should
-   stay at 108 — a configuration repair must not silently change what is being measured).
+1. Add `[tool.mypy]` to `pyproject.toml`:
+   - `python_version = "3.12"`, `files`, `pretty`, `show_error_codes`
+   - **Strict for new code.** The `nanoscope` package created in M2-T01 is checked
+     strictly from its first line — that is far cheaper than retrofitting.
+   - **Baseline posture for `src/`.** It carries 30 errors and is scheduled for deletion
+     in M2-T15. Options, to be decided in this task and recorded here:
+     - a per-module `[[tool.mypy.overrides]]` block relaxing `src.*`, or
+     - keep `src/` checked but non-blocking in CI until M2 lands
+   - `ignore_missing_imports` for the untyped third-party stack (8 of the 30 errors are
+     `import-untyped`: ultralytics, sam2, patched_yolo_infer, cv2, …) — scoped per module,
+     never globally
+2. Confirm `mypy` runs clean **on an empty strict scope**, so the gate is green from the
+   moment M2 creates the package
+3. Record the resulting error count and the exact posture in `Progress.md`
+4. Classify the 30 errors into *real defects* vs *missing annotations*, and file the real
+   ones as M3 tasks or backlog items — a type error that describes a genuine bug must not
+   be silenced by configuration
 
 **Out of scope**
 
-- Fixing any finding. All 108 `src/` findings are M2 work, done under the protection of
-  the golden file.
-- mypy configuration (M1-T04).
-- Enabling new rule families — the current selection is fine; changing it would move the
-  baseline and make the M2 burn-down unmeasurable.
+- Fixing any type error or adding annotations to `src/` — that is M2 work
+- `mypy --strict` over `src/` today; it would produce a wall of noise about a package
+  scheduled for deletion
+- Wiring mypy into CI (M1-T08)
 
 ---
 
 ## Definition of done
 
-- [ ] `ruff check .` emits **no** deprecation warning
-- [ ] `ruff check .` leaves the working tree unmodified — verify with `git diff --exit-code`
-      immediately after running it
-- [ ] `ruff check src/ --no-fix --statistics` still reports **108** findings
-      (configuration repair, not a rule change)
-- [ ] `ruff format --check .` runs without error (it may report files needing formatting;
-      that is expected and is not fixed here)
-- [ ] Notebook lint policy applied and stated in `Progress.md`
+- [ ] `mypy` runs with an explicit configuration and no command-line flags
+- [ ] The strict scope is defined and passes (vacuously today — nothing in it yet)
+- [ ] `src/` posture chosen and justified in one paragraph in `Progress.md`
+- [ ] The 30 errors classified: N real defects (filed as tasks/backlog), M annotation gaps
+- [ ] `ignore_missing_imports` applied per module, never as a blanket setting
 - [ ] `python tests/characterization/capture.py` reports zero drift
 - [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
-- [ ] Commit: `M1-T03: repair the ruff configuration`
+- [ ] Commit: `M1-T04: add the mypy configuration`
 
 ---
 
 ## Plan
 
-1. Branch `chore/ruff-config`
-2. Edit the `[tool.ruff]` block: drop `fix`/`show-fixes`, move `select`/`ignore` to
-   `[tool.ruff.lint]`, bump `target-version`, fix `known-first-party`, resolve the
-   `S101` entry, add the notebook exclusion
-3. `ruff check .` → confirm no warning, then `git diff --exit-code` → confirm no rewrite
-4. `ruff check src/ --no-fix --statistics` → confirm 108
-5. `capture.py` → confirm zero drift
-6. Update docs, commit, advance `CURRENT_TASK.md` to `M1-T04`
+1. Branch `chore/mypy-config`
+2. Capture the current 30 errors with codes and file locations into the scratchpad
+3. Read each one; separate genuine contract violations from missing annotations
+4. Write `[tool.mypy]` plus per-module overrides
+5. Re-run; confirm the count is what the configuration says it should be
+6. File the real defects; update docs; commit; advance `CURRENT_TASK.md` to `M1-T05`
 
 ---
 
@@ -102,16 +90,16 @@ Reference: `docs/audit/2026-07-28-baseline-audit.md` — defect **D-20**.
 
 | Risk | Mitigation |
 |---|---|
-| **Running `ruff check .` before removing `fix = true` silently refactors `src/`** | Remove the setting in the *first* edit, before running the tool. If it is run by accident, `git checkout -- src/` restores the tree — the working tree is clean at the start of this task, so nothing else would be lost. |
-| Excluding notebooks hides a real problem | The notebook findings are import order and `print` in experiments. They are excluded from *lint*, not deleted; M1-T09 handles notebooks properly. |
-| Tightening rules while "repairing" configuration | Explicitly out of scope. The 108 count is the invariant that proves nothing was tightened. |
+| **Configuration silences a real bug.** `ignore_missing_imports` and module overrides make errors disappear; one of the 30 is a genuine `None` contract violation. | Classify all 30 *before* writing the config. Anything real becomes a task with an ID, not a suppressed line. |
+| Strictness chosen for `src/` blocks M2 | `src/` is deleted in M2-T15. The configuration must describe a package that is on its way out, not enforce a standard on it. |
+| `ignore_missing_imports = true` globally | Hides typos in first-party imports too. Scope it per third-party module. |
 
 ---
 
 ## Notes for the next session
 
-After T03 → T04 (mypy config) → T05 (golden into pytest) → T06 (real I/O test) →
-T07/T08 (pre-commit, CI). At that point `make check` is meaningful and M2 can begin.
+After T04 → T05 (golden into pytest) → T06 (real I/O test) → T07/T08 (pre-commit, CI).
+At that point `make check` is meaningful and M2 can begin.
 
 **Do not start M2 before M1-T05 is green.** The characterization harness is the only
 thing standing between a large refactor and silent scientific drift.

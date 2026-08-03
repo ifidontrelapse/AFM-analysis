@@ -45,11 +45,28 @@ torchvision = { index = "pytorch-cu118" }
 sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"        # the project requires >=3.12; UP rules follow this
 line-length = 100
 indent-width = 4
 
-# Что проверять
+# No `fix = true` here on purpose. `ruff check` must answer a question, not
+# rewrite the scientific core as a side effect of being asked. Fix explicitly:
+#     ruff check --fix
+
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+    # Notebooks are experiments, not interfaces (PROJECT_RULES §7). Linting them
+    # produces 68 findings about import order and prints in exploratory cells,
+    # which drowns the library signal. Notebook hygiene is M1-T09.
+    "*.ipynb",
+]
+
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
@@ -69,20 +86,8 @@ select = [
 ]
 
 ignore = [
-    "E501",   # line length (управляется formatter)
-    "B008",   # функции в аргументах (норм для numpy/scipy)
-]
-
-fix = true
-show-fixes = true
-
-exclude = [
-    ".git",
-    ".venv",
-    "venv",
-    "build",
-    "dist",
-    "__pycache__",
+    "E501",   # line length — owned by the formatter
+    "B008",   # function calls in argument defaults — normal for numpy/scipy
 ]
 
 [tool.ruff.format]
@@ -92,11 +97,14 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.ruff.lint.isort]
-known-first-party = ["your_package_name"]
+# Becomes the real package name in M2-T01 (ADR-0011).
+known-first-party = ["src"]
 combine-as-imports = true
 
 [tool.ruff.lint.pep8-naming]
-classmethod-decorators = ["classmethod", "pydantic.validator"]
+classmethod-decorators = ["classmethod"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["T20", "S101"]
+# Test scripts print by design. `S101` (assert) was listed here, but the `S`
+# rule family is not selected — dead configuration, removed. See backlog B-056.
+"tests/*" = ["T20"]

@@ -16,7 +16,7 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T03` — Repair the ruff configuration**
+**`M1-T04` — Add the mypy configuration**
 
 Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
@@ -35,8 +35,13 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 - **M1-T11** ✅ — absorbed into M1-T01.
 - **M1-T02** ✅ (2026-08-03) — pytest 9.1.1, pytest-cov 7.1.0, ruff 0.16.1, mypy 2.3.0
   declared and installed; no runtime version moved, golden still stable. Baseline
-  measured: **196 ruff findings** (108 in `src/`), **30 mypy errors**, **1 test, failing**.
+  measured: **196 ruff findings** (109 in `src/`), **30 mypy errors**, **1 test, failing**.
   Nothing fixed — that is M1-T03/T04 and M2.
+- **M1-T03** ✅ (2026-08-03) — ruff configuration repaired: `fix = true` removed (it made
+  `ruff check` rewrite sources), `select`/`ignore` moved under `[tool.ruff.lint]`,
+  py311 → py312, template `known-first-party` fixed, dead `S101` dropped, notebooks
+  excluded from lint. `src/` findings unchanged at 109 — a repair, not a rule change.
+  Total 196 → 128. Characterization: **zero drift**.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -62,7 +67,7 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T02 closed; M1-T03 selected and awaiting execution.
+Nothing. M1-T03 closed; M1-T04 selected and awaiting execution.
 
 ---
 
@@ -85,16 +90,13 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T03`** — repair the ruff configuration: deprecated top-level
-   `select`/`ignore`, `target-version = py311` on a 3.12 project, template
-   `known-first-party = ["your_package_name"]`, and `fix = true`, which makes
-   `ruff check .` rewrite source files
-2. `M1-T04` — mypy configuration with baseline exclusions for `src/` (30 errors today)
-3. `M1-T05` — wire the characterization golden into `pytest`, so the safety net runs
+1. **Execute `M1-T04`** — mypy configuration: strict for new code, a baseline posture for
+   `src/` (30 errors today) that does not block M2
+2. `M1-T05` — wire the characterization golden into `pytest`, so the safety net runs
    automatically instead of by discipline
-4. `M1-T06` — replace `tests/test_io.py`; the suite is currently red
-5. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
-6. Answer **B1** so that M2 can start on schedule
+3. `M1-T06` — replace `tests/test_io.py`; the suite is currently red
+4. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
+5. Answer **B1** so that M2 can start on schedule
 
 ---
 
@@ -107,7 +109,7 @@ None of these blocks M1-T01 or the rest of M1.
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
 | Meaningful tests | 0 (1 test, failing) | ≥ 80% of core | `pytest -q` |
-| ruff findings in `src/` | 108 | 0 | `ruff check src/ --no-fix` |
+| ruff findings in `src/` | 109 | 0 | `ruff check src/ --no-fix` |
 | mypy errors | 30 in 9 files | 0 | `mypy src` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open audit defects | 24 (5 critical) | 0 critical | audit §2 |
