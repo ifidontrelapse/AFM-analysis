@@ -5,6 +5,15 @@ Automated pipeline for loading AFM height maps, background removal, nanoparticle
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)
 
+> **This file is out of date** and is rewritten in milestone M9. It describes an older
+> module layout and an older `load_afm` return convention. For the current state of the
+> code read [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md); for where the project is going
+> read [`docs/`](docs/README.md) — starting with
+> [`docs/STATE.md`](docs/STATE.md) and [`docs/PROJECT_RULES.md`](docs/PROJECT_RULES.md).
+>
+> The project is being developed into a Qt6 Linux desktop application for nanoparticle
+> microscopy analysis. See [`docs/Roadmap.md`](docs/Roadmap.md).
+
 ---
 
 ## What It Does
