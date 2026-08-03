@@ -1,13 +1,44 @@
-data/
-checkpoints/
+# Rules: docs/ADR/ADR-0009-repository-hygiene.md
+# Git holds source and documentation. Nothing else.
 
-.venv
-.ruff_cache
-.pytest_cache
-__pycache__
-.ipynb_checkpoints
-*.pyc
-.python-version
-plan.md
+# ── Data — the operator's, never ours to commit ───────────────────────────────
+data/
 dataset/
-.claude
+output/
+
+# ── Model weights ─────────────────────────────────────────────────────────────
+checkpoints/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+.venv/
+venv/
+node_modules/
+
+# ── Python build & cache ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.python-version
+
+# ── Tool caches ───────────────────────────────────────────────────────────────
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# ── Archives and scratch ──────────────────────────────────────────────────────
+*.zip
+*.tar.gz
+
+# ── Personal, not shared ──────────────────────────────────────────────────────
+# .claude/settings.json IS tracked — agent configuration is shared (PROJECT_RULES §7).
+# Only per-machine permission overrides are ignored.
+.claude/settings.local.json

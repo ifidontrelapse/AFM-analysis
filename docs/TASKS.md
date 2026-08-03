@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-03 · **Active:** `M1-T01`
+**Updated:** 2026-08-03 · **Active:** `M1-T02`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -29,7 +29,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 | ID | Task | Detail | Status |
 |---|---|---|---|
-| M1-T01 | Untrack build artifacts and weights; rewrite `.gitignore` | 2 800 `node_modules` files + staged `yolov8s-world.pt`. Add `node_modules/`, `output/`, `*.pt`, `*.pth`, `*.onnx`, `*.zip`, `.venv/`. Stop ignoring `.claude/`. D-19 | [~] |
+| M1-T01 | Untrack build artifacts and weights; rewrite `.gitignore` | Done 2026-08-03: 2 877 → **77** tracked files; 2 800 `node_modules` untracked; 26 MB `yolov8s-world.pt` removed from the index before it entered history; junk deleted; `plan.md` archived; `.claude/settings.json` shared. Zero golden drift. D-19 | [x] |
 | M1-T02 | Declare dev dependencies | `pytest`, `pytest-cov`, `ruff`, `mypy` in a `[dependency-groups]` block; none is currently installed. D-20 | [ ] |
 | M1-T03 | Repair the ruff configuration | Deprecated top-level `select`/`ignore` → `[tool.ruff.lint]`; `known-first-party` is still the template value; `target-version` says py311 while the project requires 3.12 | [ ] |
 | M1-T04 | Add mypy configuration | Strict for new code, baseline exclusions for `src/` until M2 | [ ] |
@@ -39,7 +39,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M1-T08 | Add CI | GitHub Actions, Python 3.12, CPU-only, no weights, no network: lint → types → tests → golden | [ ] |
 | M1-T09 | Clean notebooks | Strip outputs from the committed 6.5 MB and 2.2 MB notebooks; move all to `notebooks/`; mark experimental | [ ] |
 | M1-T10 | Add a one-command gate | `Makefile` (or `justfile`) with `check`, `lint`, `types`, `test`, `golden` | [ ] |
-| M1-T11 | Decide the fate of `.zip`, `output/`, `__pycache__` at repo root | Stale artifacts; delete or ignore | [ ] |
+| M1-T11 | Decide the fate of `.zip`, `output/`, `__pycache__` at repo root | Absorbed into M1-T01: all deleted and ignored | [x] |
 
 ---
 
@@ -201,7 +201,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | Milestone | Tasks | Done | Blocked |
 |---|---:|---:|---:|
 | M0 | 8 | 8 | 0 |
-| M1 | 11 | 0 | 0 |
+| M1 | 11 | 2 | 0 |
 | M2 | 16 | 0 | 0 |
 | M3 | 16 | 0 | 3 |
 | M4 | 15 | 0 | 0 |
@@ -210,4 +210,4 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M7 | 10 | 0 | 0 |
 | M8 | 8 | 0 | 0 |
 | M9 | 6 | 0 | 0 |
-| **Total** | **110** | **8** | **3** |
+| **Total** | **110** | **10** | **3** |

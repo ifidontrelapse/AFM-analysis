@@ -1,47 +1,38 @@
 # CURRENT TASK
 
-**ID:** `M1-T01`
-**Title:** Untrack build artifacts and model weights; rewrite `.gitignore`
+**ID:** `M1-T02`
+**Title:** Declare dev dependencies — `pytest`, `pytest-cov`, `ruff`, `mypy`
 **Milestone:** M1 — Repository hygiene & quality gates
 **Status:** selected — not started
-**Branch to use:** `chore/repo-hygiene` (branched from `main`)
-**Estimated size:** S (one session)
+**Branch to use:** `chore/dev-dependencies`
+**Estimated size:** S
 **Risk to scientific output:** none — no functional code is touched
 **Selected:** 2026-08-03
 
 ---
 
-## Why this task is first
+## Why this task is next
 
-Three reasons, in order of weight:
+The project has **no quality gate at all.**
 
-1. **Everything downstream is unreviewable until it is done.** 2 800 of 2 854 tracked
-   files — 98.1% — live under `frontend/node_modules`. Any diff, any `git log`, any
-   bisect, any code review is drowning in vendored JavaScript.
-2. **A model checkpoint is on its way into permanent history.** `yolov8s-world.pt`
-   (26 MB, blob `2fa1b38`) is currently *staged in the index* while deleted from the
-   working tree — so any `git commit` without an explicit pathspec commits it. Once in,
-   it cannot be removed without rewriting history. This is the only task on the roadmap
-   with a closing window.
-3. **It carries zero scientific risk.** No functional code changes, so no golden number
-   can move. It is the correct first move: maximum leverage, zero blast radius.
-
-Reference: `docs/audit/2026-07-28-baseline-audit.md` — defect **D-19** (Critical, hygiene).
-
----
-
-## Measured starting state
+`PROJECT_CONTEXT.md` §14 presents `pytest` and `ruff check .` as "configured checks", and
+`pyproject.toml` carries a 40-line `[tool.ruff]` block. Neither tool is declared as a
+dependency, and the audit verified that neither is installed:
 
 ```
-tracked files                  2 854
-under frontend/node_modules    2 800   (98.1%, 78.3 MB)
-tracked *.pt                   1       (yolov8s-world.pt, staged, working tree deleted)
-.git                           81 MB
+pytest MISSING · ruff MISSING · mypy MISSING
 ```
 
-`.gitignore` currently covers `data/`, `checkpoints/`, `dataset/`, `.venv`, caches — and
-**not** `node_modules/`, `output/`, `*.pt`, `*.zip`. It also ignores `plan.md` and
-`.claude/`, which prevents sharing agent configuration (see rule §7).
+So the ruff configuration has never been executed, the `T20` rule that would catch the 13
+`print` calls in library code has never run, and the one test file has never been checked
+by anything. The only working verification in the repository today is
+`tests/characterization/capture.py`, which is invoked by hand.
+
+Every remaining M1 task — repair ruff config, wire the golden into pytest, replace the
+fake test, pre-commit, CI — presupposes that these tools exist. This is the unblocking
+task.
+
+Reference: `docs/audit/2026-07-28-baseline-audit.md` — defect **D-20**.
 
 ---
 
@@ -49,59 +40,50 @@ tracked *.pt                   1       (yolov8s-world.pt, staged, working tree d
 
 **In scope**
 
-1. `git rm -r --cached frontend/node_modules` — untrack, keep on disk
-2. Unstage `yolov8s-world.pt` before it enters history
-3. Rewrite `.gitignore`:
-   - add: `node_modules/`, `output/`, `*.pt`, `*.pth`, `*.onnx`, `*.zip`, `*.egg-info/`,
-     `.mypy_cache/`, `build/`, `dist/`
-   - keep: `data/`, `dataset/`, `checkpoints/`, `.venv`, `__pycache__`, `*.pyc`,
-     `.ruff_cache`, `.pytest_cache`, `.ipynb_checkpoints`
-   - **stop ignoring** `.claude/` — agent configuration is shared (PROJECT_RULES §7)
-   - decide on `plan.md`: it is a historical frontend spec — un-ignore and move to
-     `docs/archive/`, or leave ignored (record the choice in `Progress.md`)
-4. Verify no tracked file exceeds 1 MB, except the notebooks already in history
-   (those are M1-T09)
-5. Commit with the task ID in the subject
+1. Add a dev dependency group to `pyproject.toml` (uv's `[dependency-groups]`):
+   - `pytest`
+   - `pytest-cov`
+   - `ruff`
+   - `mypy`
+2. `uv sync` and confirm all four resolve and run
+3. Record the installed versions in `docs/Development.md`
+4. Run each tool once and **record the raw baseline output** — do not fix anything yet:
+   - `ruff check .` — expect a large number of findings (T20 prints, import order,
+     naming, the Russian-string modules); the count is the M2 starting point
+   - `mypy src` — expect many errors; this is why M1-T04 sets baseline exclusions
+   - `pytest` — expect the assertion-free `test_io.py` to pass vacuously
+5. Do **not** change any rule configuration — that is M1-T03 (ruff) and M1-T04 (mypy)
 
-**Out of scope** — do not do these here
+**Out of scope**
 
-- Rewriting git history to purge `node_modules` from past commits (needs operator
-  approval; the repository has a remote — separate task, separate decision)
-- Deleting `frontend/` itself (blocked on decision **B5** in `STATE.md`)
-- Stripping notebook outputs (M1-T09)
-- Adding pre-commit or CI (M1-T07, M1-T08)
+- Fixing any lint or type finding (M2)
+- Repairing the ruff configuration keys (M1-T03)
+- Writing the mypy configuration (M1-T04)
 - Touching anything under `src/`
 
 ---
 
 ## Definition of done
 
-- [ ] `git ls-files | wc -l` < 100
-- [ ] `git ls-files frontend/node_modules | wc -l` == 0
-- [ ] `git ls-files '*.pt' | wc -l` == 0
-- [ ] `frontend/node_modules` still present on disk (untracked, not deleted)
-- [ ] `git status` shows no unintended deletions of user files
-- [ ] `.claude/settings.json` is tracked
-- [ ] Largest tracked file, excluding the pre-existing notebooks, < 1 MB
-- [ ] `python tests/characterization/capture.py` still reports zero drift (sanity check —
-      it must be unaffected)
+- [ ] `uv run pytest --version`, `uv run ruff --version`, `uv run mypy --version` all succeed
+- [ ] `pyproject.toml` declares the dev group; `uv.lock` updated in the same commit
+- [ ] Baseline counts recorded in `docs/Progress.md`: N ruff findings, M mypy errors,
+      K tests collected
+- [ ] Runtime dependencies unchanged — `git diff pyproject.toml` touches only the new group
+- [ ] `python tests/characterization/capture.py` still reports zero drift
 - [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
-- [ ] Commit subject: `M1-T01: untrack node_modules and model weights, rewrite .gitignore`
+- [ ] Commit: `M1-T02: declare pytest, ruff and mypy as dev dependencies`
 
 ---
 
 ## Plan
 
-1. Branch `chore/repo-hygiene` from `main`
-2. Record the before-state numbers (`git ls-files | wc -l`, `du -sh .git`)
-3. `git rm -r --cached frontend/node_modules`
-4. `git rm --cached yolov8s-world.pt`
-5. Rewrite `.gitignore`
-6. `git add .gitignore .claude/`
-7. Verify every checkbox above, including that files still exist on disk
-8. Commit
-9. Update `STATE.md` (health indicators), `Progress.md`, `TASKS.md`
-10. Move `CURRENT_TASK.md` to `M1-T02`
+1. Branch `chore/dev-dependencies`
+2. Add `[dependency-groups] dev = [...]` to `pyproject.toml`
+3. `uv sync`
+4. Run each tool, capture the raw output into the scratchpad, count findings by rule
+5. Record the baseline in `Progress.md` — these numbers are the M2 burn-down target
+6. Verify the checklist, commit, advance `CURRENT_TASK.md` to `M1-T03`
 
 ---
 
@@ -109,19 +91,16 @@ tracked *.pt                   1       (yolov8s-world.pt, staged, working tree d
 
 | Risk | Mitigation |
 |---|---|
-| `git rm --cached` mistaken for `git rm` — deletes the user's files | Always `--cached`; verify the directory still exists on disk before committing |
-| The uncommitted working-tree changes to `main.ipynb`, `project.md`, `.gitignore` are lost | Do not `git checkout` or `git stash` anything; touch only the listed paths |
-| Untracking `node_modules` breaks a teammate's checkout | Nobody depends on vendored `node_modules`; `npm install` regenerates it |
-| History still carries the 78 MB | Accepted for now; a history rewrite is a separate, operator-approved decision |
+| `uv sync` re-resolves and moves runtime versions, changing golden numbers | Golden `_meta` pins NumPy 2.4.4 / SciPy 1.17.1 / scikit-image 0.26.0. Run `capture.py` after syncing; if a number moves, it is a dependency-driven change and gets its own commit with the version bump recorded (ADR-0008 §5). |
+| The torch CUDA 11.8 index re-downloads gigabytes | Adding a dev group should not touch the torch resolution; check `uv.lock` diff before committing. |
+| Temptation to fix the flood of ruff findings immediately | Explicitly out of scope. The baseline count is the deliverable; the fixes are M2 work with the golden as a safety net. |
 
 ---
 
 ## Notes for the next session
 
-After this task, the repository is small enough that `M1-T02` (dev dependencies) and
-`M1-T03` (ruff configuration) become trivially reviewable. The natural sequence is
-T01 → T02 → T03 → T05 (golden into pytest) → T08 (CI), at which point the quality gate
-is real and M2 can begin.
+After T02 → T03 (ruff config) → T05 (golden into pytest) → T06 (real I/O test) →
+T07/T08 (pre-commit, CI). At that point `make check` is meaningful and M2 can begin.
 
 **Do not start M2 before M1-T05 is green.** The characterization harness is the only
 thing standing between a large refactor and silent scientific drift.

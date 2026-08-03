@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-03
-- **Affects:** `frontend/`, `plan.md` · M1, M5
+- **Affects:** `frontend/`, `docs/archive/plan-frontend-react-client.md` · M1, M5
 
 ## Context
 
@@ -30,7 +30,8 @@ And `frontend/node_modules` is 2 800 tracked files — 98% of the repository (D-
 - `frontend/` is **not deleted**. It remains in the tree, untouched and unmaintained,
   marked as parked in the documentation.
 - `frontend/node_modules` is untracked immediately (M1-T01). The source stays.
-- No backend is written. `plan.md` is a historical specification, not a plan.
+- No backend is written. The old `plan.md` is a historical specification, not a plan;
+  M1-T01 moved it to `docs/archive/plan-frontend-react-client.md`.
 - No further work goes into the client — no fixes, no dependency updates, no CI.
 - Deleting the directory outright is a separate decision that needs the operator
   (`STATE.md` B5, backlog B-041).
@@ -78,5 +79,5 @@ And `frontend/node_modules` is 2 800 tracked files — 98% of the repository (D-
 
 - `PROJECT_CONTEXT.md` §4, §11, §15 "frontend/backend contract is incomplete"
 - `docs/audit/2026-07-28-baseline-audit.md` D-19
-- `plan.md` (historical frontend specification)
+- `docs/archive/plan-frontend-react-client.md` (historical frontend specification)
 - ADR-0002

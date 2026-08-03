@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-03 · **Branch:** `docs/engineering-infrastructure` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-03 · **Branch:** `chore/repo-hygiene` · **Base commit:** `11e0ecc`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -16,14 +16,23 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T01` — Untrack build artifacts and model weights; rewrite `.gitignore`**
+**`M1-T02` — Declare dev dependencies (`pytest`, `pytest-cov`, `ruff`, `mypy`)**
 
-Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started** (no code
-written yet by design — M0 was documentation only).
+Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ---
 
 ## Completed
+
+### M1 — Repository hygiene (in progress)
+
+- **M1-T01** ✅ (2026-08-03) — tracked files 2 877 → **77**; `frontend/node_modules`
+  (2 800 files) untracked; `yolov8s-world.pt` (26 MB) removed from the index before it
+  entered history; `.gitignore` rewritten; `.claude/settings.json` now shared; junk
+  deleted (`.zip`, four `__pycache__/`, tool caches, empty `output/` and `notebooks/`,
+  stray root `package-lock.json`); `plan.md` archived to `docs/archive/`.
+  Characterization: **zero drift**.
+- **M1-T11** ✅ — absorbed into M1-T01.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -49,7 +58,7 @@ written yet by design — M0 was documentation only).
 
 ## In progress
 
-Nothing. M0 closed; M1-T01 selected and awaiting execution.
+Nothing. M1-T01 closed; M1-T02 selected and awaiting execution.
 
 ---
 
@@ -72,12 +81,15 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T01`** — untrack `frontend/node_modules` (2 800 files, 78.3 MB) and the
-   staged `yolov8s-world.pt`; rewrite `.gitignore`; verify `git ls-files | wc -l` < 100
-2. `M1-T02` — declare `pytest`, `ruff`, `mypy` as dev dependencies (none is installed today)
-3. `M1-T03` — repair the ruff configuration
-4. `M1-T05` — wire the characterization golden into `pytest`, so the safety net runs automatically
-5. Answer **B1** so that M2 can start on schedule
+1. **Execute `M1-T02`** — declare `pytest`, `pytest-cov`, `ruff`, `mypy` as dev
+   dependencies; none is installed today, so there is no quality gate
+2. `M1-T03` — repair the ruff configuration (deprecated keys, template `known-first-party`,
+   `target-version = py311` on a 3.12 project)
+3. `M1-T05` — wire the characterization golden into `pytest`, so the safety net runs
+   automatically instead of by discipline
+4. `M1-T06` — replace the assertion-free `tests/test_io.py`
+5. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
+6. Answer **B1** so that M2 can start on schedule
 
 ---
 
@@ -85,8 +97,9 @@ None of these blocks M1-T01 or the rest of M1.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | 2 854 | < 100 | `git ls-files \| wc -l` |
-| `.git` size | 81 MB | — | `du -sh .git` |
+| Tracked files | **77** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
+| `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
 | Meaningful tests | 0 | ≥ 80% of core | audit §1 |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |

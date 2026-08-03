@@ -7,6 +7,71 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-03 — M1 · `M1-T01` Repository hygiene
+
+**Task:** M1-T01 (complete), M1-T11 (complete — absorbed)
+**Branch:** `chore/repo-hygiene`
+**Scientific impact:** none — `capture.py` reports `characterization baseline stable (9 groups)`
+
+### Result
+
+| Metric | Before | After |
+|---|---:|---:|
+| Tracked files | 2 877 | **77** |
+| Tracked under `frontend/node_modules` | 2 800 | **0** |
+| Tracked model weights | 1 (`yolov8s-world.pt`, 26 MB, staged) | **0** |
+| Largest tracked non-notebook file | 6.5 MB | 3.2 MB (README figure) |
+
+### Done
+
+- `git rm -r --cached frontend/node_modules` — 2 800 files untracked, all still on disk
+- `git rm --cached yolov8s-world.pt` — the 26 MB blob (`2fa1b38`) was staged for addition
+  and would have entered history on the next `git commit` without a pathspec. Removed
+  from the index before that happened; the file is not on disk and the four real
+  checkpoints under `checkpoints/` are untouched
+- `.gitignore` rewritten: added `node_modules/`, `output/`, `*.pt`, `*.pth`, `*.onnx`,
+  `*.safetensors`, `*.zip`, `*.tar.gz`, `build/`, `dist/`, `*.egg-info/`, `.mypy_cache/`,
+  `.coverage`, `htmlcov/`; grouped and commented by rationale
+- `.claude/settings.json` now **tracked** — agent configuration is shared (PROJECT_RULES §7).
+  `.claude/settings.local.json` (per-machine permissions) stays ignored. This completes
+  the `.gitignore` edit that was already sitting uncommitted in the working tree
+- **Junk removed from disk:**
+  - `.zip` — a 22-byte *empty* zip archive, tracked since February
+  - `__pycache__/` × 4, including `.pyc` files for modules that no longer exist
+    (`sam2_pipeline`, `config`, `detection`) and bytecode from CPython 3.14 while the
+    venv is 3.12 — stale in two independent ways
+  - `.pytest_cache/`, `.ruff_cache/`
+  - `output/`, `notebooks/` — both empty directories
+  - root `package-lock.json` — an empty stray from an accidental `npm install` at the
+    repository root (the real one is `frontend/package-lock.json`)
+- `plan.md` → `docs/archive/plan-frontend-react-client.md`, un-ignored and now tracked,
+  with an ARCHIVED header pointing at ADR-0007. It was gitignored, so the only record of
+  the intended HTTP contract was unshareable. Path references in ADR-0007 updated
+  (editorial only — the decision is unchanged)
+
+### Deviation from the stated Definition of Done
+
+"Largest tracked file, excluding the pre-existing notebooks, < 1 MB" is **not met**:
+`images/yolo_sam2_comparison.png` (3.2 MB) and `images/log.png` (3.0 MB) are README
+figures. They are legitimate content, not junk, and untracking them would break the
+README. Recorded as backlog **B-054** (optimise figures) rather than silently ignored.
+
+The notebooks (6.5 MB + 2.2 MB, committed with outputs) are untouched — that is M1-T09.
+
+### Not done, deliberately
+
+History still carries the 78 MB: `git rm --cached` stops the growth, it does not shrink
+`.git` (still 81 MB). Rewriting history invalidates every clone and needs the operator's
+approval — backlog **B-040**.
+
+### Next
+
+`M1-T02` — declare `pytest`, `pytest-cov`, `ruff`, `mypy` as dev dependencies. None of
+them is installed today, so the quality gate does not exist yet; the characterization
+runner is currently the only working check.
+
+---
+
 ## 2026-08-03 — M0 · Engineering foundation
 
 **Tasks:** M0-T01 … M0-T08 (all complete)

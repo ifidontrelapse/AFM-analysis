@@ -63,6 +63,7 @@ now) · `rejected` (with a reason) · `promoted → M#-T##`.
 | B-051 | Reproducibility manifest — record library versions with every result | candidate | The golden file already does this for tests (`_meta`); results deserve the same. |
 | B-052 | Commit a small real SPM scan as a test fixture | idea | Blocked on B6. The phantom set stands in for it today. |
 | B-053 | Nanoscope parser hardening against other firmware versions | candidate | 120 of 628 local files parsed; the regexes are unverified elsewhere. Scheduled as M3-T16. |
+| B-054 | Optimise the committed README figures | candidate | `images/yolo_sam2_comparison.png` (3.2 MB) and `images/log.png` (3.0 MB) are the largest tracked non-notebook files and miss the 1 MB pre-commit limit planned in M1-T07. They are real content, so they were not untracked in M1-T01 — recompress or downscale instead, together with the README rewrite (M9-T01). |
 
 ---
 
