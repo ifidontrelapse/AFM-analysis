@@ -23,6 +23,17 @@ dependencies = [
     "ultralytics>=8.4.41",
 ]
 
+# Development tooling — the quality gate (PROJECT_RULES §6, ADR-0009).
+# Configuration for these lives in [tool.ruff] and [tool.mypy]; M1-T03 and
+# M1-T04 repair it. This group only makes the tools exist.
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.14",
+    "mypy>=1.14",
+]
+
 [[tool.uv.index]]
 name = "pytorch-cu118"
 url = "https://download.pytorch.org/whl/cu118"

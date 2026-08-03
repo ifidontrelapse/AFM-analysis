@@ -7,6 +7,114 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-03 — M1 · `M1-T02` Dev dependencies and quality baseline
+
+**Task:** M1-T02 (complete)
+**Branch:** `chore/dev-dependencies`
+**Scientific impact:** none — `capture.py` reports `characterization baseline stable (9 groups)`
+after the environment change
+
+### Done
+
+- `[dependency-groups] dev` added to `pyproject.toml`: pytest, pytest-cov, ruff, mypy
+- `uv sync`; `uv.lock` gained **only** tooling packages — no runtime version moved.
+  Verified against the golden `_meta` pins: torch 2.7.1+cu118, NumPy 2.4.4, SciPy 1.17.1,
+  scikit-image 0.26.0 — all unchanged, which is why the golden is still stable
+
+| Tool | Version |
+|---|---|
+| pytest | 9.1.1 |
+| pytest-cov | 7.1.0 |
+| ruff | 0.16.1 |
+| mypy | 2.3.0 |
+
+### Baseline — the M2 burn-down target
+
+Measured, nothing fixed. These are the numbers M2 has to drive to zero.
+
+**ruff — 196 findings total, 108 in `src/`** (66 auto-fixable)
+
+| Rule | src/ | What it is |
+|---|---:|---|
+| RUF002/003/001 | **44** | ambiguous unicode in docstrings, comments, strings — this is the Russian text of **D-22**, found mechanically |
+| T201 | **13** | `print` in library code — **exactly the 13 the audit counted by hand** |
+| F401 | 11 | unused imports |
+| I001 | 11 | unsorted imports |
+| W293/W292/W291 | 10 | whitespace |
+| RET504/505 | 7 | unnecessary assign / superfluous else |
+| RUF046 | 2 | unnecessary `int()` cast — **adjacent to D-10**, the opening-radius rounding defect |
+| RUF013 | 2 | implicit `Optional` — the unknown-scale contract (**D-07**) |
+| A005 | 1 | `src/types.py` shadows the stdlib `types` module — a real M2-T02 constraint |
+| others | 7 | B007, C408, N806, PIE790, RUF022, SIM108, UP037 |
+
+The remaining 88 findings are in notebooks, `preprocess_batch.py` and
+`tests/characterization/capture.py`.
+
+**mypy — 30 errors in 9 files** (default settings, no configuration yet)
+
+| Code | Count |
+|---|---:|
+| import-untyped | 8 |
+| assignment | 7 |
+| arg-type | 6 |
+| return-value | 3 |
+| attr-defined | 3 |
+| has-type, empty-body, call-overload | 3 |
+
+The most interesting one is static confirmation of a known runtime defect:
+
+```
+src/pipeline.py:110: error: Argument 4 to "run_sam2_from_blobs" has incompatible type
+"ndarray[...] | None"; expected "ndarray[...]"
+```
+
+That is the SEM/TEM path, where `z_flat` is `None` by construction (`pipeline.py:53`).
+A type checker would have caught it before it ever ran.
+
+**pytest — 1 test, 1 failed**
+
+```
+FAILED tests/test_io.py::test_load_spm - FileNotFoundError: 'data/5.011'
+```
+
+Correction to the prediction in `CURRENT_TASK.md`: the test does not pass vacuously, it
+**fails**. It catches `ImportError` while `load_afm` raises `FileNotFoundError` (audit
+D-20), and the path is absent from a clean checkout. The suite has been red the whole
+time; nobody could see it because pytest was never installed. M1-T06 replaces it.
+
+### Side effect worth knowing about
+
+`uv sync` uninstalled three packages that were in the environment but not in `uv.lock`:
+`clip` (from the ultralytics CLIP repo), `ftfy`, `regex`. They were installed outside uv,
+so `uv sync` removed them to match the lock — expected behaviour, but not something I
+intended.
+
+Nothing under `src/` imports them; they are needed only for **YOLO-World** models, and
+`checkpoints/yolov8s-world.pt` is such a model (it is not the configured default —
+`PipelineConfig.yolo_model_path` points at `best12x.pt`). If YOLO-World is wanted, the
+fix is to declare it as a real dependency rather than let it be installed ad hoc:
+
+```bash
+uv add "clip @ git+https://github.com/ultralytics/CLIP.git"
+```
+
+Recorded as backlog **B-055**.
+
+### Not done, deliberately
+
+No finding was fixed. Repairing the ruff configuration is M1-T03, the mypy configuration
+is M1-T04, and the 108 `src/` findings are M2 work — under the protection of the golden
+file, not before it.
+
+### Next
+
+`M1-T03` — repair the ruff configuration. It currently emits a deprecation warning for
+top-level `select`/`ignore`, targets `py311` on a 3.12 project, still carries
+`known-first-party = ["your_package_name"]`, and — most importantly — sets `fix = true`,
+so `ruff check .` rewrites source files as a side effect of being asked a question.
+
+---
+
 ## 2026-08-03 — M1 · `M1-T01` Repository hygiene
 
 **Task:** M1-T01 (complete), M1-T11 (complete — absorbed)

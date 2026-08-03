@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-03 · **Active:** `M1-T02`
+**Updated:** 2026-08-03 · **Active:** `M1-T03`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -30,7 +30,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | ID | Task | Detail | Status |
 |---|---|---|---|
 | M1-T01 | Untrack build artifacts and weights; rewrite `.gitignore` | Done 2026-08-03: 2 877 → **77** tracked files; 2 800 `node_modules` untracked; 26 MB `yolov8s-world.pt` removed from the index before it entered history; junk deleted; `plan.md` archived; `.claude/settings.json` shared. Zero golden drift. D-19 | [x] |
-| M1-T02 | Declare dev dependencies | `pytest`, `pytest-cov`, `ruff`, `mypy` in a `[dependency-groups]` block; none is currently installed. D-20 | [ ] |
+| M1-T02 | Declare dev dependencies | Done 2026-08-03: pytest 9.1.1, pytest-cov 7.1.0, ruff 0.16.1, mypy 2.3.0. Baseline measured — 196 ruff findings (108 in `src/`), 30 mypy errors, 1 failing test. No runtime version moved; golden stable. D-20 | [x] |
 | M1-T03 | Repair the ruff configuration | Deprecated top-level `select`/`ignore` → `[tool.ruff.lint]`; `known-first-party` is still the template value; `target-version` says py311 while the project requires 3.12 | [ ] |
 | M1-T04 | Add mypy configuration | Strict for new code, baseline exclusions for `src/` until M2 | [ ] |
 | M1-T05 | Wire the characterization harness into pytest | `tests/characterization/test_golden.py` calling the existing runner; ~100 s, mark `slow` | [ ] |
@@ -201,7 +201,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | Milestone | Tasks | Done | Blocked |
 |---|---:|---:|---:|
 | M0 | 8 | 8 | 0 |
-| M1 | 11 | 2 | 0 |
+| M1 | 11 | 3 | 0 |
 | M2 | 16 | 0 | 0 |
 | M3 | 16 | 0 | 3 |
 | M4 | 15 | 0 | 0 |
@@ -210,4 +210,4 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M7 | 10 | 0 | 0 |
 | M8 | 8 | 0 | 0 |
 | M9 | 6 | 0 | 0 |
-| **Total** | **110** | **10** | **3** |
+| **Total** | **110** | **11** | **3** |

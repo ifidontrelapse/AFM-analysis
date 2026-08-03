@@ -82,9 +82,23 @@ After M1-T10 this is one command:
 make check
 ```
 
-**Current reality:** `pytest`, `ruff` and `mypy` are declared nowhere and installed
-nowhere (audit D-20). M1-T02 and M1-T03 fix this. The characterization runner works
-today and is the only gate that currently exists.
+**Tool versions** (installed by M1-T02, declared in `[dependency-groups] dev`):
+
+| Tool | Version | State |
+|---|---|---|
+| pytest | 9.1.1 | runs; the suite is **red** — see below |
+| pytest-cov | 7.1.0 | installed, not yet wired |
+| ruff | 0.16.1 | runs; **196 findings**, configuration still deprecated (M1-T03) |
+| mypy | 2.3.0 | runs; **30 errors** in 9 files, no configuration yet (M1-T04) |
+
+> **`ruff check .` rewrites your files.** `pyproject.toml` sets `fix = true`, so a bare
+> `ruff check` silently applies 66 fixes. Until M1-T03 removes that, always measure with
+> `ruff check . --no-fix`.
+
+**Current reality:** the tools now exist, but nothing is green yet. `pytest` fails
+(`tests/test_io.py` — M1-T06), ruff and mypy have no repaired configuration (M1-T03,
+M1-T04), and there is no CI (M1-T08). The characterization runner remains the only check
+that passes today.
 
 ---
 
