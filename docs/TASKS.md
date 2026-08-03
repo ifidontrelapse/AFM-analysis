@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-03 · **Active:** `M1-T04`
+**Updated:** 2026-08-04 · **Active:** `M1-T05`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -32,7 +32,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M1-T01 | Untrack build artifacts and weights; rewrite `.gitignore` | Done 2026-08-03: 2 877 → **77** tracked files; 2 800 `node_modules` untracked; 26 MB `yolov8s-world.pt` removed from the index before it entered history; junk deleted; `plan.md` archived; `.claude/settings.json` shared. Zero golden drift. D-19 | [x] |
 | M1-T02 | Declare dev dependencies | Done 2026-08-03: pytest 9.1.1, pytest-cov 7.1.0, ruff 0.16.1, mypy 2.3.0. Baseline measured — 196 ruff findings (109 in `src/`), 30 mypy errors, 1 failing test. No runtime version moved; golden stable. D-20 | [x] |
 | M1-T03 | Repair the ruff configuration | Done 2026-08-03: removed `fix = true` (`ruff check` was rewriting sources), moved `select`/`ignore` to `[tool.ruff.lint]`, py311 → py312, fixed `known-first-party`, dropped dead `S101`, excluded notebooks. `src/` findings unchanged at 109 — repair only | [x] |
-| M1-T04 | Add mypy configuration | Strict for new code, baseline exclusions for `src/` until M2 | [ ] |
+| M1-T04 | Add mypy configuration | Done 2026-08-04: strict for `nanoscope.*` from its first line; `src/` checked but not silenced (22 errors, 13 of them static confirmations of D-01/D-02/D-07/D-10/D-16); `ignore_missing_imports` per module. Three new defects filed as M3-T17…T19 | [x] |
 | M1-T05 | Wire the characterization harness into pytest | `tests/characterization/test_golden.py` calling the existing runner; ~100 s, mark `slow` | [ ] |
 | M1-T06 | Replace `tests/test_io.py` | No assertions, catches the wrong exception, references a path absent from a clean checkout. Replace with a synthetic-SPM round-trip test. D-20 | [ ] |
 | M1-T07 | Add pre-commit | ruff, ruff-format, end-of-file-fixer, `check-added-large-files` (1 MB), nbstripout | [ ] |
@@ -92,6 +92,9 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M3-T14 | One measurement schema across all four producers; fix the `bbox` contract | D-16, D-17 | medium | [ ] |
 | M3-T15 | Evaluation harness: precision / recall / localisation vs phantom ground truth | — | — | [ ] |
 | M3-T16 | Characterize `_read_nanoscope_z` against multiple Nanoscope versions | gap | — | [ ] |
+| M3-T17 | `_read_nanoscope_z` divides `None` by `samps` when the header has no `Scan Size` — the fallback branch crashes on the next line (`afm_io.py:95-98`) | **new**, found by mypy in M1-T04 | high | [ ] |
+| M3-T18 | `YoloDetector._last_result` is initialised to `None`, so its type is `None`; `.filtered_boxes` is accessed unguarded (`yolo_detector.py:50,87,99`) | **new**, mypy | medium | [ ] |
+| M3-T19 | `estimate_log_threshold_adaptive` rebinds `responses` from `list[float]` to ndarray before calling `.min()`/`.max()` (`log_detector.py:111,116`) | **new**, mypy | low | [ ] |
 
 ---
 
@@ -201,13 +204,13 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | Milestone | Tasks | Done | Blocked |
 |---|---:|---:|---:|
 | M0 | 8 | 8 | 0 |
-| M1 | 11 | 3 | 0 |
+| M1 | 11 | 4 | 0 |
 | M2 | 16 | 0 | 0 |
-| M3 | 16 | 0 | 3 |
+| M3 | 19 | 0 | 3 |
 | M4 | 15 | 0 | 0 |
 | M5 | 11 | 0 | 0 |
 | M6 | 9 | 0 | 0 |
 | M7 | 10 | 0 | 0 |
 | M8 | 8 | 0 | 0 |
 | M9 | 6 | 0 | 0 |
-| **Total** | **110** | **11** | **3** |
+| **Total** | **113** | **12** | **3** |

@@ -1,33 +1,32 @@
 # CURRENT TASK
 
-**ID:** `M1-T04`
-**Title:** Add the mypy configuration
+**ID:** `M1-T05`
+**Title:** Wire the characterization harness into pytest
 **Milestone:** M1 — Repository hygiene & quality gates
 **Status:** selected — not started
-**Branch to use:** `chore/mypy-config`
-**Estimated size:** S
-**Risk to scientific output:** none — configuration only, no source edits
-**Selected:** 2026-08-03
+**Branch to use:** `chore/golden-in-pytest`
+**Estimated size:** S–M
+**Risk to scientific output:** none — the harness is wrapped, not modified
+**Selected:** 2026-08-04
 
 ---
 
 ## Why this task is next
 
-mypy is installed (2.3.0) and has never been configured. Run with defaults it reports
-**30 errors in 9 files**, and one of them is a real defect the audit found by execution:
+This is the gate item that actually matters.
 
-```
-src/pipeline.py:110: error: Argument 4 to "run_sam2_from_blobs" has incompatible type
-"ndarray[...] | None"; expected "ndarray[...]"  [arg-type]
-```
+`tests/characterization/capture.py` is the only check in the repository that passes, and
+it is the **only protection M2 has**. M2 moves every scientific module in the project into
+a new package; the guarantee that the move changed nothing rests entirely on this
+comparison reporting zero drift.
 
-That is the SEM/TEM path, where `z_flat` is `None` by construction (`pipeline.py:53`).
-A configured type checker turns that class of defect from "discovered by running it on
-real data" into "caught before commit" — which is the entire argument for M3 and M4 being
-survivable.
+Today it runs when someone remembers to type the command. That is not a safety net, it is
+a habit — and habits do not survive a 16-task refactor, a tired evening, or an agent that
+was not told about it. ADR-0008 makes zero drift a merge requirement; this task makes the
+requirement mechanically checkable.
 
-The configuration question is not "how do we get to zero errors". It is **what posture
-lets M2 proceed without either lying about the state of `src/` or blocking on it.**
+**M2 must not start until this is green.** That is stated in three places already, and
+this is the task that lifts the block.
 
 ---
 
@@ -35,54 +34,53 @@ lets M2 proceed without either lying about the state of `src/` or blocking on it
 
 **In scope**
 
-1. Add `[tool.mypy]` to `pyproject.toml`:
-   - `python_version = "3.12"`, `files`, `pretty`, `show_error_codes`
-   - **Strict for new code.** The `nanoscope` package created in M2-T01 is checked
-     strictly from its first line — that is far cheaper than retrofitting.
-   - **Baseline posture for `src/`.** It carries 30 errors and is scheduled for deletion
-     in M2-T15. Options, to be decided in this task and recorded here:
-     - a per-module `[[tool.mypy.overrides]]` block relaxing `src.*`, or
-     - keep `src/` checked but non-blocking in CI until M2 lands
-   - `ignore_missing_imports` for the untyped third-party stack (8 of the 30 errors are
-     `import-untyped`: ultralytics, sam2, patched_yolo_infer, cv2, …) — scoped per module,
-     never globally
-2. Confirm `mypy` runs clean **on an empty strict scope**, so the gate is green from the
-   moment M2 creates the package
-3. Record the resulting error count and the exact posture in `Progress.md`
-4. Classify the 30 errors into *real defects* vs *missing annotations*, and file the real
-   ones as M3 tasks or backlog items — a type error that describes a genuine bug must not
-   be silenced by configuration
+1. Add `tests/characterization/test_golden.py` — a real pytest test that invokes the
+   existing comparison and fails with the path-addressed diff as the assertion message
+2. Do **not** modify `capture.py`'s logic. Import and call it; if its current structure
+   makes that awkward, add a thin callable entry point, keeping the CLI behaviour identical
+3. Mark it `@pytest.mark.slow` (~100 s) and register the marker in configuration so it
+   does not warn
+4. Define how the fast and full runs are selected: `pytest` runs everything by default;
+   `pytest -m "not slow"` skips it for inner-loop work. Document both.
+5. Make the failure output useful — a drift report must name the quantity that moved and
+   its before/after values, exactly as the CLI does today
+6. Verify the test **fails** when it should: temporarily perturb one golden value, confirm
+   a red run and a readable message, then restore. This is the only proof that the safety
+   net is connected.
+7. `pytest.ini` currently holds only the `pythonpath` hack. Decide: fold pytest
+   configuration into `pyproject.toml` now, or leave `pytest.ini` until M2-T14 deletes the
+   hack. Record the choice.
 
 **Out of scope**
 
-- Fixing any type error or adding annotations to `src/` — that is M2 work
-- `mypy --strict` over `src/` today; it would produce a wall of noise about a package
-  scheduled for deletion
-- Wiring mypy into CI (M1-T08)
+- Changing any golden value
+- Fixing `tests/test_io.py` (M1-T06) — the suite stays red until then, and that is expected
+- Coverage reporting (pytest-cov is installed but unwired; a separate small task)
+- CI (M1-T08)
 
 ---
 
 ## Definition of done
 
-- [ ] `mypy` runs with an explicit configuration and no command-line flags
-- [ ] The strict scope is defined and passes (vacuously today — nothing in it yet)
-- [ ] `src/` posture chosen and justified in one paragraph in `Progress.md`
-- [ ] The 30 errors classified: N real defects (filed as tasks/backlog), M annotation gaps
-- [ ] `ignore_missing_imports` applied per module, never as a blanket setting
-- [ ] `python tests/characterization/capture.py` reports zero drift
+- [ ] `pytest` runs the golden comparison and it passes
+- [ ] `pytest -m "not slow"` skips it and completes in under a second
+- [ ] A deliberately perturbed golden makes the test **fail**, with the moved quantity
+      named in the output — verified, then reverted
+- [ ] No marker warnings; no changes to `capture.py`'s numerical behaviour
+- [ ] `python tests/characterization/capture.py` still works as a CLI, unchanged
+- [ ] `docs/Development.md` documents both invocations
 - [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
-- [ ] Commit: `M1-T04: add the mypy configuration`
+- [ ] Commit: `M1-T05: run the characterization golden under pytest`
 
 ---
 
 ## Plan
 
-1. Branch `chore/mypy-config`
-2. Capture the current 30 errors with codes and file locations into the scratchpad
-3. Read each one; separate genuine contract violations from missing annotations
-4. Write `[tool.mypy]` plus per-module overrides
-5. Re-run; confirm the count is what the configuration says it should be
-6. File the real defects; update docs; commit; advance `CURRENT_TASK.md` to `M1-T05`
+1. Branch `chore/golden-in-pytest`
+2. Read `capture.py` to find the cleanest seam between "compare" and "print/exit"
+3. Write the test; register the `slow` marker
+4. Prove the negative case by perturbing a golden value; revert
+5. Update `Development.md` and the docs; commit; advance `CURRENT_TASK.md` to `M1-T06`
 
 ---
 
@@ -90,16 +88,17 @@ lets M2 proceed without either lying about the state of `src/` or blocking on it
 
 | Risk | Mitigation |
 |---|---|
-| **Configuration silences a real bug.** `ignore_missing_imports` and module overrides make errors disappear; one of the 30 is a genuine `None` contract violation. | Classify all 30 *before* writing the config. Anything real becomes a task with an ID, not a suppressed line. |
-| Strictness chosen for `src/` blocks M2 | `src/` is deleted in M2-T15. The configuration must describe a package that is on its way out, not enforce a standard on it. |
-| `ignore_missing_imports = true` globally | Hides typos in first-party imports too. Scope it per third-party module. |
+| **Refactoring `capture.py` to make it testable changes what it measures** | Add a callable entry point around the existing logic; do not touch comparison or tolerance. Run the CLI before and after and diff the output. |
+| A 100 s test makes people stop running `pytest` | `-m "not slow"` for the inner loop; the full run is the merge gate. Document both prominently. |
+| The test passes because it silently skips | This is the failure mode that would quietly remove the safety net. Hence the mandatory perturbation check — a test that cannot fail is not a test. |
+| `--write` becomes an easy escape from a red run | ADR-0008: re-baselining without an ADR is a rule violation. M1-T07 pre-commit and M1-T08 CI make an undeclared golden change visible in review. |
 
 ---
 
 ## Notes for the next session
 
-After T04 → T05 (golden into pytest) → T06 (real I/O test) → T07/T08 (pre-commit, CI).
-At that point `make check` is meaningful and M2 can begin.
+After T05 the block on M2 lifts. Remaining M1: T06 (real I/O test), T07 (pre-commit),
+T08 (CI), T09 (notebooks), T10 (`make check`).
 
-**Do not start M2 before M1-T05 is green.** The characterization harness is the only
-thing standing between a large refactor and silent scientific drift.
+**B1 is still unanswered** — the package name blocks M2-T01, and every M2 task after it
+depends on that name. Worth resolving before T05 finishes.

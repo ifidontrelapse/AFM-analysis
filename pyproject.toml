@@ -44,6 +44,46 @@ torch = { index = "pytorch-cu118" }
 torchvision = { index = "pytorch-cu118" }
 sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
 
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]                 # becomes ["nanoscope"] in M2-T01 (ADR-0011)
+show_error_codes = true
+pretty = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+# `src/` posture (M1-T04): checked at default strictness and NOT silenced.
+# It reports 22 errors today, 13 of which are static confirmations of audit
+# defects — D-01, D-02, D-07, D-10, D-16 — so `ignore_errors` here would throw
+# away the most valuable output this tool has produced. The package is deleted
+# in M2-T15; until then the baseline is documented in docs/Progress.md and CI
+# reports it without blocking (M1-T08).
+
+# New code is strict from its first line — retrofitting is far more expensive.
+[[tool.mypy.overrides]]
+module = "nanoscope.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_return_any = true
+strict_equality = true
+
+# Third-party packages that ship neither stubs nor a py.typed marker. Scoped
+# per module on purpose: a blanket `ignore_missing_imports` would also hide a
+# typo in a first-party import.
+[[tool.mypy.overrides]]
+module = [
+    "pandas.*",
+    "scipy.*",
+    "patched_yolo_infer.*",
+    "ultralytics.*",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 target-version = "py312"        # the project requires >=3.12; UP rules follow this
 line-length = 100

@@ -7,6 +7,86 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1 · `M1-T04` Mypy configuration
+
+**Task:** M1-T04 (complete)
+**Branch:** `chore/mypy-config`
+**Scientific impact:** none — configuration only, no source file edited
+
+### The 30 errors, classified before writing any configuration
+
+The rule for this task was that configuration must not silence a real bug. So all 30
+default-run errors were read against the source first.
+
+| Class | Count | Disposition |
+|---|---:|---|
+| Missing third-party stubs | 8 | silenced per module — pandas, scipy, patched_yolo_infer, ultralytics |
+| **Static confirmation of known audit defects** | **13** | kept visible; already have M3 tasks |
+| **Real typing defects not previously filed** | **5** | kept visible; **filed as M3-T17…T19** |
+| Stub strictness / known stub | 4 | kept visible, harmless |
+
+**The 13 that confirm the audit.** mypy independently reproduces, statically, defects the
+Phase 0 audit found by execution:
+
+| Error | Defect |
+|---|---|
+| `preprocess.py:202  Cannot determine type of "opening_radius"` | **D-01** — the critical `UnboundLocalError`. The manual-radius branch never assigns it; mypy sees the same missing assignment the runtime does. |
+| `preprocess.py:149,158  return float, expected int` + `:184 arg-type float→int` | **D-10** — `estimate_rough_radius` is annotated `-> int` and returns a float, which reaches `disk()` and produces even-sized structuring elements. The whole chain is visible in three errors. |
+| `types.py:63  tuple[Never, ...] vs tuple[int, int, int, int]` | **D-16** — `bbox` defaults to `()` against a four-element annotation. |
+| `preprocess.py:164`, `log_detector.py:125,257`, `pipeline.py:52` | **D-07** — implicit `Optional` and the unknown-pixel-scale contract. |
+| `pipeline.py:94 ×2, :110  ndarray \| None where ndarray expected` | the SEM/TEM path, where `z_flat` is `None` by construction. |
+| `afm_io.py:100  returns tuple, annotated ndarray` | **D-02** — the return-convention change that silently broke `preprocess_batch.py`. |
+
+A configured type checker would have caught the project's single critical defect before
+it was ever committed.
+
+**The 5 that are new.** Filed as tasks, not suppressed:
+
+- **`afm_io.py:98` — new defect, not in the audit.** When the header carries no
+  `Scan Size:` field the code sets `scan_size_nm = None` and then immediately evaluates
+  `pixel_size_nm = scan_size_nm / samps` → `TypeError`. The `else` branch exists
+  specifically to handle that header, and it crashes on the next line. → **M3-T17**
+- `yolo_detector.py:50,87,99` — `_last_result` is initialised to `None`, so its inferred
+  type is `None`; `.filtered_boxes` is then accessed unguarded. → **M3-T18**
+- `log_detector.py:111,116` — `responses` is annotated `list[float]` and then rebound to
+  an ndarray before `.min()`/`.max()`. Works at runtime, wrong as a contract. → **M3-T19**
+
+### Configuration
+
+- `[tool.mypy]`: `python_version = "3.12"`, `files = ["src"]`, `warn_unused_configs`,
+  `warn_redundant_casts`, `warn_unused_ignores`
+- **`nanoscope.*` is strict from its first line** — `disallow_untyped_defs`,
+  `disallow_incomplete_defs`, `disallow_untyped_calls`, `disallow_any_generics`,
+  `check_untyped_defs`, `no_implicit_optional`, `warn_return_any`, `strict_equality`.
+  Retrofitting strictness later is far more expensive than starting with it.
+- **`src/` posture: checked, not silenced.** No `ignore_errors`. It carries 22 errors,
+  13 of which are the most valuable output this tool has produced; hiding them to make a
+  number green would be the opposite of the point. The package is deleted in M2-T15, so
+  the errors are a documented baseline, and CI reports them without blocking (M1-T08).
+- `ignore_missing_imports` scoped **per module**, never globally — a blanket setting would
+  also hide a typo in a first-party import.
+
+`mypy` now runs with no command-line flags: **22 errors in 7 files** (30 minus the 8
+stub gaps). It emits one note — `unused section(s): module = ['nanoscope.*']` — which is
+deliberate: it is a visible reminder that M2-T01 has not happened yet, and it disappears
+the moment the package exists. Verified non-fatal: mypy exits 0 on a clean file with that
+note present.
+
+### Considered and rejected
+
+Installing `pandas-stubs` and `scipy-stubs` instead of silencing those imports. It would
+give real coverage, but pandas-stubs against pandas 2.x typically produces a fresh wave of
+errors in code that is scheduled for deletion in M2. Revisit when `nanoscope` exists —
+backlog **B-057**.
+
+### Next
+
+`M1-T05` — wire the characterization golden into `pytest`. It is the only check that
+passes today and the only protection M2 has, and it currently runs only when someone
+remembers to type the command.
+
+---
+
 ## 2026-08-03 — M1 · `M1-T03` Ruff configuration repair
 
 **Task:** M1-T03 (complete)

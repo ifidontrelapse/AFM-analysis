@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-03 · **Branch:** `chore/dev-dependencies` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-04 · **Branch:** `chore/mypy-config` · **Base commit:** `11e0ecc`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -16,7 +16,7 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T04` — Add the mypy configuration**
+**`M1-T05` — Wire the characterization harness into pytest**
 
 Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
@@ -42,6 +42,11 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   py311 → py312, template `known-first-party` fixed, dead `S101` dropped, notebooks
   excluded from lint. `src/` findings unchanged at 109 — a repair, not a rule change.
   Total 196 → 128. Characterization: **zero drift**.
+- **M1-T04** ✅ (2026-08-04) — mypy configured: strict for `nanoscope.*` from its first
+  line; `src/` checked but **not** silenced (22 errors after per-module stub handling).
+  All 30 default errors classified before writing config: 13 statically confirm audit
+  defects **D-01, D-02, D-07, D-10, D-16**, and **3 new defects** were found and filed
+  (**M3-T17…T19**), including a crash in the SPM parser's no-`Scan Size` fallback.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -67,7 +72,7 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T03 closed; M1-T04 selected and awaiting execution.
+Nothing. M1-T04 closed; M1-T05 selected and awaiting execution.
 
 ---
 
@@ -90,13 +95,11 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T04`** — mypy configuration: strict for new code, a baseline posture for
-   `src/` (30 errors today) that does not block M2
-2. `M1-T05` — wire the characterization golden into `pytest`, so the safety net runs
-   automatically instead of by discipline
-3. `M1-T06` — replace `tests/test_io.py`; the suite is currently red
-4. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
-5. Answer **B1** so that M2 can start on schedule
+1. **Execute `M1-T05`** — wire the characterization golden into `pytest`, so the safety
+   net runs automatically instead of by discipline
+2. `M1-T06` — replace `tests/test_io.py`; the suite is currently red
+3. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
+4. Answer **B1** so that M2 can start on schedule
 
 ---
 
@@ -110,9 +113,9 @@ None of these blocks M1-T01 or the rest of M1.
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
 | Meaningful tests | 0 (1 test, failing) | ≥ 80% of core | `pytest -q` |
 | ruff findings in `src/` | 109 | 0 | `ruff check src/ --no-fix` |
-| mypy errors | 30 in 9 files | 0 | `mypy src` |
+| mypy errors | 22 in 7 files | 0 | `mypy` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
-| Open audit defects | 24 (5 critical) | 0 critical | audit §2 |
+| Open defects | 27 (24 audit + 3 found by mypy) | 0 critical | audit §2, M3-T17…T19 |
 | Import cycles | 5 | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
