@@ -1,3 +1,16 @@
+# M2-T14 made this a real, installable package. Before it, `nanoscope` was
+# importable only because pytest put the repository root on `sys.path`, which
+# works from this directory and nowhere else.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# `src/` is deliberately not listed. It is a set of re-export shims that M2-T15
+# deletes; shipping it would publish `import src`, the exact name collision
+# ADR-0011 renamed the package to avoid.
+packages = ["nanoscope"]
+
 [project]
 # `afm-analysis` until M2-T01. AFM is one of three modalities the code already
 # supports; the name is the product's, not one modality's (ADR-0011).
@@ -75,9 +88,16 @@ sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
 # trap: while `pytest.ini` exists pytest ignores `[tool.pytest.ini_options]`
 # entirely, so anything written here would have been silently dead.
 
-# `src/` is not an installed package yet. M2-T14 replaces this with an editable
-# install and deletes the line.
-pythonpath = [".", "src"]
+# M2-T14 installed the project, so `import nanoscope` no longer needs a path
+# entry. What is left is `"."`, and it is here for exactly one reason: the
+# `src/` re-export shims and the characterization harness still import `src.*`,
+# which is not installed and never will be. **M2-T15 deletes the shims and this
+# line together.**
+#
+# The `"src"` entry is gone. That one was the actual hack: it put `src/` itself
+# on the path, so `import types` and `import pipeline` resolved to project
+# modules and shadowed the standard library.
+pythonpath = ["."]
 
 markers = [
     'slow: minutes, not milliseconds. The characterization golden (~100 s) carries it. `pytest -m "not slow"` skips it for inner-loop work; the full run is the merge gate.',
@@ -246,12 +266,15 @@ classmethod-decorators = ["classmethod"]
 "tests/*" = ["T20"]
 
 # The moved scientific core (M2-T03 onwards), where `ruff check` **is** blocking —
-# unlike `src/`, which is excluded wholesale. Three rules, each with the task that
-# deletes the entry. Everything else (E, F, B, UP, SIM, …) blocks here as normal,
-# which is the difference between this and the `src` carve-out.
+# unlike `src/`, which is excluded wholesale. Each entry names the task that deletes
+# it. Everything else (E, F, B, UP, …) blocks here as normal, which is the
+# difference between this and the `src` carve-out.
+#
+# The list shrank here, which is the point of writing expiry dates on ignores.
+# M2-T11 deleted `T201` (13 `print` calls became module loggers, ADR-0013) and
+# M2-T12 deleted `RUF001`/`RUF003` (the Russian text is translated, D-22 closed).
+# What is left is a real defect signature and three cosmetics; M3 takes them.
 "nanoscope/core/science/*" = [
-    "RUF001", "RUF002", "RUF003",  # Russian text — M2-T12 translates it, D-22
-    "T201",                        # print in library code — M2-T11 adds a log sink, D-23
     "RUF013",                      # implicit Optional — a real defect signature, M3
     "RET504",                      # `x = ...; return x` — cosmetic, and rewriting
                                    # science for a style rule is PROJECT_RULES §4.1
@@ -267,9 +290,9 @@ classmethod-decorators = ["classmethod"]
 ]
 # Legacy that landed in an adapter rather than in the science tree (M2-T04, M2-T07).
 # Listed file by file, not as `infrastructure/*`: a genuinely new adapter must not
-# inherit an exemption by being written in the same directory. Same expiry as the
-# science block — M2-T12 for the text rules, M3 for the rest.
-"nanoscope/infrastructure/storage/loaders.py" = ["RUF002"]
+# inherit an exemption by being written in the same directory. `loaders.py` dropped
+# off this list entirely at M2-T12 — its only entry was a Russian docstring on a
+# function M2-T13 then deleted.
 "nanoscope/infrastructure/models/yolo.py" = ["RUF002"]
 "nanoscope/infrastructure/models/sam2.py" = [
     "B007",  # `for cy, cx, sigma, r_nm in blobs` — r_nm is genuinely unused, but
