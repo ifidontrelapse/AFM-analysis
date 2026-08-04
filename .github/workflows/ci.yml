@@ -1,0 +1,104 @@
+# The slow half of the quality gate (PROJECT_RULES §6).
+#
+# Pre-commit (M1-T07) runs the fast checks on every commit and deliberately
+# refuses the slow ones. This is where they run: the characterization golden,
+# which is the single precondition for M2, plus the lint and type baselines the
+# hooks skip on `src/`.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A second push to the same branch makes the first run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # `uv run` syncs the project environment before running unless told not
+      # to — which would install the full runtime, torch and all, and undo the
+      # `--only-group ci` install below. Job-level so it cannot be forgotten on
+      # a step added later.
+      UV_NO_SYNC: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python
+        run: uv python install          # 3.12, from .python-version
+
+      # `--only-group ci` on purpose. A plain `uv sync` resolves torch from the
+      # CUDA 11.8 index and clones SAM2 from GitHub — hundreds of megabytes for
+      # code the suite never imports (every heavy import in `src/` is
+      # function-local; verified in M1-T08). `--locked` fails if uv.lock is stale
+      # rather than quietly resolving something else, which matters because the
+      # golden is sensitive to numpy/scipy/scikit-image versions.
+      - name: Install the CI environment
+        run: uv sync --only-group ci --locked
+
+      # Proof, not assumption: if a CUDA wheel ever appears in this environment,
+      # the job is wrong even when it is green.
+      - name: Assert the environment is CPU-only
+        run: |
+          uv run python - <<'PY'
+          import importlib.util as u
+          heavy = [m for m in ("torch", "ultralytics", "sam2", "patched_yolo_infer")
+                   if u.find_spec(m) is not None]
+          assert not heavy, f"CI installed packages the suite does not need: {heavy}"
+          print("CPU-only environment confirmed: none of torch/ultralytics/sam2 present")
+          PY
+
+      # ── blocking: the code we own ────────────────────────────────────────────
+      # `src/` and `preprocess_batch.py` are excluded by `[tool.ruff]
+      # extend-exclude` + `force-exclude`, declared once in pyproject.toml and
+      # shared with pre-commit. Everything else must be clean.
+      - name: Format
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check . --no-fix
+
+      # ── blocking: tests, including the golden ────────────────────────────────
+      # ~200 s. This is the check M2 depends on: sixteen relocation tasks, each of
+      # which must prove it moved no number, on a machine that is not the
+      # author's.
+      - name: Tests and characterization golden
+        run: uv run pytest -q
+
+      # ── reported, not blocking: the legacy core ──────────────────────────────
+      # The posture from M1-T04 and M1-T07: `src/` is checked and never silenced,
+      # but it does not block, because 109 ruff findings and 21 mypy errors would
+      # freeze all sixteen M2 tasks. The numbers are published so a regression is
+      # visible in review. M2-T01 points mypy at `nanoscope/`, where the check is
+      # strict and blocking from the first line.
+      - name: Legacy baseline (report only)
+        if: always()
+        continue-on-error: true
+        run: |
+          {
+            echo '## Legacy baseline — `src/`, reported not blocking'
+            echo
+            echo '### ruff'
+            echo '```'
+            uv run ruff check src preprocess_batch.py --no-fix --no-force-exclude --statistics 2>&1 | tail -30
+            echo '```'
+            echo '### mypy'
+            echo '```'
+            uv run mypy --no-pretty 2>&1 | tail -30
+            echo '```'
+            echo '> Expected on a clean run: 117 ruff findings, 21 mypy errors.'
+            echo '> 21, not the 22 measured locally — mypy infers less when'
+            echo '> `ultralytics` is absent, which it is here by design (M1-T08).'
+          } >> "$GITHUB_STEP_SUMMARY"

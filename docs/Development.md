@@ -69,11 +69,16 @@ nanoscope --project PATH  # open a project directory
 Everything below must pass before a merge (PROJECT_RULES §6):
 
 ```bash
-ruff check .                                   # lint
+ruff check .                                   # lint    — excludes the legacy core
 ruff format --check .                          # formatting
-mypy nanoscope                                 # types            (M2)
+mypy                                           # types   — reports on src/ (M2: nanoscope)
 pytest                                         # tests + numerical drift (~3 min)
 ```
+
+`ruff check .` skips `src/` and `preprocess_batch.py` (`extend-exclude` + `force-exclude`
+in `pyproject.toml`, declared once and shared by the hooks and CI). That is deliberate:
+109 open findings there would block every M2 commit. See *CI* below for how to measure
+them anyway.
 
 `pytest` now includes the characterization golden (M1-T05), so the drift check is no
 longer a separate command you have to remember. For the inner loop, skip it:
@@ -125,19 +130,57 @@ When a hook modifies a file, the commit aborts by design — inspect the change,
 it, commit again. `--no-verify` exists; using it routinely means the hook is wrong, so fix
 the hook.
 
+### CI — the slow half
+
+`.github/workflows/ci.yml`, on every push and pull request: format → lint → tests →
+legacy report. About four minutes, of which the golden is three.
+
+**CI installs a smaller environment than you have.** `uv sync --only-group ci --locked`
+brings numpy, scipy, scikit-image, pandas, matplotlib, headless OpenCV and the dev tools —
+and no torch, ultralytics, sam2 or patched-yolo-infer. Every heavy import in `src/` is
+function-local, so the suite never touches them, and CI has no reason to resolve the CUDA
+11.8 wheel or clone SAM2. A step asserts this rather than trusting it: if a CUDA wheel ever
+appears, the job fails even when the tests pass.
+
+Two consequences worth knowing:
+
+- `uv run` re-syncs the project environment unless told not to, which would reinstall
+  everything the `ci` group leaves out. The workflow sets `UV_NO_SYNC: "1"` at job level.
+- **mypy reports 21 errors in CI and 22 locally.** With `ultralytics` absent, mypy infers
+  `Any` where it would otherwise see `list[Any]`, and `yolo_detector.py:99` — part of
+  M3-T18 — stops being visible. The type checker's output depends on which third-party
+  packages are installed. Neither number is wrong; the local one is more complete.
+
+`src/` is reported, never blocking — the same posture as the hooks and as mypy (M1-T04).
+The counts go to the run summary so a regression shows up in review without freezing the
+sixteen M2 relocation tasks. When the code moves to `nanoscope/`, its check is strict and
+blocking from the first line.
+
+`pre-commit run --all-files` is **not** run in CI. Its blocking content — ruff check and
+format — already runs directly with the same configuration, and `--all-files` is red on the
+two committed notebooks, which M1-T09 owns. CI should not be the thing that forces an
+unrelated task.
+
+To measure the legacy baseline yourself, the exclusion has to be overridden explicitly:
+
+```bash
+ruff check src preprocess_batch.py --no-fix --no-force-exclude --statistics
+```
+
 **Tool versions** (installed by M1-T02, declared in `[dependency-groups] dev`):
 
 | Tool | Version | State |
 |---|---|---|
 | pytest | 9.1.1 | **green** — 23 tests (M1-T05, M1-T06) |
 | pytest-cov | 7.1.0 | installed, not yet wired |
-| ruff | 0.16.1 | configured (M1-T03); **128 findings**, 109 of them in `src/` |
-| mypy | 2.3.0 | configured (M1-T04); **22 errors** in 7 files, deliberately not silenced |
+| ruff | 0.16.1 | configured (M1-T03); clean outside the legacy core, **117 findings** inside it |
+| mypy | 2.3.0 | configured (M1-T04); **22 errors** locally / 21 in CI, deliberately not silenced |
 | pre-commit | 4.6.1 | configured (M1-T07); `pre-commit install` required per clone |
 
-**Current reality:** the suite is green and the golden runs inside it. The lint and type
-findings are real and still open — they are `src/` defects fixed in M2/M3, not
-configuration noise — and there is no CI yet (M1-T08).
+**Current reality:** the suite is green, the golden runs inside it, hooks refuse on commit
+and CI runs the slow half. The lint and type findings that remain are real and confined to
+`src/` and `preprocess_batch.py` — they are defects fixed in M2/M3, not configuration
+noise.
 
 ---
 

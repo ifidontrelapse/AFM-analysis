@@ -7,6 +7,132 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1 · `M1-T08` CI · **verified locally, not yet run on GitHub**
+
+**Task:** M1-T08 (complete, with one caveat below)
+**Branch:** `chore/ci`
+**Scientific impact:** none. Golden zero drift, in two environments.
+
+### What was added
+
+`.github/workflows/ci.yml` — format → lint → tests+golden → legacy report, on push and
+pull request. About four minutes, three of which are the golden.
+
+### The hard part was the environment, and it went the opposite way to expectations
+
+`CURRENT_TASK.md` flagged the risk that `uv sync` would drag torch off the CUDA 11.8 index
+and clone SAM2 from GitHub. Tracing the imports first showed something better than a
+workaround: **`src/` never imports torch at all.** `ultralytics` and `patched_yolo_infer`
+appear only inside two function bodies in `yolo_detector.py`, SAM2 only inside
+`segmentation.py`'s call paths, and `import src.pipeline` pulls in nothing heavier than
+matplotlib, pandas, scikit-image and scipy.
+
+So CI installs a `ci` dependency group — numpy, scipy, scikit-image, pandas, matplotlib,
+headless OpenCV, plus dev — and **nothing else**. No CUDA wheel, no git clone, no weights.
+Versions are not repeated in the group; uv resolves every group against one lock, so CI
+gets exactly what the dev machine has. That last point is not cosmetic: the golden is
+sensitive to numpy/scipy/scikit-image versions, and it was checked explicitly before
+anything else.
+
+| | golden baseline | dev `.venv` | what CI installs |
+|---|---|---|---|
+| numpy | 2.4.4 | 2.4.4 | 2.4.4 |
+| scipy | 1.17.1 | 1.17.1 | 1.17.1 |
+| scikit-image | 0.26.0 | 0.26.0 | 0.26.0 |
+
+The claim is also asserted in the workflow rather than trusted: a step fails the job if
+`torch`, `ultralytics`, `sam2` or `patched_yolo_infer` is importable. A CI run that is
+green for the wrong reason is worse than a red one.
+
+### Two traps found by running it instead of writing it
+
+**`uv run` re-syncs the project environment by default.** Every `uv run ruff …` step would
+have silently reinstalled the full runtime — torch included — undoing the `--only-group ci`
+install one step earlier, and the job would still have gone green. `UV_NO_SYNC: "1"` is set
+at job level, and the CPU-only assertion above is what would catch a regression.
+
+**`ruff format --check .` failed on three Markdown files.** Ruff formats Python inside
+Markdown code blocks, and `docs/Architecture.md` contains illustrations, not source — a
+`Protocol` sketch with `...` bodies and a registry call aligned by hand for reading. A
+formatter must not be authoritative over prose examples, so `*.md` is now excluded.
+Nothing found this by inspection; it took running the command that CI would run.
+
+### One exclusion, three consumers
+
+`src/` and `preprocess_batch.py` were excluded in `.pre-commit-config.yaml` (M1-T07) and
+would have needed excluding again in the workflow — a third place to drift. They now live
+in `[tool.ruff] extend-exclude` with `force-exclude = true`, declared once:
+
+- `ruff check .` / `ruff format --check .` → the code we own; blocking in hooks and CI
+- `ruff check src preprocess_batch.py --no-force-exclude` → the legacy baseline, on demand
+
+`force-exclude` is what extends the exclusion to paths named explicitly on the command
+line, which is what pre-commit passes. Verified afterwards that the hooks still skip `src/`.
+
+### mypy reports a different number in CI, and it is not a bug
+
+**21 errors in CI, 22 locally.** The missing one is
+`yolo_detector.py:99 Incompatible types in assignment (list[Any] vs None)` — part of
+M3-T18. With `ultralytics` absent, mypy types `YOLO(...)` as `Any`, and assigning `Any` to
+a `None`-typed attribute is legal, so the defect becomes invisible.
+
+A type checker's output depends on which third-party packages are installed. Worth
+remembering when M2 makes `nanoscope/` strict: the strictness is only as good as the stubs
+present. Documented in `Development.md` §4 with both numbers, because a CI summary that
+disagrees with `STATE.md` and explains nothing is how people learn to ignore CI.
+
+### Verification
+
+The workflow has **not** run on GitHub — that needs a push, and nothing in this session has
+been pushed. What was done instead: the exact command sequence was executed against a
+scratch environment built the way CI builds it (`uv sync --only-group ci --locked` into a
+separate `UV_PROJECT_ENVIRONMENT`, leaving the dev venv untouched).
+
+| Step, run in the CI-shaped environment | Result |
+|---|---|
+| `uv sync --only-group ci --locked` | 42 packages, no torch/ultralytics/sam2/patched-yolo-infer |
+| CPU-only assertion | passes |
+| `ruff format --check .` | clean |
+| `ruff check . --no-fix` | **All checks passed** |
+| `pytest -q` | 23 passed, 195 s, zero golden drift |
+| legacy report | 117 ruff findings, 21 mypy errors |
+| **broken parser** (z divisor mutated) | 3 failed → **exit 1** |
+| **drifted golden** (`height_nm.mean` +0.1%) | 1 failed, quantity named → **exit 1** |
+
+Both rejection cases are the DoD's real question — a CI that cannot fail is the same
+non-gate as a test that cannot fail (M1-T05, M1-T06). Confirmed red on both.
+
+### Decisions recorded
+
+- **No `pre-commit run --all-files` in CI.** Its blocking content already runs directly
+  with the same configuration, and `--all-files` is red on the two committed notebooks,
+  which are M1-T09's property. CI must not be the thing that forces an unrelated task.
+- **No README badge.** `README.md` is stale until M9 (D-24). A green badge on a document
+  that misdescribes the project claims health it does not have.
+- **mypy is non-blocking**, because `files = ["src"]` and `src/` is the legacy core. M2-T01
+  points it at `nanoscope/`, where it is strict and blocking from the first line.
+
+### Learned
+
+- **Read the imports before designing around them.** The expensive mitigation this task
+  budgeted for — a CPU torch index, a trimmed install — turned out to be unnecessary
+  because the code already isolates its heavy dependencies. The cheapest answer was
+  available only after tracing what actually gets imported.
+- **A CI step that cannot fail is invisible.** `uv run`'s implicit sync would have produced
+  a green job in a wrong environment. The assertion step exists because of it.
+- **Tooling has opinions outside its remit.** Ruff reformatting documentation prose is the
+  same class of surprise as `fix = true` rewriting the scientific core (M1-T03).
+
+### Next
+
+`M1-T09` — notebooks. Then `M1-T10` (`make check`) closes M1.
+
+**Open, and now the only thing between here and M2: B1, the package name.**
+
+**Also open: this workflow has never executed.** It needs one push to `origin` to be real.
+
+---
+
 ## 2026-08-04 — M1 · `M1-T07` Pre-commit — the first mechanism that can refuse
 
 **Task:** M1-T07 (complete)

@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `chore/pre-commit` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-04 · **Branch:** `chore/ci` · **Base commit:** `11e0ecc`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -16,7 +16,7 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T08` — Add CI**
+**`M1-T09` — Clean notebooks**
 
 Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
@@ -68,6 +68,14 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   scientific core, which the original `^src/` exclusion missed; refusing hooks apply
   everywhere. pytest and mypy stay off the commit path by design. `src/` files modified:
   **0**; golden: zero drift.
+- **M1-T08** ✅ (2026-08-04) — CI written and verified locally: format → lint → tests+golden,
+  `src/` reported not blocking. CI installs a `ci` group with **no torch, ultralytics, sam2
+  or patched-yolo-infer** — every heavy import in `src/` turned out to be function-local —
+  and a step fails the job if one appears. Two traps caught by running it: `uv run` re-syncs
+  and would have reinstalled the full runtime (`UV_NO_SYNC` set), and `ruff format` rewrites
+  Python inside Markdown docs (`*.md` excluded). The legacy exclusion moved into
+  `pyproject.toml`, declared once for hooks and CI. Both rejection cases confirmed red.
+  **Never executed on GitHub — needs a push.**
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -93,7 +101,12 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T07 closed; M1-T08 selected and awaiting execution.
+Nothing. M1-T08 closed; M1-T09 selected and awaiting execution.
+
+**One thing is unfinished and is not a task:** `.github/workflows/ci.yml` has never run.
+Nothing in this session has been pushed to `origin`. The workflow was verified locally,
+step by step, in an environment built the way CI builds it — but a push is what makes it
+real, and that is the operator's call.
 
 ---
 
@@ -116,10 +129,10 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T08`** — CI: the slow half of the gate that pre-commit deliberately
-   refuses to run. At that point the gate is real
-2. `M1-T09` — notebooks; `pre-commit run --all-files` is still red on the two committed
-   ones, which is M1-T09's property, not a bug in the hooks
+1. **Push `chore/ci` to `origin`** so the workflow actually runs once — it is written and
+   locally verified, but no GitHub run exists. Operator's call
+2. **Execute `M1-T09`** — notebooks; `pre-commit run --all-files` is still red on the two
+   committed ones, which is M1-T09's property, not a bug in the hooks
 3. `M1-T10` — `make check`
 4. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
 
@@ -136,12 +149,13 @@ None of these blocks M1-T01 or the rest of M1.
 | Meaningful tests | **23, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
-| ruff findings in `src/` | 109 | 0 | `ruff check src/ --no-fix` |
-| mypy errors | 22 in 7 files | 0 | `mypy` |
+| ruff findings, legacy core | 117 (109 `src/` + 8 `preprocess_batch.py`) | 0 | `ruff check src preprocess_batch.py --no-fix --no-force-exclude` |
+| ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
+| mypy errors | 22 in 7 files locally, **21 in CI** (no `ultralytics` → less inference) | 0 | `mypy` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | 5 | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
-| Lint/type/test gate | **`pytest` green**, hooks refuse on commit; lint/type findings open, no CI | green in CI | M1-T08 |
+| Lint/type/test gate | **`pytest` green**, hooks refuse on commit, CI written | green on GitHub | push `chore/ci` |
 | Commit-time gate | **9 hooks, all proven to fire** ✅ (was: none) | enforced | `pre-commit run` |
