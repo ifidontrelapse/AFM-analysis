@@ -80,6 +80,11 @@ anything is decoration. The third test asserts that importing `nanoscope.core.sc
 leaves torch and ultralytics out of `sys.modules`: the dependency rule as a fact rather
 than a diagram, and a down payment on M2-T09.
 
+**CI green, run 19** — and this run carries more weight than usual: CI is the environment
+with no torch, ultralytics, sam2 or patched_yolo_infer, so it is the machine that proves
+the moved adapters can be imported without them. `test_ports.py`'s `sys.modules` assertion
+passed there, not just here.
+
 ### Next
 
 `M2-T09` — break the five import cycles and add the import-graph test. `src/__init__.py`
