@@ -124,7 +124,19 @@ strict_equality = true
 # posture applied to code in transit. Delete this block when M3 closes; the strict
 # settings above then apply to the science too, which is the point of moving it.
 [[tool.mypy.overrides]]
-module = "nanoscope.core.science.*"
+module = [
+    "nanoscope.core.science.*",
+    # Legacy that landed in an adapter (M2-T07). Same status, and it is the layer
+    # that changes it: `infrastructure.storage.loaders` is annotated well enough to
+    # pass strict and is deliberately *not* listed, so this is about the code, not
+    # about the directory. Moving `yolo` and `sam2` under strict produced 16 errors
+    # in one commit — untyped `predictor` parameters, bare `dict` and `tuple`,
+    # `Returning Any` — none of which the characterization golden can see, because
+    # model inference is outside the gate (PROJECT_RULES §6). Annotating them
+    # blind is how a "type fix" quietly becomes a behaviour change.
+    "nanoscope.infrastructure.models.*",
+    "nanoscope.infrastructure.imaging.*",
+]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_untyped_calls = false
@@ -253,6 +265,15 @@ classmethod-decorators = ["classmethod"]
                                    # reasoning about builtins; this code is fed numpy
                                    # scalars. Left exactly as it is.
 ]
-# Legacy that landed in an adapter rather than in the science tree (M2-T04). Same
-# status, same expiry: M2-T12 translates the docstring and this entry goes.
+# Legacy that landed in an adapter rather than in the science tree (M2-T04, M2-T07).
+# Listed file by file, not as `infrastructure/*`: a genuinely new adapter must not
+# inherit an exemption by being written in the same directory. Same expiry as the
+# science block — M2-T12 for the text rules, M3 for the rest.
 "nanoscope/infrastructure/storage/loaders.py" = ["RUF002"]
+"nanoscope/infrastructure/models/yolo.py" = ["RUF002"]
+"nanoscope/infrastructure/models/sam2.py" = [
+    "B007",  # `for cy, cx, sigma, r_nm in blobs` — r_nm is genuinely unused, but
+             # renaming a loop variable in code the golden cannot see is a change
+             # with no witness. M3 or M2-T13.
+]
+"nanoscope/infrastructure/imaging/colormap.py" = ["RET504"]
