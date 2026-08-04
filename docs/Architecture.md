@@ -280,7 +280,9 @@ protection of the characterization golden file:
 1. Create the package skeleton; keep `src/` importable as a thin shim (M2-T01).
 2. Move one module at a time, largest blast radius last: entities → preprocessing →
    io → LoG → measurement → YOLO/SAM2 providers.
-3. After each move: `python tests/characterization/capture.py` must report **zero drift**.
+3. After each move: `pytest` must report **zero drift** — since M1-T05 the golden
+   comparison is `tests/characterization/test_golden.py`, not a command to remember.
+   (`python tests/characterization/capture.py` still runs the same comparison by hand.)
 4. Break the import cycles; add the import-graph test.
 5. Delete the shim only when nothing imports `src` — including notebooks.
 6. **Only then** start M3, where numbers are allowed to change, one defect per commit,

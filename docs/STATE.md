@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `chore/mypy-config` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-04 · **Branch:** `chore/golden-in-pytest` · **Base commit:** `11e0ecc`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -16,7 +16,7 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T05` — Wire the characterization harness into pytest**
+**`M1-T06` — Replace `tests/test_io.py`**
 
 Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
@@ -47,6 +47,13 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   All 30 default errors classified before writing config: 13 statically confirm audit
   defects **D-01, D-02, D-07, D-10, D-16**, and **3 new defects** were found and filed
   (**M3-T17…T19**), including a crash in the SPM parser's no-`Scan Size` fallback.
+- **M1-T05** ✅ (2026-08-04) — the characterization golden now runs under `pytest`, via a
+  single new seam in `capture.py` (`diff_against_golden()`); the CLI is unchanged. Marked
+  `slow` (**192 s measured**, not the ~100 s the docs claimed); `pytest -m "not slow"`
+  skips it in 1.4 s. `pytest.ini` folded into `pyproject.toml` and deleted — while it
+  existed, pytest ignored `[tool.pytest.ini_options]` silently. The negative case was
+  proven, not assumed: a perturbed golden produced a red run naming the moved quantity.
+  **The M2 safety net is now mechanical.**
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -72,7 +79,7 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T04 closed; M1-T05 selected and awaiting execution.
+Nothing. M1-T05 closed; M1-T06 selected and awaiting execution.
 
 ---
 
@@ -95,11 +102,10 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T05`** — wire the characterization golden into `pytest`, so the safety
-   net runs automatically instead of by discipline
-2. `M1-T06` — replace `tests/test_io.py`; the suite is currently red
-3. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
-4. Answer **B1** so that M2 can start on schedule
+1. **Execute `M1-T06`** — replace `tests/test_io.py`; it is the only red test left
+2. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
+3. `M1-T09` / `M1-T10` — notebooks, then `make check`
+4. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
 
 ---
 
@@ -111,7 +117,8 @@ None of these blocks M1-T01 or the rest of M1.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | 0 (1 test, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | 1 (the golden; `test_io.py` still failing) | ≥ 80% of core | `pytest -q` |
+| Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | ruff findings in `src/` | 109 | 0 | `ruff check src/ --no-fix` |
 | mypy errors | 22 in 7 files | 0 | `mypy` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
@@ -119,4 +126,4 @@ None of these blocks M1-T01 or the rest of M1.
 | Import cycles | 5 | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
-| Lint/type/test gate | tools installed, all red | green in CI | M1-T03…T08 |
+| Lint/type/test gate | tools configured; drift check green, one test red | green in CI | M1-T06…T08 |

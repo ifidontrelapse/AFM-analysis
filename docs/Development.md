@@ -72,9 +72,23 @@ Everything below must pass before a merge (PROJECT_RULES §6):
 ruff check .                                   # lint
 ruff format --check .                          # formatting
 mypy nanoscope                                 # types            (M2)
-pytest                                         # tests            (M1-T02 installs it)
-python tests/characterization/capture.py       # numerical drift
+pytest                                         # tests + numerical drift (~3 min)
 ```
+
+`pytest` now includes the characterization golden (M1-T05), so the drift check is no
+longer a separate command you have to remember. For the inner loop, skip it:
+
+```bash
+pytest -m "not slow"                           # everything except the golden (~1 s)
+```
+
+The `slow` marker is registered in `pyproject.toml`. **`-m "not slow"` is for editing,
+not for merging** — a merge runs the bare `pytest`.
+
+Pytest configuration lives in `[tool.pytest.ini_options]` in `pyproject.toml`. The old
+`pytest.ini` was deleted: while it existed, pytest ignored the `pyproject.toml` section
+entirely, and two files that can silently override each other is a trap. The
+`pythonpath = [".", "src"]` hack survives there until M2-T14 installs the package.
 
 After M1-T10 this is one command:
 
@@ -86,19 +100,14 @@ make check
 
 | Tool | Version | State |
 |---|---|---|
-| pytest | 9.1.1 | runs; the suite is **red** — see below |
+| pytest | 9.1.1 | runs; the golden test passes, `tests/test_io.py` still fails (M1-T06) |
 | pytest-cov | 7.1.0 | installed, not yet wired |
-| ruff | 0.16.1 | runs; **196 findings**, configuration still deprecated (M1-T03) |
-| mypy | 2.3.0 | runs; **30 errors** in 9 files, no configuration yet (M1-T04) |
+| ruff | 0.16.1 | configured (M1-T03); **128 findings**, 109 of them in `src/` |
+| mypy | 2.3.0 | configured (M1-T04); **22 errors** in 7 files, deliberately not silenced |
 
-> **`ruff check .` rewrites your files.** `pyproject.toml` sets `fix = true`, so a bare
-> `ruff check` silently applies 66 fixes. Until M1-T03 removes that, always measure with
-> `ruff check . --no-fix`.
-
-**Current reality:** the tools now exist, but nothing is green yet. `pytest` fails
-(`tests/test_io.py` — M1-T06), ruff and mypy have no repaired configuration (M1-T03,
-M1-T04), and there is no CI (M1-T08). The characterization runner remains the only check
-that passes today.
+**Current reality:** the tools are configured, and the golden runs under `pytest`. The
+suite is still red on one file — `tests/test_io.py`, replaced in M1-T06 — and there is no
+CI yet (M1-T08).
 
 ---
 
@@ -108,11 +117,16 @@ This is the most important tool in the repository. Read
 `docs/audit/characterization-baseline.md` before touching numerical code.
 
 ```bash
-python tests/characterization/capture.py            # compare — exit 1 on drift
+pytest tests/characterization/test_golden.py        # the normal way — part of `pytest`
+python tests/characterization/capture.py            # same comparison, CLI — exit 1 on drift
 python tests/characterization/capture.py --write    # re-baseline after a declared change
 ```
 
-- 8 seeded phantoms, ~100 s, CPU only, no weights, no network, no file I/O
+The test and the CLI share one code path (`capture.diff_against_golden()`), so they cannot
+disagree. The CLI stays because `--write` and the standalone exit code are useful outside
+pytest.
+
+- 8 seeded phantoms, ~190 s, CPU only, no weights, no network, no file I/O
 - Tolerance `rtol=1e-6, atol=1e-9`; counts, dtypes and error types must match exactly
 - Drift is reported as a path-addressed diff:
   ```

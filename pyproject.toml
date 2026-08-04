@@ -44,6 +44,19 @@ torch = { index = "pytorch-cu118" }
 torchvision = { index = "pytorch-cu118" }
 sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
 
+[tool.pytest.ini_options]
+# M1-T05 folded `pytest.ini` in here and deleted it. Two configuration files is a
+# trap: while `pytest.ini` exists pytest ignores `[tool.pytest.ini_options]`
+# entirely, so anything written here would have been silently dead.
+
+# `src/` is not an installed package yet. M2-T14 replaces this with an editable
+# install and deletes the line.
+pythonpath = [".", "src"]
+
+markers = [
+    'slow: minutes, not milliseconds. The characterization golden (~100 s) carries it. `pytest -m "not slow"` skips it for inner-loop work; the full run is the merge gate.',
+]
+
 [tool.mypy]
 python_version = "3.12"
 files = ["src"]                 # becomes ["nanoscope"] in M2-T01 (ADR-0011)

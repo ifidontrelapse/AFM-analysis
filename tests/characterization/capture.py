@@ -458,6 +458,31 @@ def compare(new: Any, old: Any, path: str, diffs: list[str]) -> None:
         diffs.append(f"{path}: {old!r} -> {new!r}")
 
 
+def diff_against_golden() -> list[str]:
+    """Capture the pipeline again and compare it with the committed golden file.
+
+    The callable seam between "measure" and "print/exit", so that the same
+    comparison can be driven from the CLI below and from
+    ``tests/characterization/test_golden.py``. It performs no I/O beyond reading
+    the golden file and never rewrites it.
+
+    Returns:
+        One path-addressed string per difference, in the same format the CLI
+        prints (``group.stage.quantity: old -> new``). Empty when stable.
+
+    Raises:
+        FileNotFoundError: if the golden file has not been generated yet.
+    """
+    old = json.loads((GOLDEN_DIR / "baseline.json").read_text())
+    snapshot = build_all()
+    diffs: list[str] = []
+    for key in sorted(set(old) | set(snapshot)):
+        if key == "_meta":
+            continue
+        compare(snapshot.get(key), old.get(key), key, diffs)
+    return diffs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--write", action="store_true", help="regenerate the golden file")
@@ -466,19 +491,12 @@ def main() -> int:
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
     golden_path = GOLDEN_DIR / "baseline.json"
 
-    snapshot = build_all()
-
     if args.write or not golden_path.exists():
-        golden_path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
+        golden_path.write_text(json.dumps(build_all(), indent=2, sort_keys=True) + "\n")
         print(f"wrote {golden_path.relative_to(REPO_ROOT)}")
         return 0
 
-    old = json.loads(golden_path.read_text())
-    diffs: list[str] = []
-    for key in sorted(set(old) | set(snapshot)):
-        if key == "_meta":
-            continue
-        compare(snapshot.get(key), old.get(key), key, diffs)
+    diffs = diff_against_golden()
 
     if diffs:
         print(f"CHARACTERIZATION DRIFT: {len(diffs)} difference(s)\n")
@@ -487,7 +505,8 @@ def main() -> int:
         if len(diffs) > 80:
             print(f"  ... and {len(diffs) - 80} more")
         return 1
-    print(f"characterization baseline stable ({len(snapshot) - 1} groups)")
+    n_groups = len(json.loads(golden_path.read_text())) - 1  # minus `_meta`
+    print(f"characterization baseline stable ({n_groups} groups)")
     return 0
 
 

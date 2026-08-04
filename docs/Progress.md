@@ -7,6 +7,80 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1 · `M1-T05` The golden runs under pytest
+
+**Task:** M1-T05 (complete)
+**Branch:** `chore/golden-in-pytest`
+**Scientific impact:** none — no golden value changed, no numerical code touched.
+`capture.py`'s comparison, tolerances and digests are byte-for-byte the same; the CLI
+prints the same line it printed before (`characterization baseline stable (9 groups)`).
+
+### What changed
+
+- **One seam in `capture.py`**: `diff_against_golden() -> list[str]` — read the golden,
+  `build_all()`, `compare()`, return the path-addressed diff. `main()` now calls it and
+  keeps sole ownership of printing and exit codes. Nothing else in the file moved.
+- **`tests/characterization/test_golden.py`** — one `@pytest.mark.slow` test that asserts
+  the diff is empty and puts it in the assertion message. It reimplements nothing; if the
+  test and the CLI ever disagreed it would be because they share a code path, and they do.
+- **`pytest.ini` deleted, configuration folded into `pyproject.toml`** (scope item 7).
+  This was the one open decision in the task, and the deciding fact is not tidiness: while
+  a `pytest.ini` exists pytest ignores `[tool.pytest.ini_options]` **entirely and
+  silently**. Two files that can shadow each other is exactly the failure mode this task
+  exists to remove. The `pythonpath = [".", "src"]` hack moved across unchanged and still
+  dies in M2-T14.
+- `docs/Development.md` §4 and §5 document both invocations.
+
+### The proof that matters
+
+A test that cannot fail is not a safety net, so the negative case was run rather than
+assumed. `afm_flat_monodisperse…detect_particles_p20.n_blobs` was edited 24 → 23 in the
+golden file:
+
+```
+E   AssertionError: CHARACTERIZATION DRIFT: 1 difference(s)
+E       afm_flat_monodisperse.log_detection.detect_particles_p20.n_blobs: 23 -> 24
+```
+
+Red, one line, the quantity named with both values. The golden was then restored;
+`git diff` on `baseline.json` is empty.
+
+### Measurements
+
+| | |
+|---|---|
+| `pytest tests/characterization/test_golden.py` | **passed**, 192 s |
+| `pytest -m "not slow"` | 1.4 s, golden deselected, `test_io.py` fails as expected (M1-T06) |
+| `python tests/characterization/capture.py` | unchanged output, exit 0 |
+| Marker warnings | none |
+| ruff on the new file | clean, formatted |
+
+### Learned
+
+- **The task estimated ~100 s; it is 192 s.** The figure in `Development.md` was inherited
+  and never measured. Corrected there. It matters: this is the number that decides whether
+  people keep running the full suite, and `-m "not slow"` is the answer to it.
+- **`pytest.ini` + `[tool.pytest.ini_options]` is a silent-override trap.** Had the marker
+  been registered in `pyproject.toml` while `pytest.ini` still existed, the registration
+  would have done nothing and the warning would have stayed — with no error to explain it.
+- **The harness was already test-shaped.** `build_all()` and `compare()` were pure; only
+  `main()` mixed in printing. One extracted function was the whole job — no restructuring,
+  hence no risk to the numbers.
+- The two `RuntimeWarning`s pytest now surfaces (`Mean of empty slice`, `Degrees of freedom
+  <= 0`) are not new. They come from the degenerate-input phantoms and always went to
+  stderr; the CLI just made them easy to overlook. They are characterized behaviour.
+
+### Next
+
+`M1-T06` — replace `tests/test_io.py`. It is the only thing keeping `pytest` red: no
+assertions, catches `ImportError` while the real failure is `FileNotFoundError`, and it
+reads `data/5.011`, a path that does not exist in a clean checkout.
+
+**M2 is no longer blocked by the safety net** — the golden is mechanically enforced. It is
+still blocked by **B1**, the package name.
+
+---
+
 ## 2026-08-04 — M1 · `M1-T04` Mypy configuration
 
 **Task:** M1-T04 (complete)
