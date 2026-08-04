@@ -7,6 +7,76 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T04 · M2-T05 · M2-T06 · **Three moves, one branch, zero drift**
+
+**Tasks:** `M2-T04` I/O · `M2-T05` the LoG detector · `M2-T06` measurement.
+**Branch:** `feat/core-io-detection-measurement`. Batched at the operator's request; they
+touch overlapping shims, so splitting them across branches would have meant three merges
+of the same files.
+**Scientific impact:** none. `make check` green, **golden zero drift**, 31 passed.
+**16 top-level definitions moved.**
+
+### What moved, and along which line
+
+| Task | From | To | The line drawn |
+|---|---|---|---|
+| M2-T04 | `afm_io.py` | `core/science/io/nanoscope_spm.py` + `infrastructure/storage/loaders.py` | Parsing versus the world. Every function in `loaders.py` takes a path and opens it — `cv2` and `np.load` are adapters, not domain |
+| M2-T05 | `detection/log_detector.py`, `detection/base.py` | `core/science/detection/` | Pure NumPy stays; **`yolo_detector.py` deliberately does not move** — it imports torch, so it is infrastructure, and M2-T07 owns it |
+| M2-T06 | `measure.py` | `core/science/measurement/height.py` + `geometry.py` | AFM versus any modality. `height` needs a Z map; `geometry` needs only a binary mask, which is what SEM and TEM have |
+
+M2-T06 is the one that was worth doing for its own sake rather than for tidiness: the
+mask-geometry code — area, radius, circularity, aspect ratio — was trapped inside an
+AFM-named module, which is why `src/segmentation.py` reaches into `src.measure` to get
+shape metrics for SEM and TEM. Now it is where it belongs, and the SEM/TEM path stops
+depending on an AFM module by accident.
+
+Four `src/` modules are now shims that define nothing: `afm_io`, `measure`,
+`detection/base`, `detection/log_detector`.
+
+### Verified before the gate ran
+
+The AST comparison from M2-T03, now over three moves at once: definitions matched by name,
+docstrings stripped, bodies compared as trees. **Detection (7 definitions) and measurement
+(5) are code-identical**, with docstrings differing only in trailing whitespace.
+
+**Three functions in `loaders.py` are not verbatim, and the honest thing is to name them
+rather than round the claim up.** `ruff check --fix` applied three of its *safe* fixes on
+the way through:
+
+- `RET505` — `elif` became `if`, after a branch that returns
+- `UP037` — two return annotations lost their quotes, which `from __future__ import
+  annotations` had already made lazy
+- `PIE790` — a `pass` disappeared from a function whose docstring is its body
+
+Each is semantics-preserving, none is in the numerical core, and the alternative — keeping
+them verbatim — meant either a red commit hook or inventing three more ignores for rules
+that should apply to an adapter. Recorded here, in the commit message, and provable from
+the AST diff.
+
+mypy: **21 before, 21 after**, in new locations. The two that landed in moved code are both
+pre-existing: `_read_nanoscope_z` is annotated `-> np.ndarray` and returns a 3-tuple, and
+`make_synthetic_afm` has an empty body.
+
+### The finding worth keeping: ruff was wrong about the science
+
+`RUF046` fired on `int(round(y))` in `measure_all_baseline` — "value being cast to `int` is
+already an integer". It is not. `round()` on a `np.float64` returns a `np.float64`, and the
+detector feeds this loop numpy scalars, so dropping the `int()` would change the dtype of
+the `x_px` and `y_px` columns in every measurement DataFrame the project produces.
+
+Ruff is reasoning about builtins; this code is fed numpy. The rule is now on the science
+ignore list with that explanation attached, alongside two genuinely cosmetic ones (`N806`,
+`SIM108`) — and it is the concrete argument for why "harmless style fixes" and "verbatim
+move" cannot be the same commit. A linter is a good reason to look; it is not a mandate.
+
+### Next
+
+`M2-T07` — YOLO and SAM2 wrappers to `infrastructure/models/`. They import torch, which
+CI does not install, so this is also the first move where the CI environment and the local
+one see different code.
+
+---
+
 ## 2026-08-04 — M2-T03 · **Behaviour moves, and the transit rules get written down**
 
 **Task:** `M2-T03` — move preprocessing. **Branch:** `feat/core-preprocessing`.

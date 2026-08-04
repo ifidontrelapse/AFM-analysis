@@ -1,94 +1,66 @@
 # CURRENT TASK
 
-**ID:** `M2-T02`
-**Title:** Extract entities and value objects
+**ID:** `M2-T07`
+**Title:** Move model-backed code to infrastructure
 **Milestone:** M2 — Domain extraction (behaviour-preserving)
-**Status:** **done 2026-08-04**. Rewritten for `M2-T03` at the start of the next session.
-**Branch to use:** `feat/core-entities`
+**Status:** selected — not started
+**Branch to use:** `feat/infrastructure-models`
 **Estimated size:** M
-**Risk to scientific output:** **the first task in the project that moves scientific code.**
-The golden is the gate, and it records `sorted(field names)` of `PipelineConfig` and
-`PipelineResult` — so adding a field is drift, not just a change
+**Risk to scientific output:** **the golden cannot see most of it.** YOLO and SAM2 are not
+in the characterization baseline — model inference is excluded from the gate by
+PROJECT_RULES §6 as insufficiently reproducible. One exception: `capture.py` records
+`yolo_input_preparation`, the deterministic image preparation before inference, for all 8
+phantoms. That part is covered; the rest is not
 **Selected:** 2026-08-04
+
+> The previous task file described the finished `M2-T04…T06` batch. Its record lives in
+> `docs/Progress.md` (2026-08-04, "Three moves, one branch, zero drift") and
+> `docs/TASKS.md`.
 
 ---
 
 ## Why this task is next
 
-`nanoscope/` exists but is empty (M2-T01). `src/types.py` is the dependency root of the
-whole `src/` package — every other module imports from it and it imports from none of them
-— which makes it the only module that can move without dragging another with it.
+Six of the twelve `src/` modules are now shims. What is left is the code that cannot go
+into `core/` at all: `yolo_detector.py` and `segmentation.py` import torch, ultralytics,
+`patched_yolo_infer` and SAM2. `core` is defined by not importing them (ADR-0001), so this
+is the move that makes the dependency rule true rather than aspirational — and M2-T09's
+import-graph test can only be written once it is.
 
 ---
 
 ## Scope
 
-Two commits, deliberately separate. If the golden goes red, which commit did it must be
-obvious without bisecting.
+**In scope**
 
-> **It became three.** The strict `nanoscope.*` override rejects legacy code arriving
-> verbatim, which this plan did not anticipate; the fix is its own commit rather than
-> smuggled into the move. See `Progress.md`.
-
-**Commit 1 — the move. Behaviour-preserving, no new names.**
-
-1. The six dataclasses in `src/types.py` → `nanoscope/core/entities/`:
-   - `image.py` — `AFMRawData`, `MicroscopyData`, `PreprocessingResult`
-   - `detection.py` — `Detection`
-   - `pipeline.py` — `PipelineConfig`, `PipelineResult`
-   - `__init__.py` re-exports all six; that is the layer's public surface
-2. `src/types.py` becomes a **re-export shim** — no class definitions. There must be
-   exactly one `Detection` class object in the process, or `isinstance` starts lying and
-   the five `src/` importers silently split into two type systems
-3. Class bodies are copied character for character. No field added, renamed or reordered;
-   no annotation "improved". The golden compares field *names*, and `dataclasses.asdict`
-   ordering is field order
-
-**Commit 2 — the new value objects. Additive, wired to nothing.**
-
-4. `nanoscope/core/values/`: `Modality`, `Polarity`, `PixelScale`, `DeviceKind`
-5. **Defined, not adopted.** Nothing in `src/` starts using them in this task. Replacing
-   `modality: str` with `modality: Modality` changes what `dataclasses.asdict` produces
-   and would move the golden — that adoption belongs to M2-T10 (capability matrix),
-   M3-T10 (polarity) and M4-T12 (device), each of which has a consumer for it
+1. `src/detection/yolo_detector.py` → `nanoscope/infrastructure/models/yolo.py`
+2. `src/segmentation.py` → `nanoscope/infrastructure/models/sam2.py`
+3. Shims left behind in both places, as in M2-T04…T06
+4. The heavy imports stay **function-local**. This is not a style question: CI installs
+   no torch (M1-T08), and every import in `src/` was verified function-local before that
+   environment was chosen. A module-level `import torch` would turn CI red — which is the
+   good outcome; a module-level import that CI somehow tolerates would be worse
 
 **Out of scope**
 
-- Adopting the new value objects anywhere — see above. They are deliberately unused, so
-  **M2-T13 must not mistake them for dead code**; this file and `Progress.md` are the record
-- Changing the pandas dependency in `PipelineResult.measurements`. `core` importing pandas
-  is worth revisiting, but it is today's design and moving it is M2-T09's import-weight work
-- Any other `src/` module. `preprocess.py` is M2-T03, `afm_io.py` is M2-T04
+- Defining the `Detector` and `Segmenter` ports — M2-T08, wholesale
+- `DeviceManager` / device selection — M4-T12
+- The 6 mypy errors in `yolo_detector.py`. Note that mypy sees **more** of them locally
+  than in CI, because `ultralytics` is installed here and absent there (M1-T08)
 
 ---
 
 ## Definition of done
 
-- [x] `nanoscope/core/entities/` holds the six dataclasses; `nanoscope/core/values/` the
-      four new value objects
-- [x] `src/types.py` defines no class — only re-exports
-- [x] `src.types.Detection is nanoscope.core.entities.Detection` — one class, not two
-- [x] The five `src/` importers and `tests/characterization/capture.py` are untouched
-- [x] `make check` green; **golden zero drift** — this is the whole point of the milestone
-- [x] mypy: `nanoscope` **0 errors** under the strict override; `src` 21, not the 22
-      predicted — one of them was `src/types.py:63`, which left with the move and is now
-      the scoped D-16 ignore in `nanoscope/core/entities/detection.py`
-- [x] CI green — run 16
-- [x] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
-- [x] Commits: `M2-T02: move the shared dataclasses into nanoscope.core.entities` and
-      `M2-T02: add the Modality, Polarity, PixelScale and DeviceKind value objects`
-
----
-
-## Plan
-
-1. Branch `feat/core-entities`
-2. Copy the classes into `core/entities/`, replace `src/types.py` with the shim
-3. `make check` — **golden must be zero drift.** Run it before writing any new code, so the
-   move is proven alone
-4. Commit 1
-5. Add the value objects; `make check` again; commit 2
-6. Push, confirm CI, merge
+- [ ] Both modules under `nanoscope/infrastructure/models/`, shims in `src/`
+- [ ] AST comparison before the gate: every definition code-identical, or every difference
+      named — the standard set in M2-T03 and held since
+- [ ] **No new module-level heavy import.** Verified the way M1-T08 verified it: import the
+      package in the CI environment and assert torch is absent
+- [ ] `make check` green; golden zero drift, including `yolo_input_preparation`
+- [ ] CI green — and this is the run that matters, since CI is the environment without torch
+- [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
+- [ ] Commit: `M2-T07: move the model-backed code to infrastructure`
 
 ---
 
@@ -96,17 +68,17 @@ obvious without bisecting.
 
 | Risk | Mitigation |
 |---|---|
-| **Two `Detection` classes exist** — one imported via `src.types`, one via `nanoscope`, and `isinstance` fails between them | The shim re-exports; it defines nothing. Asserted directly in the DoD. |
-| A field is "tidied" during the copy | The golden records `sorted(f.name for f in fields(...))` for `PipelineConfig` and `PipelineResult`, so this is caught — but caught late. Copy the bodies verbatim and diff them before running anything. |
-| The new value objects arrive unused and M2-T13 deletes them as dead code | Recorded here and in `Progress.md`, with the task that adopts each one named. |
-| Import cycles get worse: `src/__init__.py` → `pipeline` → `src.types` → `nanoscope` | The shim adds one edge out of `src/` and none back in, so the existing five cycles (D-18) are unchanged. M2-T09 measures them. |
+| A heavy import escapes to module level during the move and CI goes red | That is the mitigation working. The failure to avoid is the opposite — a `try: import torch` that hides the problem. Do not add one. |
+| `segmentation.py` imports `src.measure` inside a function (line 57) and would create a new cross-package edge | It becomes `nanoscope.core.science.measurement`, which is infrastructure → core, the correct direction. Confirm it stays that way; a core → infrastructure edge is the thing M2-T09 will fail on. |
+| The golden covers almost none of this | Say so rather than implying the green means more than it does. `yolo_input_preparation` is the only covered part, and it is covered for all 8 phantoms. |
 
 ---
 
 ## Notes for the next session
 
-`M2-T03` — move `preprocess.py` into `core/science/preprocessing/`. Unlike this task it
-moves *behaviour*, not just declarations, so the golden stops being a formality.
+After M2-T07, `src/` holds `pipeline.py`, `preprocessing_pipeline.py`, `visualization.py`,
+`__init__.py` and six shims. Then **M2-T08** (ports) and **M2-T09** (break the five import
+cycles, add the import-graph test) are the two that turn the layout into an enforced rule.
 
-Carried, still not tasks: **B-058** (the golden compares CPython exception text — ADR needed
-before any Python upgrade), **B-054** (two README figures over 1 MB, M9-T01).
+Carried, still not tasks: **B-058** (the golden compares CPython exception text — ADR before
+any Python upgrade), **B-054** (two README figures over 1 MB, M9-T01).

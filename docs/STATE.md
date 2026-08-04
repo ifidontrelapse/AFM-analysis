@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/core-preprocessing` · **Base commit:** `06d1fa9`
+**Last updated:** 2026-08-04 · **Branch:** `feat/core-io-detection-measurement` · **Base commit:** `aac22af`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -20,11 +20,11 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T04` — move I/O parsing.** `afm_io.py` splits: pure parsing into
-`core/science/io/`, an `ImageLoader` port implemented in `infrastructure/storage/`. Status:
-**selected, not started**. The first move that is also a *shape* change, and the first to
-touch the 22 unit tests from M1-T06. `docs/CURRENT_TASK.md` still describes the finished
-M2-T03 and is rewritten when M2-T04 starts.
+**`M2-T07` — move the model-backed code** (YOLO, SAM2 wrappers) to
+`infrastructure/models/`. Status: **selected, not started**. They import torch, which CI
+deliberately does not install, so this is the first move where CI and a local run see
+different code paths. `docs/CURRENT_TASK.md` describes the finished M2-T04…T06 batch and
+is rewritten when M2-T07 starts.
 
 ---
 
@@ -67,6 +67,20 @@ M2-T03 and is rewritten when M2-T04 starts.
   — mypy at default strictness for `nanoscope.core.science.*`, ruff still blocking there
   but ignoring six named rules — instead of a `type: ignore` on every audited defect across
   fifteen more moves. Every entry names the task that deletes it (M2-T11, M2-T12, M3).
+
+- **M2-T04…T06** ✅ (2026-08-04) — three tasks on one branch (they share shims), **16
+  definitions moved, golden zero drift**. I/O split along parsing-versus-the-world:
+  SPM decoding to `core/science/io/`, the path-opening functions to
+  `infrastructure/storage/`. The LoG detector and its ABC to `core/science/detection/` —
+  all 7 definitions AST-identical, and `detect_particles` is recorded for all 8 phantoms.
+  Measurement split AFM height from mask geometry, which is the point of M2-T06: the
+  modality-neutral code was trapped in an AFM module, so the SEM/TEM path depended on
+  `src.measure` by accident. Four more `src/` modules are shims. **The `ImageLoader` port
+  was deliberately not written** — M2-T08 defines the ports wholesale. mypy 21 → 21.
+  Three of ruff's safe fixes landed in `loaders.py` and are named, not rounded up to
+  "verbatim". **`RUF046` was wrong about the science**: `round(np.float64)` is not an int,
+  so obeying it would have changed the dtype of every measurement DataFrame's `x_px`
+  column — it is now ignored with that reason attached.
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -177,15 +191,16 @@ M2-T03 and is rewritten when M2-T04 starts.
 
 ## In progress
 
-Nothing. M2-T01…T03 are done; **M2-T04 is selected, not started**.
+Nothing. M2-T01…T06 are done; **M2-T07 is selected, not started**.
 
-**Repository state:** `main` is at `06d1fa9` and carries all of M0, all of M1 and
-M2-T01…T02. M2-T03 is on `feat/core-preprocessing`. CI on `main` is green: **216 s**, of which `make test`
+**Repository state:** `main` is at `aac22af` and carries all of M0, all of M1 and
+M2-T01…T03. M2-T04…T06 are on `feat/core-io-detection-measurement`. CI on `main` is green: **216 s**, of which `make test`
 is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
 green for the right reason.
 
-**`src/` is now two things.** `types.py` and `preprocess.py` are shims with no
-definitions; the other ten modules are untouched legacy. That is the shape every remaining
+**`src/` is now two things.** Six modules are shims with no definitions — `types`,
+`preprocess`, `afm_io`, `measure`, `detection/base`, `detection/log_detector`; the other
+six are untouched legacy. That is the shape every remaining
 M2 move leaves behind, until M2-T15 deletes them wholesale.
 
 **Legacy in transit is declared, not hidden.** `nanoscope.core.science.*` runs at mypy's
@@ -238,15 +253,15 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **73** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked files | **96** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
 | Meaningful tests | **31, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
-| `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
-| ruff findings, legacy core | **74** in `src/` + **22** declared-and-owned in `nanoscope/core/science/` (was 109 + 0) | 0 | `make lint-legacy` |
+| `src/` modules moved into `nanoscope/` | **6 of 12** (shims left behind) | 12 | `git ls-files src` |
+| ruff findings, legacy core | **26** in `src/` + **61** declared-and-owned in `nanoscope/` (was 109 + 0) | 0 | `make lint-legacy` |
 | ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
 | mypy errors | 21, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
@@ -257,4 +272,11 @@ None of the remaining questions blocks M1 or M2.
 | Lint/type/test gate | **green end to end** ✅ — hooks on commit, CI on push | stays green | GitHub Actions |
 | The gate has one definition | **yes** ✅ — `make check`, and CI calls the same targets | one | `Makefile` |
 | Tracked files over 1 MB | **2** ❌ — two README figures, B-054 | 0 | `git ls-files` + `ls -l` |
+
+> **The `< 100` target has done its job and is about to expire.** It was M1's measure of
+> *junk* — 2 800 `node_modules` files. M2 adds real source: each move leaves a shim and
+> creates two or three modules, and the count crossed 96 with six modules still in `src/`.
+> Passing 100 will mean the extraction is working, not that hygiene regressed. The
+> meaningful successor is the row above it: **tracked files over 1 MB**, which must stay
+> at zero once B-054 closes.
 | Commit-time gate | **9 hooks, all proven to fire** ✅ (was: none) | enforced | `pre-commit run` |
