@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `chore/make-check` · **Base commit:** `269a8d0`
+**Last updated:** 2026-08-04 · **Branch:** `feat/nanoscope-skeleton` · **Base commit:** `f129cf9`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -9,26 +9,41 @@
 
 ## Current milestone
 
-**M1 — Repository hygiene & quality gates — CLOSED 2026-08-04.**
+**M2 — Domain extraction (behaviour-preserving)**
 
-All eleven tasks done. Four of the five exit criteria met; the fifth (no tracked file over
-1 MB) has two known exceptions, the README figures, filed as **B-054** and deferred to
-M9-T01. Milestone summary in `docs/Progress.md`.
+Move the scientific core into the Clean Architecture skeleton with every golden number
+unchanged. Gate for every task: zero drift. Exit criteria in `docs/Roadmap.md`.
 
-**Next milestone: M2 — Domain extraction.**
+**M1 closed 2026-08-04** — all eleven tasks done, four of five exit criteria met. The
+fifth (no tracked file over 1 MB) has two known exceptions, the README figures, filed as
+**B-054** and deferred to M9-T01. Milestone summary in `docs/Progress.md`.
 
 ## Current task
 
-**`M2-T01` — the `nanoscope` package skeleton.** Status: **selected, not started**.
-Unblocked — B1 was answered on 2026-08-04 (ADR-0011 Accepted). Every other M2 task
-depends on it. `docs/CURRENT_TASK.md` still describes the finished M1-T10 and is rewritten
-when M2-T01 starts.
+**`M2-T02` — extract entities and value objects** from `types.py` into `core/entities/`
+and `core/values/`. Status: **selected, not started**. It is the first task that moves
+scientific code, and therefore the first real exercise of the golden as a mechanical gate.
+`docs/CURRENT_TASK.md` still describes the finished M2-T01 and is rewritten when M2-T02
+starts.
 
 ---
 
 ## Completed
 
-### M1 — Repository hygiene (in progress)
+### M2 — Domain extraction (in progress)
+
+- **M2-T01** ✅ (2026-08-04) — `nanoscope/` exists: the six layers from ADR-0011
+  (`app` `core` `application` `infrastructure` `gui` `resources`) plus `py.typed`, each
+  `__init__` stating that layer's half of the dependency rule. Distribution renamed
+  `afm-analysis` → `nanoscope`. The regenerated `uv.lock` was **diffed package by package
+  before committing** — 119 shared packages, **0 version changes** — because CI runs
+  `uv sync --locked` and a quiet re-resolution of numpy or scipy would move the golden for
+  a reason unrelated to the task. mypy now checks 20 files instead of 13, and the strict
+  `nanoscope.*` override that M1-T04 wrote before the package existed **binds for the
+  first time**: 0 errors, strict from line one. **Zero code moved**; no sub-package below
+  the layer level, since each arrives with its content in M2-T02…T08.
+
+### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
 - **M1-T01** ✅ (2026-08-03) — tracked files 2 877 → **77**; `frontend/node_modules`
   (2 800 files) untracked; `yolov8s-world.pt` (26 MB) removed from the index before it
@@ -137,16 +152,15 @@ when M2-T01 starts.
 
 ## In progress
 
-Nothing. **M1 is closed.** M2 has not started.
+Nothing. **M1 is closed and merged.** M2-T01 is done; M2-T02 is selected, not started.
 
-**Repository state:** `main` carries all of M0 and the B1/B5 decisions; M1-T10 is pushed on
-`chore/make-check` (`7d52f55`) and **not yet merged into `main`** — that is the first thing
-the next session should do. CI on it is green: **216 s**, of which `make test` is 194 s.
-The environment assertion (Python 3.12 + CPU-only) passes, so the green is green for the
-right reason.
+**Repository state:** `main` is at `f129cf9` and carries all of M0, all of M1 and the
+B1/B5 decisions. M2-T01 is on `feat/nanoscope-skeleton`. CI on `main` is green: **216 s**,
+of which `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only)
+passes, so the green is green for the right reason.
 
 Locally, `make check` is green end to end: format, lint, then 23 tests including the
-golden, 183 s, exit 0.
+golden, exit 0.
 
 ---
 
@@ -175,10 +189,11 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Start `M2-T01`** — the `nanoscope` package skeleton. Unblocked (ADR-0011, Accepted).
-   Every later M2 task depends on this one. Rewrite `docs/CURRENT_TASK.md` for it
-2. When `nanoscope/` exists, `make types` becomes blocking and joins `make check` — the
-   one deviation recorded against M1's exit criteria
+1. **Execute `M2-T02`** — entities and value objects out of `types.py`. Rewrite
+   `docs/CURRENT_TASK.md` for it. First moved code, first real use of the golden as a gate
+2. `make types` joins `make check` as blocking once enough of `nanoscope/` is real — the
+   one deviation recorded against M1's exit criteria. `nanoscope` is at 0 mypy errors and
+   strict today, so the only thing keeping `types` out of `check` is `src/`
 3. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
    text, so a new interpreter reads as characterization drift
 4. **B-054** (two README figures over 1 MB) is the one M1 exit criterion left open;
@@ -190,7 +205,7 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **64** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked files | **73** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
@@ -200,7 +215,7 @@ None of the remaining questions blocks M1 or M2.
 | `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
 | ruff findings, legacy core | **109**, all in `src/` (was 117) | 0 | `ruff check src --no-fix --no-force-exclude` |
 | ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
-| mypy errors | 22 in 7 files locally, **21 in CI** (no `ultralytics` → less inference) | 0 | `mypy` |
+| mypy errors | 22 in 7 files, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | 5 | 0 | audit D-18 |

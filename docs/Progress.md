@@ -7,6 +7,71 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T01 · **`nanoscope` exists**
+
+**Task:** `M2-T01` — create the package skeleton. **Branch:** `feat/nanoscope-skeleton`.
+**Scientific impact:** none — **zero lines of code moved.** `make check` green, golden zero
+drift. Nothing under `src/` was opened.
+
+### What changed
+
+```
+nanoscope/
+├── py.typed
+├── __init__.py
+├── app/            composition root — the only layer that knows every other
+├── core/           entities, values, ports, science — no Qt, no torch, no I/O
+├── application/    use cases, DTOs, capabilities, jobs
+├── infrastructure/ adapters; everything that touches a file, a GPU or a framework
+├── gui/            PySide6 (M5), no business logic
+└── resources/      assets — a package so `importlib.resources` can find them
+```
+
+Each `__init__.py` carries one paragraph: that layer's half of the dependency rule. The
+rule is the only reason the directory exists, so it is written where someone adding a file
+will actually be standing. M2-T09 then enforces it mechanically with an import-graph test.
+
+Also: distribution `afm-analysis` → **`nanoscope`**, mypy's `files` extended to
+`["src", "nanoscope"]`, and ruff's isort `known-first-party` to `["nanoscope", "src"]`.
+
+### Verified
+
+- **The lock diff was read, not trusted.** Renaming the distribution rewrites `uv.lock`,
+  and CI runs `uv sync --locked`, which fails on a stale lock — but re-locking can also
+  quietly re-resolve dependencies, and the golden is sensitive to numpy/scipy versions.
+  Parsed both files and compared: **119 shared packages, 0 version changes**, the only
+  difference being the project's own entry moving from `afm-analysis` to `nanoscope`.
+  `uv lock --check` passes.
+- **The strict override binds for the first time.** M1-T04 wrote
+  `[[tool.mypy.overrides]] module = "nanoscope.*"` with `disallow_untyped_defs` and five
+  more, four months of sessions before any such package existed — mypy had been printing
+  `unused section(s): module = ['nanoscope.*']` ever since. That note is now gone, mypy
+  checks **20 files instead of 13**, and `nanoscope` contributes **0 errors**. New code is
+  strict from its first line, which was the point of writing the override early.
+- `import nanoscope` and all six layer packages import from the repository root; the
+  existing `pythonpath = ["."]` already covers it, so no packaging work was needed here.
+  The editable install is M2-T14.
+
+### Decisions
+
+- **Only the six layers ADR-0011 names — no deeper directories.** `core/entities/`,
+  `core/ports/`, `core/science/io/` and the rest arrive in M2-T02…T08, each with the code
+  that fills it. An empty directory tree tests nothing, and `Architecture.md` §3.1 already
+  holds the plan; a second copy of a plan is a thing to keep in sync, not a skeleton.
+- **No `[build-system]`, no console script.** The project is a uv *virtual* project
+  (`source = { virtual = "." }`), nothing is built or installed today, and the entry point
+  would have nothing to launch until M5. M2-T14 owns the install.
+- **`src` stays first-party in both tools.** Two names for as long as both exist; M2-T15
+  deletes the second.
+
+### Next
+
+`M2-T02` — extract entities and value objects from `types.py`. The first task that moves
+scientific code, and therefore the first real exercise of the golden as a mechanical gate
+rather than a promise.
+
+---
+
 ## 2026-08-04 — M1-T10 · **One command is the gate — and M1 closes**
 
 **Task:** `M1-T10` — add a one-command gate. **Branch:** `chore/make-check`.

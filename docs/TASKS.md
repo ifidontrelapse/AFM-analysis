@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M1-T10`
+**Updated:** 2026-08-04 · **Active:** `M2-T02`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -50,7 +50,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 | ID | Task | Detail | Status |
 |---|---|---|---|
-| M2-T01 | Create the package skeleton | **Name confirmed: `nanoscope`** (ADR-0011 Accepted, 2026-08-04 — B1 closed). `nanoscope/{app,core,application,infrastructure,gui,resources}` with `py.typed`; `src/` kept as a shim; distribution renamed `afm-analysis` → `nanoscope` | [ ] |
+| M2-T01 | Create the package skeleton | Done 2026-08-04: `nanoscope/{app,core,application,infrastructure,gui,resources}` + `py.typed`, each layer's `__init__` stating its half of the dependency rule. Distribution `afm-analysis` → `nanoscope`; `uv.lock` regenerated and the diff read — **only the project entry moved, 0 of 119 dependency versions changed**, which matters because CI runs `uv sync --locked` and the golden is version-sensitive. mypy now checks 20 files instead of 13 and the strict `nanoscope.*` override **binds for the first time** (M1-T04 wrote it before the package existed; it had been reported unused ever since). No sub-packages below the layer level — those arrive with the code in M2-T02…T08. Zero code moved, golden zero drift | [x] |
 | M2-T02 | Extract entities and value objects | `types.py` → `core/entities/` + `core/values/`; add `Modality`, `PixelScale`, `Polarity`, `DeviceKind` | [ ] |
 | M2-T03 | Move preprocessing | `preprocess.py` → `core/science/preprocessing/`, unchanged | [ ] |
 | M2-T04 | Move I/O parsing | `afm_io.py` → `core/science/io/` (pure parsing) + an `ImageLoader` port implemented in `infrastructure/storage/` | [ ] |

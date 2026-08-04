@@ -1,7 +1,9 @@
 [project]
-name = "afm-analysis"
+# `afm-analysis` until M2-T01. AFM is one of three modalities the code already
+# supports; the name is the product's, not one modality's (ADR-0011).
+name = "nanoscope"
 version = "0.1.0"
-description = "Add your description here"
+description = "Desktop analysis of nanoparticle microscopy images (AFM, SEM, TEM)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -83,7 +85,9 @@ markers = [
 
 [tool.mypy]
 python_version = "3.12"
-files = ["src"]                 # becomes ["nanoscope"] in M2-T01 (ADR-0011)
+# Both, for as long as both exist: `nanoscope` is strict and blocking (the
+# override below), `src` is reported and never silenced. `src` goes at M2-T15.
+files = ["src", "nanoscope"]
 show_error_codes = true
 # `pretty` is not set here: the Makefile's `types` target passes `--no-pretty`
 # (M1-T10), so a value here would be dead configuration contradicted by the flag.
@@ -200,8 +204,8 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.ruff.lint.isort]
-# Becomes the real package name in M2-T01 (ADR-0011).
-known-first-party = ["src"]
+# `src` stays alongside until M2-T15 deletes the shim; both are ours.
+known-first-party = ["nanoscope", "src"]
 combine-as-imports = true
 
 [tool.ruff.lint.pep8-naming]
