@@ -1,25 +1,25 @@
-"""
-AFM preprocessing pipeline.
+"""Load a raw AFM file and level it into arrays `run_pipeline` can use.
 
-Loads a raw AFM file and produces ready-to-use arrays for run_pipeline().
+Moved from `src/preprocessing_pipeline.py` in M2-T15. `application`, for the same
+reason as its neighbour: it sequences a loader from `infrastructure.storage` and
+three steps from `core.science`, and owns none of them.
 
-Typical usage:
-
-    from src.preprocessing_pipeline import run_preprocessing
-
-    pre = run_preprocessing("scan.spm", fmt="spm")
-    # pre.z_flat, pre.z_result, pre.pixel_size_nm, pre.scan_size_nm, pre.sizes
+It had no caller in the repository, which is why the audit called it dead. It is
+the documented preprocessing entry point in `README` and `Development.md`, and
+M2-T13 kept it deliberately.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-
-from src.types import PreprocessingResult
-from src.afm_io import load_afm
-from src.preprocess import flatten_plane, flatten_lines, build_substrate_map
+from nanoscope.core.entities import PreprocessingResult
+from nanoscope.core.science.preprocessing import (
+    build_substrate_map,
+    flatten_lines,
+    flatten_plane,
+)
+from nanoscope.infrastructure.storage import load_afm
 
 
 def run_preprocessing(
@@ -49,7 +49,7 @@ def run_preprocessing(
     raw = load_afm(str(file_path), fmt=fmt)
 
     z_plane = flatten_plane(raw.z_raw)
-    z_flat  = flatten_lines(z_plane)
+    z_flat = flatten_lines(z_plane)
 
     substrate, z_result, opening_radius, sizes = build_substrate_map(
         z_flat,

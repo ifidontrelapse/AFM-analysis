@@ -90,7 +90,7 @@ class TestValidationHappensFirst:
     def test_invalid_requests_are_rejected_before_any_detector_is_built(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import src.pipeline as pipeline
+        from nanoscope.application.use_cases import pipeline
 
         def _explode(*args: object, **kwargs: object) -> None:
             raise AssertionError("a detector was constructed before validation")
@@ -113,7 +113,7 @@ class TestValidationHappensFirst:
     def test_sem_data_reaches_validation_with_its_own_modality(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import src.pipeline as pipeline
+        from nanoscope.application.use_cases import pipeline
 
         def _explode(*args: object, **kwargs: object) -> None:
             raise AssertionError("a detector was constructed before validation")

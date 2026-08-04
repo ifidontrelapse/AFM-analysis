@@ -88,16 +88,11 @@ sam-2 = { git = "https://github.com/facebookresearch/sam2.git" }
 # trap: while `pytest.ini` exists pytest ignores `[tool.pytest.ini_options]`
 # entirely, so anything written here would have been silently dead.
 
-# M2-T14 installed the project, so `import nanoscope` no longer needs a path
-# entry. What is left is `"."`, and it is here for exactly one reason: the
-# `src/` re-export shims and the characterization harness still import `src.*`,
-# which is not installed and never will be. **M2-T15 deletes the shims and this
-# line together.**
-#
-# The `"src"` entry is gone. That one was the actual hack: it put `src/` itself
-# on the path, so `import types` and `import pipeline` resolved to project
-# modules and shadowed the standard library.
-pythonpath = ["."]
+# No `pythonpath`. M2-T14 made the project installable and M2-T15 deleted the
+# `src/` shims, so nothing needs the repository root on `sys.path` any more —
+# `nanoscope` is imported the same way in tests, in CI and by a user who
+# installed the wheel. This is what the M2 exit criterion "the pytest.ini path
+# hack is deleted" meant, and it took the whole milestone to earn.
 
 markers = [
     'slow: minutes, not milliseconds. The characterization golden (~100 s) carries it. `pytest -m "not slow"` skips it for inner-loop work; the full run is the merge gate.',
@@ -105,9 +100,8 @@ markers = [
 
 [tool.mypy]
 python_version = "3.12"
-# Both, for as long as both exist: `nanoscope` is strict and blocking (the
-# override below), `src` is reported and never silenced. `src` goes at M2-T15.
-files = ["src", "nanoscope"]
+# `src` is gone (M2-T15). One package, checked at last.
+files = ["nanoscope"]
 show_error_codes = true
 # `pretty` is not set here: the Makefile's `types` target passes `--no-pretty`
 # (M1-T10), so a value here would be dead configuration contradicted by the flag.
@@ -115,12 +109,10 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
-# `src/` posture (M1-T04): checked at default strictness and NOT silenced.
-# It reports 22 errors today, 13 of which are static confirmations of audit
-# defects — D-01, D-02, D-07, D-10, D-16 — so `ignore_errors` here would throw
-# away the most valuable output this tool has produced. The package is deleted
-# in M2-T15; until then the baseline is documented in docs/Progress.md and CI
-# reports it without blocking (M1-T08).
+# The `src/` posture from M1-T04 — checked at default strictness, never silenced —
+# ended at M2-T15 with the package itself. What it protected did not: the errors
+# it surfaced travelled into `nanoscope.core.science` with the code, and are still
+# reported there at default strictness (the override below) rather than silenced.
 
 # New code is strict from its first line — retrofitting is far more expensive.
 [[tool.mypy.overrides]]
@@ -156,6 +148,12 @@ module = [
     # blind is how a "type fix" quietly becomes a behaviour change.
     "nanoscope.infrastructure.models.*",
     "nanoscope.infrastructure.imaging.*",
+    # The last two modules to move (M2-T15). `use_cases.pipeline` is the old
+    # `src/pipeline.py`: its `if/elif` detector dispatch assigns a YoloDetector to
+    # a name mypy inferred as LogDetector, which is precisely the shape the
+    # `Detector` port removes in M4 — the type error *is* the design note. The
+    # rest are `None`-vs-array arguments, which is D-07 and belongs to M3-T11.
+    "nanoscope.application.use_cases.*",
 ]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -300,3 +298,7 @@ classmethod-decorators = ["classmethod"]
              # with no witness. M3 or M2-T13.
 ]
 "nanoscope/infrastructure/imaging/colormap.py" = ["RET504"]
+"nanoscope/infrastructure/imaging/plots.py" = [
+    "C408",  # `bbox=dict(...)` in a matplotlib call — moved verbatim in M2-T15,
+             # cosmetic, and this module is notebook-facing rendering code
+]

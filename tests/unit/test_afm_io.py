@@ -1,4 +1,4 @@
-"""Characterization tests for `src.afm_io` — the SPM parser and the image loader.
+"""Characterization tests for the SPM parser and the image loader.
 
 The Nanoscope reader is hand-written binary parsing, and it owns the
 `scan_size_nm -> pixel_size_nm` calibration that every `_nm` value in the project
@@ -20,7 +20,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.afm_io import load_afm, load_microscopy_image
+from nanoscope.infrastructure.storage import load_afm, load_microscopy_image
 
 # The real header puts the payload at 40960. Any fixed offset larger than the
 # synthetic header works; the parser seeks to whatever the header declares.

@@ -1,15 +1,22 @@
-import numpy as np
-import matplotlib.pyplot as plt
+"""Matplotlib figures for AFM maps and detection results.
 
-from src.types import PipelineResult, Detection
+Moved from `src/visualization.py` in M2-T15 — the last module to leave. It is
+`infrastructure`, not `core`, for the same reason `colormap.py` is: matplotlib is
+a rendering dependency, and the domain is defined by not having one.
+
+Used by the notebooks, not by the pipeline. `plot_pipeline_result` and
+`plot_detections_histogram` were deleted in M2-T13; the three that remain have
+notebook callers.
+"""
+
+from __future__ import annotations
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def plot_afm(
-    ax: plt.Axes,
-    z: np.ndarray,
-    scan_size_nm: float,
-    cmap: str = "afmhot",
-    colorbar: bool = True
+    ax: plt.Axes, z: np.ndarray, scan_size_nm: float, cmap: str = "afmhot", colorbar: bool = True
 ):
     """
     Draw an AFM height map on the given axis.
@@ -27,13 +34,7 @@ def plot_afm(
 
     extent = [0, scan_size_nm, 0, scan_size_nm]
 
-    im = ax.imshow(
-        z,
-        origin="lower",
-        extent=extent,
-        cmap=cmap,
-        interpolation="nearest"
-    )
+    im = ax.imshow(z, origin="lower", extent=extent, cmap=cmap, interpolation="nearest")
 
     ax.set_xlabel("X (nm)")
     ax.set_ylabel("Y (nm)")
@@ -45,11 +46,7 @@ def plot_afm(
     return im
 
 
-def afm_viewer(
-    z: np.ndarray,
-    scan_size_nm: float | None = None,
-    cmap: str = "afmhot"
-):
+def afm_viewer(z: np.ndarray, scan_size_nm: float | None = None, cmap: str = "afmhot"):
     """
     Interactive viewer for an AFM image.
 
@@ -71,9 +68,7 @@ def afm_viewer(
     pixel_size = scan_size_nm / w if scan_size_nm else None
 
     fig, (ax, ax_profile) = plt.subplots(
-        1, 2,
-        figsize=(12, 5),
-        gridspec_kw={"width_ratios": [1, 1]}
+        1, 2, figsize=(12, 5), gridspec_kw={"width_ratios": [1, 1]}
     )
 
     if scan_size_nm:
@@ -101,7 +96,7 @@ def afm_viewer(
         color="white",
         fontsize=11,
         verticalalignment="top",
-        bbox=dict(boxstyle="round", facecolor="black", alpha=0.6)
+        bbox=dict(boxstyle="round", facecolor="black", alpha=0.6),
     )
 
     def on_move(event):
@@ -131,17 +126,9 @@ def afm_viewer(
         height = z[y_px, x_px]
 
         if pixel_size:
-            text.set_text(
-                f"x = {x_nm:.1f} nm\n"
-                f"y = {y_nm:.1f} nm\n"
-                f"h = {height:.2f} nm"
-            )
+            text.set_text(f"x = {x_nm:.1f} nm\ny = {y_nm:.1f} nm\nh = {height:.2f} nm")
         else:
-            text.set_text(
-                f"x = {x_px}\n"
-                f"y = {y_px}\n"
-                f"h = {height:.2f} nm"
-            )
+            text.set_text(f"x = {x_px}\ny = {y_px}\nh = {height:.2f} nm")
 
         fig.canvas.draw_idle()
 
@@ -212,12 +199,8 @@ def afm_viewer(
 
     return fig, ax, ax_profile, im
 
-def plot_detections(
-    z_above: np.ndarray,
-    blobs: np.ndarray,
-    pixel_size_nm: float,
-    axes: plt.Axes
-):
+
+def plot_detections(z_above: np.ndarray, blobs: np.ndarray, pixel_size_nm: float, axes: plt.Axes):
     """
     Plot the results of LoG detection.
 
@@ -233,10 +216,7 @@ def plot_detections(
     for blob in blobs:
         y, x, sigma, _ = blob
         radius_px = sigma * np.sqrt(2)
-        circle = plt.Circle(
-            (x, y), radius_px,
-            color="cyan", fill=False, linewidth=1.2, alpha=0.8
-        )
+        circle = plt.Circle((x, y), radius_px, color="cyan", fill=False, linewidth=1.2, alpha=0.8)
         axes.add_patch(circle)
         axes.plot(x, y, "+", color="cyan", markersize=4, markeredgewidth=0.8)
     h, w = z_above.shape

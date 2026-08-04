@@ -136,7 +136,11 @@ def _record(fn, *args, **kwargs) -> dict:
 
 
 def capture_preprocessing(ph: phantoms.Phantom) -> dict:
-    from src.preprocess import build_substrate_map, flatten_lines, flatten_plane
+    from nanoscope.core.science.preprocessing import (
+        build_substrate_map,
+        flatten_lines,
+        flatten_plane,
+    )
 
     out: dict[str, Any] = {}
 
@@ -189,13 +193,17 @@ def capture_preprocessing(ph: phantoms.Phantom) -> dict:
 
 
 def capture_log_detection(ph: phantoms.Phantom) -> dict:
-    from src.detection.log_detector import (
+    from nanoscope.core.science.detection.log import (
         detect_particles,
         estimate_log_params,
         estimate_log_threshold,
         estimate_log_threshold_adaptive,
     )
-    from src.preprocess import build_substrate_map, flatten_lines, flatten_plane
+    from nanoscope.core.science.preprocessing import (
+        build_substrate_map,
+        flatten_lines,
+        flatten_plane,
+    )
 
     out: dict[str, Any] = {}
     pre = _record(build_substrate_map, flatten_lines(flatten_plane(ph.image)), ph.pixel_size_nm)
@@ -238,9 +246,13 @@ def capture_log_detection(ph: phantoms.Phantom) -> dict:
 
 
 def capture_baseline_measurement(ph: phantoms.Phantom) -> dict:
-    from src.detection.log_detector import detect_particles
-    from src.measure import measure_all_baseline
-    from src.preprocess import build_substrate_map, flatten_lines, flatten_plane
+    from nanoscope.core.science.detection.log import detect_particles
+    from nanoscope.core.science.measurement import measure_all_baseline
+    from nanoscope.core.science.preprocessing import (
+        build_substrate_map,
+        flatten_lines,
+        flatten_plane,
+    )
 
     pre = _record(build_substrate_map, flatten_lines(flatten_plane(ph.image)), ph.pixel_size_nm)
     if not pre["ok"]:
@@ -274,7 +286,7 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
     """Image preparation only — no weights, no inference, CPU-safe."""
     import cv2
 
-    from src.detection.yolo_detector import YoloDetector
+    from nanoscope.infrastructure.models import YoloDetector
 
     det = YoloDetector.__new__(YoloDetector)
     det.yolo_size = 640
@@ -302,8 +314,12 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
 
 
 def capture_degenerate() -> dict:
-    from src.detection.log_detector import detect_particles
-    from src.preprocess import build_substrate_map, flatten_lines, flatten_plane
+    from nanoscope.core.science.detection.log import detect_particles
+    from nanoscope.core.science.preprocessing import (
+        build_substrate_map,
+        flatten_lines,
+        flatten_plane,
+    )
 
     out: dict[str, Any] = {}
     for name, arr in phantoms.degenerate_inputs().items():
@@ -334,7 +350,7 @@ def capture_contracts() -> dict:
 
     import pandas as pd
 
-    from src.types import Detection, PipelineConfig, PipelineResult
+    from nanoscope.core.entities import Detection, PipelineConfig, PipelineResult
 
     det = Detection(x_px=1.0, y_px=2.0, radius_px=3.0, radius_nm=4.0)
     res = PipelineResult(
@@ -423,7 +439,7 @@ def build_all() -> dict:
 def _log_on_raw(ph: phantoms.Phantom) -> np.ndarray:
     """Reproduce exactly what run_pipeline does for SEM/TEM: hand the raw image
     to LogDetector with sizes=None."""
-    from src.detection.log_detector import LogDetector
+    from nanoscope.core.science.detection import LogDetector
 
     d = LogDetector(overlap=0.3, percentile=20.0, threshold=None)
     d.detect(ph.image, ph.pixel_size_nm, sizes=None)
