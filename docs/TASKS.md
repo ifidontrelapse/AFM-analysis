@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M2-T02`
+**Updated:** 2026-08-04 · **Active:** `M2-T03`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -51,7 +51,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | ID | Task | Detail | Status |
 |---|---|---|---|
 | M2-T01 | Create the package skeleton | Done 2026-08-04: `nanoscope/{app,core,application,infrastructure,gui,resources}` + `py.typed`, each layer's `__init__` stating its half of the dependency rule. Distribution `afm-analysis` → `nanoscope`; `uv.lock` regenerated and the diff read — **only the project entry moved, 0 of 119 dependency versions changed**, which matters because CI runs `uv sync --locked` and the golden is version-sensitive. mypy now checks 20 files instead of 13 and the strict `nanoscope.*` override **binds for the first time** (M1-T04 wrote it before the package existed; it had been reported unused ever since). No sub-packages below the layer level — those arrive with the code in M2-T02…T08. Zero code moved, golden zero drift | [x] |
-| M2-T02 | Extract entities and value objects | `types.py` → `core/entities/` + `core/values/`; add `Modality`, `PixelScale`, `Polarity`, `DeviceKind` | [ ] |
+| M2-T02 | Extract entities and value objects | Done 2026-08-04, **three commits so drift would be attributable**. (1) The six dataclasses moved `src/types.py` → `nanoscope/core/entities/`; `src/types.py` is now a shim that defines nothing. Proven mechanically before the gate: identical fields/order/defaults against the pre-move module, and `src.types.X is nanoscope.core.entities.X` — **one `Detection` class, not two**, or `isinstance` lies across the boundary. (2) The strict `nanoscope.*` override caught what legacy code arriving verbatim does not satisfy: bare generics tightened to `dict[str, Any]`; `Detection.bbox` given a scoped `type: ignore` because mypy complaining there **is** D-16, and fixing it moves a number the golden records — `warn_unused_ignores` makes that ignore expire itself when M3 lands. nanoscope back to **0 errors**. (3) `Modality`, `Polarity`, `PixelScale`, `DeviceKind` + 8 mutation-validated tests, **defined but adopted by nothing** — adoption changes `asdict` output, so it belongs to M2-T10 / M3-T10 / M2-T03…T07 / M4-T12. **M2-T13 must not delete them.** `StrEnum` over `(str, Enum)` — ruff UP042 pointed at the stdlib. Golden: zero drift | [x] |
 | M2-T03 | Move preprocessing | `preprocess.py` → `core/science/preprocessing/`, unchanged | [ ] |
 | M2-T04 | Move I/O parsing | `afm_io.py` → `core/science/io/` (pure parsing) + an `ImageLoader` port implemented in `infrastructure/storage/` | [ ] |
 | M2-T05 | Move the LoG detector | `detection/log_detector.py` → `core/science/detection/log.py`; keep `detect()` byte-identical in this commit | [ ] |

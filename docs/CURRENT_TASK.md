@@ -3,7 +3,7 @@
 **ID:** `M2-T02`
 **Title:** Extract entities and value objects
 **Milestone:** M2 — Domain extraction (behaviour-preserving)
-**Status:** in progress
+**Status:** **done 2026-08-04**. Rewritten for `M2-T03` at the start of the next session.
 **Branch to use:** `feat/core-entities`
 **Estimated size:** M
 **Risk to scientific output:** **the first task in the project that moves scientific code.**
@@ -25,6 +25,10 @@ whole `src/` package — every other module imports from it and it imports from 
 
 Two commits, deliberately separate. If the golden goes red, which commit did it must be
 obvious without bisecting.
+
+> **It became three.** The strict `nanoscope.*` override rejects legacy code arriving
+> verbatim, which this plan did not anticipate; the fix is its own commit rather than
+> smuggled into the move. See `Progress.md`.
 
 **Commit 1 — the move. Behaviour-preserving, no new names.**
 
@@ -60,16 +64,18 @@ obvious without bisecting.
 
 ## Definition of done
 
-- [ ] `nanoscope/core/entities/` holds the six dataclasses; `nanoscope/core/values/` the
+- [x] `nanoscope/core/entities/` holds the six dataclasses; `nanoscope/core/values/` the
       four new value objects
-- [ ] `src/types.py` defines no class — only re-exports
-- [ ] `src.types.Detection is nanoscope.core.entities.Detection` — one class, not two
-- [ ] The five `src/` importers and `tests/characterization/capture.py` are untouched
-- [ ] `make check` green; **golden zero drift** — this is the whole point of the milestone
-- [ ] mypy: `nanoscope` still 0 errors under the strict override; `src` still 22
-- [ ] CI green
-- [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
-- [ ] Commits: `M2-T02: move the shared dataclasses into nanoscope.core.entities` and
+- [x] `src/types.py` defines no class — only re-exports
+- [x] `src.types.Detection is nanoscope.core.entities.Detection` — one class, not two
+- [x] The five `src/` importers and `tests/characterization/capture.py` are untouched
+- [x] `make check` green; **golden zero drift** — this is the whole point of the milestone
+- [x] mypy: `nanoscope` **0 errors** under the strict override; `src` 21, not the 22
+      predicted — one of them was `src/types.py:63`, which left with the move and is now
+      the scoped D-16 ignore in `nanoscope/core/entities/detection.py`
+- [ ] CI green — pushed; ticked when the run lands
+- [x] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
+- [x] Commits: `M2-T02: move the shared dataclasses into nanoscope.core.entities` and
       `M2-T02: add the Modality, Polarity, PixelScale and DeviceKind value objects`
 
 ---

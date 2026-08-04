@@ -7,6 +7,83 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T02 · **First scientific code moved, zero drift**
+
+**Task:** `M2-T02` — extract entities and value objects. **Branch:** `feat/core-entities`.
+**Scientific impact:** **none, and this time that had to be proved.** `make check` green
+after the move alone (23 passed) and again with the new types (31 passed). Golden: zero
+drift.
+
+### Three commits, deliberately
+
+The milestone rule is "any drift is a bug in the move". A single commit mixing a move with
+new code would mean bisecting to find out which half moved a number.
+
+**1 — the move.** The six dataclasses in `src/types.py` → `nanoscope/core/entities/`
+(`image.py`, `detection.py`, `pipeline.py`, re-exported from `__init__`). `src/types.py` is
+now a shim that **defines nothing**. `types.py` was the dependency root of the old package
+— five modules import from it, it imports from none — which is why it could move first
+without dragging anything with it.
+
+Verified mechanically before the gate ran, not by eye: the pre-move module was loaded
+side by side with the new one and compared field by field — identical names, order,
+annotations, defaults and default factories across all six classes — and
+`src.types.X is nanoscope.core.entities.X` asserted for each. **One `Detection` class in
+the process, not two**; two would make `isinstance` lie across the boundary for as long as
+both packages exist, and nothing in the test suite would have noticed.
+
+**2 — the strict override, which the move walked straight into.** M1-T04 configured
+`nanoscope.*` strict; legacy code arriving verbatim does not satisfy it. Three errors:
+
+- `sizes: dict` and `masks: list[dict]` → `dict[str, Any]`. `Any` is honest, not lazy —
+  both really do mix ndarrays, floats and ints under string keys. Annotations are not
+  numbers (the golden records field *names*), and the gate confirmed it.
+- `Detection.bbox` got a scoped `type: ignore[assignment]`, because mypy complaining there
+  **is** audit defect D-16. Fixing it changes `default_detection_bbox_len`, which the
+  golden records — that is M3's job, with a declared delta. `warn_unused_ignores = true`
+  means the ignore becomes an error the day M3 fixes the defect, so it expires itself.
+
+`nanoscope` is back to **0 mypy errors**. That bright line is the point: a real error in
+new code cannot hide behind a known one.
+
+**3 — the value objects.** `Modality`, `Polarity`, `PixelScale`, `DeviceKind`, plus 8 tests.
+
+### Decision: defined, not adopted
+
+The new types are wired to nothing. Replacing `modality: str` with `modality: Modality`
+changes what `dataclasses.asdict` produces, and the golden serializes that field — so
+adoption is a behavioural change and belongs to the task that has a consumer for it:
+`Modality` → M2-T10, `Polarity` → M3-T10 (D-12, open decision B3), `PixelScale` →
+M2-T03…T07, `DeviceKind` → M4-T12. They are unused on purpose, and the package docstring
+says so, because **M2-T13 retires dead code** and would otherwise be right to delete them.
+
+None of the four is invented. Each spells out something the code already says badly:
+`Modality` the `"afm"/"sem"/"tem"` literals, `Polarity` the bright-on-dark assumption the
+LoG detector makes silently, `PixelScale` the `radius_px * nm_per_pixel` and
+`area_px * nm_per_pixel ** 2` arithmetic written by hand in five modules — with the guard
+none of those call sites has, since a zero or NaN scale currently propagates into every
+measurement instead of failing.
+
+### Learned
+
+- **`ruff` knew the stdlib better than I did.** `(str, Enum)` tripped UP042 and pointed at
+  `enum.StrEnum`, which has existed since 3.11 and made three `__str__` overrides
+  unnecessary. Less code, and the linter found it, not a review.
+- **The tests were validated by mutation, as in M1-T06.** Dropping the square from
+  `area_to_nm2` and weakening the guard to `< 0` both turn the suite red — 3 failures,
+  including the NaN case. A test suite that has never failed is a decoration.
+- **The golden's reach was checked before trusting it.** It records
+  `sorted(f.name for f in fields(...))` for `PipelineConfig` and `PipelineResult` — field
+  names, not types — which is exactly why the annotation tightening in commit 2 is safe and
+  why adding a field would not have been.
+
+### Next
+
+`M2-T03` — move `preprocess.py` into `core/science/preprocessing/`. The first move of
+*behaviour* rather than declarations, so the golden stops being a formality.
+
+---
+
 ## 2026-08-04 — M2-T01 · **`nanoscope` exists**
 
 **Task:** `M2-T01` — create the package skeleton. **Branch:** `feat/nanoscope-skeleton`.

@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/nanoscope-skeleton` · **Base commit:** `f129cf9`
+**Last updated:** 2026-08-04 · **Branch:** `feat/core-entities` · **Base commit:** `e02c997`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -20,11 +20,10 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T02` — extract entities and value objects** from `types.py` into `core/entities/`
-and `core/values/`. Status: **selected, not started**. It is the first task that moves
-scientific code, and therefore the first real exercise of the golden as a mechanical gate.
-`docs/CURRENT_TASK.md` still describes the finished M2-T01 and is rewritten when M2-T02
-starts.
+**`M2-T03` — move `preprocess.py`** into `core/science/preprocessing/`. Status:
+**selected, not started**. It is the first move of *behaviour* rather than declarations, so
+the golden stops being a formality. `docs/CURRENT_TASK.md` still describes the finished
+M2-T02 and is rewritten when M2-T03 starts.
 
 ---
 
@@ -42,6 +41,20 @@ starts.
   `nanoscope.*` override that M1-T04 wrote before the package existed **binds for the
   first time**: 0 errors, strict from line one. **Zero code moved**; no sub-package below
   the layer level, since each arrives with its content in M2-T02…T08.
+
+- **M2-T02** ✅ (2026-08-04) — the first scientific code to move, in **three commits** so
+  that drift would be attributable without bisecting. The six dataclasses left
+  `src/types.py` for `nanoscope/core/entities/`; `src/types.py` is now a shim that defines
+  nothing, verified by loading the pre-move module beside the new one — identical fields,
+  order, defaults and factories, and `src.types.X is nanoscope.core.entities.X` for all
+  six. **One `Detection` class in the process, not two.** The strict `nanoscope.*` override
+  then caught three things verbatim legacy code does not satisfy: two bare generics
+  tightened to `dict[str, Any]`, and `Detection.bbox` given a scoped `type: ignore` —
+  mypy complaining there *is* **D-16**, and fixing it moves a number the golden records, so
+  M3 owns it; `warn_unused_ignores` makes the ignore expire itself. **nanoscope: 0 mypy
+  errors.** Finally `Modality`, `Polarity`, `PixelScale`, `DeviceKind` with 8
+  mutation-validated tests — **defined, adopted by nothing**, because adoption changes what
+  `asdict` produces. Golden: **zero drift**.
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -152,12 +165,16 @@ starts.
 
 ## In progress
 
-Nothing. **M1 is closed and merged.** M2-T01 is done; M2-T02 is selected, not started.
+Nothing. M2-T01 and M2-T02 are done; **M2-T03 is selected, not started**.
 
-**Repository state:** `main` is at `f129cf9` and carries all of M0, all of M1 and the
-B1/B5 decisions. M2-T01 is on `feat/nanoscope-skeleton`. CI on `main` is green: **216 s**,
-of which `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only)
-passes, so the green is green for the right reason.
+**Repository state:** `main` is at `e02c997` and carries all of M0, all of M1 and M2-T01.
+M2-T02 is on `feat/core-entities`. CI on `main` is green: **216 s**, of which `make test`
+is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
+green for the right reason.
+
+**`src/` is now two things.** `types.py` is a shim with no definitions; the other eleven
+modules are untouched legacy. That is the shape every remaining M2 move leaves behind,
+until M2-T15 deletes the shim wholesale.
 
 Locally, `make check` is green end to end: format, lint, then 23 tests including the
 golden, exit 0.
@@ -210,12 +227,12 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **23, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **31, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
 | ruff findings, legacy core | **109**, all in `src/` (was 117) | 0 | `ruff check src --no-fix --no-force-exclude` |
 | ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
-| mypy errors | 22 in 7 files, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
+| mypy errors | 21, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | 5 | 0 | audit D-18 |
