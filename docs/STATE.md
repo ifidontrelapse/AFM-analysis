@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/core-io-detection-measurement` · **Base commit:** `aac22af`
+**Last updated:** 2026-08-04 · **Branch:** `feat/infrastructure-models-and-ports` · **Base commit:** `277882d`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -20,11 +20,11 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T07` — move the model-backed code** (YOLO, SAM2 wrappers) to
-`infrastructure/models/`. Status: **selected, not started**. They import torch, which CI
-deliberately does not install, so this is the first move where CI and a local run see
-different code paths. `docs/CURRENT_TASK.md` describes the finished M2-T04…T06 batch and
-is rewritten when M2-T07 starts.
+**`M2-T09` — break the five import cycles and add the import-graph test.** Status:
+**selected, not started**. The layout is now right; this is the task that makes a machine
+refuse to let anyone break it. `src/__init__.py` → `pipeline` → `src.types` is still a
+cycle, and `import src.types` still loads 1179 modules. `docs/CURRENT_TASK.md` describes
+the finished M2-T07/T08 pair and is rewritten when M2-T09 starts.
 
 ---
 
@@ -81,6 +81,18 @@ is rewritten when M2-T07 starts.
   "verbatim". **`RUF046` was wrong about the science**: `round(np.float64)` is not an int,
   so obeying it would have changed the dtype of every measurement DataFrame's `x_px`
   column — it is now ignored with that reason attached.
+
+- **M2-T07 / M2-T08** ✅ (2026-08-04) — the model-backed code left the domain:
+  `YoloDetector` → `infrastructure/models/`, the SAM2 runners beside it, and
+  `afm_to_rgb`/`overlay_masks` → `infrastructure/imaging/` (neither ever belonged to
+  SAM2). **Nothing under `core` imports torch, ultralytics, sam2 or patched_yolo_infer any
+  more** — the dependency rule is now a fact, and a test asserts it against `sys.modules`.
+  `F821` caught two dangling references the split created, before any test ran. mypy 21 →
+  21, after both moved modules joined `core.science` at default strictness. **M2-T08 was
+  narrowed on purpose: one port, not seven.** `Detector` is satisfied today by
+  `LogDetector` and `YoloDetector` from opposite layers; the other six have no
+  implementation and no caller, so they ship with their first adapter, and
+  `core/ports/__init__.py` carries the table naming the task for each.
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -191,16 +203,17 @@ is rewritten when M2-T07 starts.
 
 ## In progress
 
-Nothing. M2-T01…T06 are done; **M2-T07 is selected, not started**.
+Nothing. M2-T01…T08 are done; **M2-T09 is selected, not started**.
 
-**Repository state:** `main` is at `aac22af` and carries all of M0, all of M1 and
-M2-T01…T03. M2-T04…T06 are on `feat/core-io-detection-measurement`. CI on `main` is green: **216 s**, of which `make test`
+**Repository state:** `main` is at `277882d` and carries all of M0, all of M1 and
+M2-T01…T06. M2-T07/T08 are on `feat/infrastructure-models-and-ports`. CI on `main` is green: **216 s**, of which `make test`
 is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
 green for the right reason.
 
-**`src/` is now two things.** Six modules are shims with no definitions — `types`,
-`preprocess`, `afm_io`, `measure`, `detection/base`, `detection/log_detector`; the other
-six are untouched legacy. That is the shape every remaining
+**`src/` is now two things.** Eight modules are shims with no definitions — `types`,
+`preprocess`, `afm_io`, `measure`, `segmentation`, `detection/base`,
+`detection/log_detector`, `detection/yolo_detector`. Four are untouched legacy:
+`pipeline.py`, `preprocessing_pipeline.py`, `visualization.py`, `__init__.py`. That is the shape every remaining
 M2 move leaves behind, until M2-T15 deletes them wholesale.
 
 **Legacy in transit is declared, not hidden.** `nanoscope.core.science.*` runs at mypy's
@@ -253,30 +266,30 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **96** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **104** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **31, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **34, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
-| `src/` modules moved into `nanoscope/` | **6 of 12** (shims left behind) | 12 | `git ls-files src` |
-| ruff findings, legacy core | **26** in `src/` + **61** declared-and-owned in `nanoscope/` (was 109 + 0) | 0 | `make lint-legacy` |
+| `src/` modules moved into `nanoscope/` | **8 of 12** (shims left behind) | 12 | `git ls-files src` |
+| ruff findings, legacy core | **20** in `src/` + **64** declared-and-owned in `nanoscope/` (was 109 + 0) | 0 | `make lint-legacy` |
 | ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
 | mypy errors | 21, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
-| Import cycles | 5 | 0 | audit D-18 |
+| Import cycles | 5 — **M2-T09 is next and owns this** | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
 | Lint/type/test gate | **green end to end** ✅ — hooks on commit, CI on push | stays green | GitHub Actions |
 | The gate has one definition | **yes** ✅ — `make check`, and CI calls the same targets | one | `Makefile` |
 | Tracked files over 1 MB | **2** ❌ — two README figures, B-054 | 0 | `git ls-files` + `ls -l` |
 
-> **The `< 100` target has done its job and is about to expire.** It was M1's measure of
+> **The `< 100` target has done its job and expired — the count passed it at M2-T07.** It was M1's measure of
 > *junk* — 2 800 `node_modules` files. M2 adds real source: each move leaves a shim and
-> creates two or three modules, and the count crossed 96 with six modules still in `src/`.
-> Passing 100 will mean the extraction is working, not that hygiene regressed. The
+> creates two or three modules. Passing 100 means the extraction is working, not that
+> hygiene regressed. The
 > meaningful successor is the row above it: **tracked files over 1 MB**, which must stay
 > at zero once B-054 closes.
 | Commit-time gate | **9 hooks, all proven to fire** ✅ (was: none) | enforced | `pre-commit run` |

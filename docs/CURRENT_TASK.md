@@ -1,9 +1,16 @@
 # CURRENT TASK
 
-**ID:** `M2-T07`
+**ID:** `M2-T07` · `M2-T08`
 **Title:** Move model-backed code to infrastructure
 **Milestone:** M2 — Domain extraction (behaviour-preserving)
-**Status:** selected — not started
+**Status:** **done 2026-08-04** — both. Rewritten for `M2-T09` at the start of the next
+session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
+
+> **M2-T08 was narrowed:** one port, not seven. The reasoning is in
+> `nanoscope/core/ports/__init__.py` and in `Progress.md` — six of them have no
+> implementation and no caller, and each now has a named task that brings it with its
+> first adapter. If that call is wrong, the fix is to say so and write them; nothing else
+> in the milestone depends on the outcome.
 **Branch to use:** `feat/infrastructure-models`
 **Estimated size:** M
 **Risk to scientific output:** **the golden cannot see most of it.** YOLO and SAM2 are not

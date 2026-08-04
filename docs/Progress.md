@@ -7,6 +7,88 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T07 · M2-T08 · **The dependency rule stops being a diagram**
+
+**Tasks:** `M2-T07` model-backed code to infrastructure · `M2-T08` the ports.
+**Branch:** `feat/infrastructure-models-and-ports`.
+**Scientific impact:** none. `make check` green, **golden zero drift**, 34 passed.
+
+### M2-T07 — what could never live in `core`
+
+| From | To |
+|---|---|
+| `src/detection/yolo_detector.py` | `infrastructure/models/yolo.py` |
+| `src/segmentation.py` — the SAM2 runners | `infrastructure/models/sam2.py` |
+| `src/segmentation.py` — `afm_to_rgb`, `overlay_masks` | `infrastructure/imaging/colormap.py` |
+
+The imaging split is the same accident M2-T06 untangled in `measure.py`. Neither function
+has anything to do with SAM2 — one applies a matplotlib colormap, the other blends colours
+over an RGB image — they were simply first needed there.
+
+**This is the move that makes the dependency rule true rather than aspirational.** `core`
+is *defined* by not importing torch, ultralytics, sam2 or `patched_yolo_infer`. After this
+commit, nothing under `core` does. Every heavy import stays function-local, which is not a
+style preference: CI installs none of those packages (M1-T08), so a module-level import
+turns the job red — and that is the outcome to want, not a problem to paper over with a
+`try: import torch`.
+
+AST-verified: 4 of 6 definitions code-identical. The two that are not are named — ruff
+sorted a function-local import in `YoloDetector`, and `_run_sam2_single` lost a `RET505`
+`else` and had its `src.measure` import rewired to
+`nanoscope.core.science.measurement`. That last one is deliberate: leaving it would have
+pointed an adapter at the legacy shim, which is backwards for the layer and a cycle waiting
+for M2-T09.
+
+**ruff earned its keep.** Moving `afm_to_rgb` out left two dangling references in
+`sam2.py`, and `F821` caught them before a single test ran. That is the concrete argument
+for keeping `ruff check` blocking on moved code instead of excluding it wholesale the way
+`src/` is.
+
+mypy 21 → 21, but not for free: landing `yolo` and `sam2` under the strict `nanoscope.*`
+override produced **16 errors in one commit** — untyped `predictor` parameters, bare `dict`
+and `tuple`, `Returning Any`. Both modules join `core.science` at default strictness.
+`infrastructure.storage.loaders` is deliberately **not** listed: it passes strict as it
+stands, which keeps the exemption about the code rather than about the directory.
+
+### M2-T08 — one port, and the reason for the other six
+
+The task called for seven: `Detector`, `Segmenter`, `ImageLoader`, `ProjectRepository`,
+`TrainingProvider`, `DeviceProvider`, `LogSink`. **One is written.**
+
+Six of them have no implementation, no caller, and no second candidate implementation
+anywhere in the repository. An interface written before its first adapter is a guess about
+a shape. It gets rewritten the moment real code has to fit through it — except that by then
+it is quoted in a document and looks decided. `core/ports/__init__.py` carries the table of
+which task brings each one (M2-T11 `LogSink`, M4-T12 `DeviceProvider`, M6
+`ProjectRepository`, M7 `TrainingProvider`, …). **That table is the commitment; an empty
+`Protocol` would only have been the appearance of one.**
+
+`Detector` is different, which is why it exists today: `LogDetector` in `core.science` and
+`YoloDetector` in `infrastructure.models` both satisfy it *right now*, from opposite
+layers, and neither imports `core.ports` to do it. That is precisely the situation an
+abstraction is for.
+
+It is a `Protocol`, not a replacement for `BaseDetector`. They are different things and the
+docstring says so: `BaseDetector` is inherited and exists to share `_blobs_to_detections`
+and the `radius_px = sigma * sqrt(2)` relation it carries; `Detector` is structural, so an
+adapter conforms without a dependency edge back into the domain.
+
+`tests/unit/test_ports.py`, 3 tests — and the assertions are the weaker half. mypy checks
+the *signature* structurally through a typed helper; `runtime_checkable` only proves a
+method of that name exists. The negative case is there too, because a port that accepts
+anything is decoration. The third test asserts that importing `nanoscope.core.science`
+leaves torch and ultralytics out of `sys.modules`: the dependency rule as a fact rather
+than a diagram, and a down payment on M2-T09.
+
+### Next
+
+`M2-T09` — break the five import cycles and add the import-graph test. `src/__init__.py`
+imports `pipeline`, which imports `src.types`, which is now a shim into `nanoscope`; the
+cycles are all still there, and `import src.types` still loads 1179 modules. This is the
+task that turns the layout into something a machine refuses to let you break.
+
+---
+
 ## 2026-08-04 — M2-T04 · M2-T05 · M2-T06 · **Three moves, one branch, zero drift**
 
 **Tasks:** `M2-T04` I/O · `M2-T05` the LoG detector · `M2-T06` measurement.
