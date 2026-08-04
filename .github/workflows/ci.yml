@@ -39,8 +39,14 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
+      # 3.12 explicitly, not from `.python-version`. `requires-python = ">=3.12"`
+      # lets uv pick the newest interpreter it can find, and on the runner that
+      # was 3.14 — which the golden noticed before anyone else did (M1-T08): it
+      # records exception *messages*, and CPython 3.14 reworded
+      # "too many values to unpack". A characterization baseline is only
+      # comparable within the interpreter that produced it.
       - name: Install Python
-        run: uv python install          # 3.12, from .python-version
+        run: uv python install 3.12
 
       # `--only-group ci` on purpose. A plain `uv sync` resolves torch from the
       # CUDA 11.8 index and clones SAM2 from GitHub — hundreds of megabytes for
@@ -49,18 +55,26 @@ jobs:
       # rather than quietly resolving something else, which matters because the
       # golden is sensitive to numpy/scipy/scikit-image versions.
       - name: Install the CI environment
-        run: uv sync --only-group ci --locked
+        run: uv sync --python 3.12 --only-group ci --locked
 
-      # Proof, not assumption: if a CUDA wheel ever appears in this environment,
-      # the job is wrong even when it is green.
-      - name: Assert the environment is CPU-only
+      # Proof, not assumption. Both halves have already caught something: a CUDA
+      # wheel would make the job wrong even when green, and the interpreter
+      # version silently drifted to 3.14 on the first real run.
+      - name: Assert the environment matches the golden
         run: |
           uv run python - <<'PY'
           import importlib.util as u
+          import sys
+
+          assert sys.version_info[:2] == (3, 12), (
+              f"CI is on Python {sys.version.split()[0]}. The characterization golden "
+              "records CPython exception messages, which are not stable across minor "
+              "versions — compare it only on the interpreter that produced it."
+          )
           heavy = [m for m in ("torch", "ultralytics", "sam2", "patched_yolo_infer")
                    if u.find_spec(m) is not None]
           assert not heavy, f"CI installed packages the suite does not need: {heavy}"
-          print("CPU-only environment confirmed: none of torch/ultralytics/sam2 present")
+          print(f"Python {sys.version.split()[0]}, CPU-only: none of torch/ultralytics/sam2")
           PY
 
       # ── blocking: the code we own ────────────────────────────────────────────
