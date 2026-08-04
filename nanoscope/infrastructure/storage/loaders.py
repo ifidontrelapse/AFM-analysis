@@ -5,9 +5,8 @@ because every function here takes a path and opens it; `cv2` and `np.load` are
 adapters, not domain. The SPM decoding it calls stays in
 `nanoscope.core.science.io`.
 
-`make_synthetic_afm` is a `pass` stub that nothing imports. It came across with
-the rest rather than being deleted here, because retiring the ten dead functions
-is M2-T13's sweep and a move task should not be making that call one at a time.
+`make_synthetic_afm` came across in M2-T04 as a `pass` stub and was deleted in
+M2-T13: nothing imported it and it had no body.
 """
 
 from __future__ import annotations
@@ -55,13 +54,6 @@ def load_afm(
         )
 
     raise ValueError(f"Unsupported format: {fmt}")
-
-
-def make_synthetic_afm(size: int = 256, n_particles: int = 40, seed: int = 42) -> np.ndarray:
-    """
-    Генерация синтетической AFM Z-карты с заданным количеством частиц и размером.
-    Планируется.
-    """
 
 
 def load_microscopy_image(

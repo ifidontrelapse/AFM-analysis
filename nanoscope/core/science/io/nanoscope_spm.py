@@ -31,7 +31,7 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
     if len(blocks) < 2:
         raise ValueError("Ciao image list blocks not found")
 
-    # Ищем блок Height явно, не просто первый блок
+    # Look for the Height block explicitly, not just the first one
     blk = None
     for b in blocks[1:]:
         if '"Height"' in b:
@@ -53,13 +53,13 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
     if None in (data_offset, data_length, samps, lines, bpp):
         raise ValueError("Header fields missing in SPM file")
 
-    # Число ПОСЛЕ скобок = реальный Z диапазон скана в вольтах
+    # The number AFTER the parentheses is the real Z range of the scan, in volts
     zscale_match = re.search(r"@2:Z scale:[^\n]*\([^)]+\)\s*([\d.eE+-]+)\s*V", blk)
     if not zscale_match:
         raise ValueError("Z scale voltage not found")
     z_scale_v = float(zscale_match.group(1))  # 9.238140 V
 
-    # Zsens — точный паттерн, не поймает ZsensSens
+    # Zsens — an exact pattern, so it does not match ZsensSens
     zsens_match = re.search(r"@Sens\.\s*Zsens\s*:\s*V\s+([\d.eE+-]+)\s*nm/V", header)
     if not zsens_match:
         raise ValueError("Zsens nm/V not found")
@@ -76,18 +76,18 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
     z = raw_data[: lines * samps].reshape((lines, samps)).astype(np.float32)
     z *= z_scale
 
-    # В блоке изображения (blk) после нахождения Height
+    # In the image block (blk), after Height has been located
     scan_match = re.search(r"Scan Size:\s*([\d.]+)\s*([\d.]+)\s*(~m|nm|um|µm)", blk)
     if scan_match:
         scan_size = float(scan_match.group(1))
         unit = scan_match.group(3)
         if unit in ("~m", "um", "µm"):
-            scan_size_nm = scan_size * 1000  # µm → нм
+            scan_size_nm = scan_size * 1000  # µm -> nm
         else:
-            scan_size_nm = scan_size  # уже в нм
+            scan_size_nm = scan_size  # already in nm
     else:
         scan_size_nm = None
 
-    pixel_size_nm = scan_size_nm / samps  # нм/пиксель
+    pixel_size_nm = scan_size_nm / samps  # nm per pixel
 
     return scan_size_nm, pixel_size_nm, z

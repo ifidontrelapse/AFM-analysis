@@ -1,5 +1,5 @@
 """
-Препроцессинг AFM данных: выравнивание плоскости, удаление тренда, выделение частиц от фона.
+AFM preprocessing: plane levelling, trend removal, particles separated from background.
 
 **Shim.** The implementations moved to `nanoscope.core.science.preprocessing` in
 M2-T03; this module re-exports them and defines nothing. `src/preprocessing_pipeline.py`

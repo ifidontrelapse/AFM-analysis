@@ -16,7 +16,7 @@ from scipy.linalg import lstsq
 
 def flatten_plane(z: np.ndarray) -> np.ndarray:
     """
-    Коррекция общего наклона плоскости методом МНК.
+    Remove the overall sample tilt with a least-squares plane fit.
 
     Args:
         z: 2D array representing the AFM Z-map.
@@ -24,9 +24,9 @@ def flatten_plane(z: np.ndarray) -> np.ndarray:
         Flattened Z-map with the best-fit plane removed.
     """
     h, w = z.shape
-    # Создаем координатные сетки для X и Y
+    # Coordinate grids for X and Y
     xi, yi = np.meshgrid(np.arange(w), np.arange(h))
-    # Формируем матрицу A для МНК: [X, Y, 1]
+    # Design matrix for the least-squares fit: [X, Y, 1]
     a = np.c_[xi.ravel(), yi.ravel(), np.ones(xi.size)]
     coeffs, *_ = lstsq(a, z.ravel())
     plane = (coeffs[0] * xi + coeffs[1] * yi + coeffs[2]).reshape(h, w)
@@ -35,13 +35,13 @@ def flatten_plane(z: np.ndarray) -> np.ndarray:
 
 def flatten_lines(z: np.ndarray, poly_order: int = 1) -> np.ndarray:
     """
-    Построчное выравнивание, удаление тренда полиномиальной кривой.
+    Per-line levelling: fit and subtract a polynomial trend from every row.
 
     Args:
-        z: топология образца
-        poly_order: степень полинома для выравнивания (по умолчанию 1 - линейный тренд)
+        z: sample topography
+        poly_order: polynomial degree (default 1 — a linear trend)
     Returns:
-        result: выровненная топология
+        result: levelled topography
     """
     result = np.empty_like(z)
     xi = np.arange(z.shape[1])

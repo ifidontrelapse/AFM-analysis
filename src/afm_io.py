@@ -1,5 +1,5 @@
 """
-Утилиты для загрузки AFM данных из различных форматов.
+Utilities for loading AFM data from various formats.
 
 **Shim.** The parsing moved to `nanoscope.core.science.io` and the file-reading to
 `nanoscope.infrastructure.storage` in M2-T04; this module re-exports and defines
@@ -15,12 +15,10 @@ from nanoscope.core.science.io import _read_nanoscope_z
 from nanoscope.infrastructure.storage import (
     load_afm,
     load_microscopy_image,
-    make_synthetic_afm,
 )
 
 __all__ = [
     "_read_nanoscope_z",
     "load_afm",
     "load_microscopy_image",
-    "make_synthetic_afm",
 ]
