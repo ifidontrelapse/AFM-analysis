@@ -76,6 +76,10 @@ get expensive* — and that is now asserted directly, by name: no torch, ultraly
 secondary bound at 250, to catch a new dependency hiding under numpy's noise floor.
 `docs/Roadmap.md` records the change rather than the criterion being quietly reinterpreted.
 
+**CI green, run 20.** 74 tests, including the new import-graph checks — which are worth
+running there specifically: CI has no torch, so a module-level heavy import would fail the
+job at import time rather than at the assertion, and both paths are red.
+
 ### Next
 
 `M2-T11` — structured logging, replacing 13 `print` calls in library code, and the first
