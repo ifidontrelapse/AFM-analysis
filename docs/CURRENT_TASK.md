@@ -62,8 +62,8 @@ This closes M1.
 - [x] `make check` **fails, with a non-zero exit, on the first broken step** — proven by
       breaking one thing, observing red, reverting
 - [x] Every individual target works alone
-- [ ] `.github/workflows/ci.yml` invokes the Makefile targets; a green CI run proves it
-      — written and committed; ticked when the run is green, as in M1-T08
+- [x] `.github/workflows/ci.yml` invokes the Makefile targets; a green CI run proves it
+      — **run 14 green, 216 s**, first try, and the CPU-only assertion still passes
 - [x] No command is described in two places any more — or, where it must be, the duplication
       is named and justified in a comment
 - [x] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md`, `docs/Development.md` updated

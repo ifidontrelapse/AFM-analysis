@@ -51,6 +51,12 @@ needing log access, which M1-T08 established they do not have.
   nothing to hide behind here.
 - Every target was run alone. `types` reports 22 errors and `lint-legacy` 109 findings —
   both exit non-zero, both unchanged from M1-T04 and M1-T07.
+- **CI run 14 is green, first try** — 216 s total: install 8 s, environment assertion 1 s,
+  `make format` and `make lint` under a second each, `make test` 194 s, legacy report 6 s.
+  The refactor did not disturb what only the workflow can own: the CPU-only + Python 3.12
+  assertion still passes, so the green is still green for the right reason. Unlike M1-T08,
+  which needed four runs, nothing here had to be discovered on the runner — the targets
+  were the same ones already proven locally.
 
 ### Decisions
 

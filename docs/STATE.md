@@ -102,7 +102,8 @@ when M2-T01 starts.
   baseline is non-zero by design — a gate that cannot pass is a gate people skip. Writing
   it exposed that the three existing descriptions had already drifted: `PROJECT_RULES` §6
   listed `mypy nanoscope` (no such package yet) and a golden command M1-T05 had folded
-  into `pytest`. **M1 closes here.**
+  into `pytest`. **CI run 14 green on the first try, 216 s**, environment assertion intact.
+  **M1 closes here.**
 
 ### Decisions executed (2026-08-04)
 
@@ -138,10 +139,11 @@ when M2-T01 starts.
 
 Nothing. **M1 is closed.** M2 has not started.
 
-**Repository state:** `main` carries all of M0 and the B1/B5 decisions; M1-T10 is on
-`chore/make-check`. CI is green — **~160 s** with a warm cache: environment install 0 s,
-tests and golden 143 s, legacy report 4 s. The environment assertion (Python 3.12 +
-CPU-only) passes, so the green is green for the right reason.
+**Repository state:** `main` carries all of M0 and the B1/B5 decisions; M1-T10 is pushed on
+`chore/make-check` (`7d52f55`) and **not yet merged into `main`** — that is the first thing
+the next session should do. CI on it is green: **216 s**, of which `make test` is 194 s.
+The environment assertion (Python 3.12 + CPU-only) passes, so the green is green for the
+right reason.
 
 Locally, `make check` is green end to end: format, lint, then 23 tests including the
 golden, 183 s, exit 0.
