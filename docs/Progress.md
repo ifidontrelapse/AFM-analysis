@@ -69,6 +69,10 @@ ignore list with that explanation attached, alongside two genuinely cosmetic one
 `SIM108`) — and it is the concrete argument for why "harmless style fixes" and "verbatim
 move" cannot be the same commit. A linter is a good reason to look; it is not a mandate.
 
+**CI green, run 18** — and it is worth noting *which* environment went green: CI has no
+torch, no ultralytics, no sam2, so it exercised the moved code with the heavy dependencies
+absent. That is the configuration M2-T07 has to keep working.
+
 ### Next
 
 `M2-T07` — YOLO and SAM2 wrappers to `infrastructure/models/`. They import torch, which
