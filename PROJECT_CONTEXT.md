@@ -32,91 +32,109 @@ The project also contains an image-only SEM/TEM path. SEM/TEM data has no height
 
 For implementation tasks, inspect the relevant source files before changing this document. The most important contracts are:
 
-1. `src/types.py` — shared Python dataclasses and configuration literals.
-2. `src/preprocessing_pipeline.py` — standard AFM preprocessing entry point.
-3. `src/pipeline.py` — detector/mode orchestration.
-4. `src/detection/` and `src/segmentation.py` — model and algorithm implementations.
+1. `nanoscope/core/entities/` — shared Python dataclasses and configuration literals.
+2. `nanoscope/application/use_cases/preprocessing.py` — standard AFM preprocessing entry point.
+3. `nanoscope/application/use_cases/pipeline.py` — detector/mode orchestration.
+4. `src/detection/` and `nanoscope/infrastructure/models/sam2.py` — model and algorithm implementations.
 
-Do not infer that a feature exists only because it is mentioned in `README.md`, `project.md`, a notebook, or this file. Verify the implementation in `src/`. This document is refreshed in M2-T16 and lags the tree until then.
+Do not infer that a feature exists only because it is mentioned in `README.md`, `project.md`, a notebook, or this file. Verify the implementation in `nanoscope/`. This document was refreshed to the current tree in **M2-T16 (2026-08-04)**; `docs/STATE.md` is the one that is updated every session.
 
 ## 3. Repository map
 
 ```text
 AFM-analysis/
-├── src/                              # Python analysis library
-│   ├── __init__.py                   # small public API re-export
-│   ├── types.py                      # dataclass dependency root
-│   ├── afm_io.py                     # SPM and NPY loading; SEM/TEM image loading
-│   ├── preprocess.py                 # AFM flattening and substrate estimation
-│   ├── preprocessing_pipeline.py     # load + preprocess orchestration
-│   ├── detection/
-│   │   ├── __init__.py               # detector re-exports
-│   │   ├── base.py                   # BaseDetector and blob conversion
-│   │   ├── log_detector.py            # classical LoG detector
-│   │   └── yolo_detector.py           # YOLOv8 detector, tiled/direct backends
-│   ├── segmentation.py                # SAM2 prompts, masks, and measurements
-│   ├── measure.py                     # circular baseline and mask geometry
-│   ├── pipeline.py                    # full detector/mode dispatcher
-│   └── visualization.py               # matplotlib plots and interactive viewer
-├── frontend/                         # independent React/Vite client
-│   ├── src/api/client.ts              # POST /analyze client
-│   ├── src/types/pipeline.ts          # TypeScript API types
-│   ├── src/pages/AnalyzePage.tsx      # page state and layout
-│   ├── src/components/                # upload, config, result, stats, histogram UI
-│   └── package.json                   # frontend scripts/dependencies
-├── configs/sam2_hiera_b+.yaml         # SAM2 model configuration
-├── checkpoints/                       # local model weights; ignored by git
-├── data/                              # local raw/preprocessed data; ignored by git
-├── dataset/                           # local generated dataset; ignored by git
-├── images/                            # committed example figures
-├── *.ipynb                            # notebooks and experiments
-├── pyproject.toml                     # Python metadata and uv dependencies
-├── uv.lock                            # Python lock file
-├── pytest.ini                         # adds . and src to Python path
-├── README.md                          # user-facing overview; partly stale
-├── project.md                         # earlier architecture notes; partly stale
-└── PROJECT_CONTEXT.md                 # this document
+├── nanoscope/                          # the library — Clean Architecture, ADR-0001/0011
+│   ├── py.typed                        # the package is typed
+│   ├── app/                            # composition root (empty until M5)
+│   ├── core/                           # DOMAIN. No Qt, no torch, no matplotlib, no I/O
+│   │   ├── entities/                   # AFMRawData, MicroscopyData, PreprocessingResult,
+│   │   │                               #   Detection, PipelineConfig, PipelineResult
+│   │   ├── values/                     # Modality, Polarity, PixelScale, DeviceKind
+│   │   ├── ports/                      # Detector (the only port with implementations)
+│   │   └── science/                    # the preserved numerical core
+│   │       ├── io/nanoscope_spm.py     # SPM header parsing and calibration
+│   │       ├── preprocessing/          # flatten.py (levelling), substrate.py (opening/Otsu)
+│   │       ├── detection/              # base.py (ABC), log.py (LoG — pure NumPy)
+│   │       └── measurement/            # height.py (AFM), geometry.py (any modality)
+│   ├── application/
+│   │   ├── capabilities.py             # THE execution matrix, validated before inference
+│   │   └── use_cases/                  # pipeline.py, preprocessing.py
+│   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
+│   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
+│   │   ├── models/                     # yolo.py, sam2.py — heavy imports, function-local
+│   │   └── imaging/                    # colormap.py, plots.py (matplotlib)
+│   ├── gui/                            # PySide6 (M5)
+│   └── resources/                      # assets, a package so importlib.resources finds them
+├── tests/
+│   ├── unit/                           # afm_io, values, ports, capabilities, logging,
+│   │                                   #   import_graph — 118 tests
+│   └── characterization/               # the golden: phantoms.py, capture.py, golden/
+├── docs/                               # STATE, Progress, TASKS, Roadmap, ADR/, audit/
+├── notebooks/                          # experiments; nothing may import them
+├── configs/sam2_hiera_b+.yaml          # SAM2 model configuration
+├── checkpoints/ data/ dataset/         # local, git-ignored
+├── images/                             # committed example figures
+├── Makefile                            # `make check` — the whole gate, and what CI calls
+├── pyproject.toml                      # metadata, dependencies, and every tool's config
+└── uv.lock
 ```
 
-`frontend/node_modules/`, Python caches, local data, and model checkpoints are runtime/development artifacts. They are not architectural source files. The current working tree also contains an existing staged `yolov8s-world.pt` and an untracked root `package-lock.json`; preserve unrelated user changes when modifying the project.
+**Gone, and not coming back:** `src/` (deleted M2-T15 — the last shims), `frontend/` and
+`preprocess_batch.py` (deleted by ADR-0012), `pytest.ini` (folded into `pyproject.toml` in
+M1-T05). There is no `pythonpath` entry anywhere: the package is installed.
 
 ## 4. Layered architecture
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ React frontend (frontend/)                                     │
-│ upload file -> select modality/detector/mode -> POST /analyze  │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ HTTP contract is planned, not implemented here
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Missing adapter/backend                                        │
-│ expected responsibility: parse multipart file + JSON config,   │
-│ call Python pipeline, serialize result and preview image        │
-└───────────────────────────────┬─────────────────────────────────┘
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ Python domain core (src/)                                      │
-│ I/O -> preprocessing -> detection -> segmentation/measurement  │
-│ -> PipelineResult + plots                                      │
-└─────────────────────────────────────────────────────────────────┘
+        ┌──────────────────────────────────────────────────────────┐
+        │ app/           composition root — bootstrap, wiring (M5) │
+        └──────────────────────────┬───────────────────────────────┘
+        ┌──────────────┐           │           ┌────────────────────┐
+        │ gui/  (M5)   │──────────▶│◀──────────│ infrastructure/    │
+        │ PySide6      │  application/         │ storage, models,   │
+        └──────────────┘  use cases,           │ imaging            │
+                          capabilities         └─────────┬──────────┘
+                                  │                      │ implements
+                                  ▼                      ▼
+                    ┌──────────────────────────────────────────────┐
+                    │ core/  entities · values · ports · science    │
+                    │ pure Python + NumPy                          │
+                    └──────────────────────────────────────────────┘
 ```
 
-The Python core is not a web service. It is a synchronous, in-process library. The model objects are passed into functions directly; there is no dependency injection container, task queue, persistence layer, database, or application server.
+**The dependency rule points inward, and it is a test, not a diagram.**
+`tests/unit/test_import_graph.py` parses every module under `core/` and fails if one
+imports `application`, `infrastructure` or `gui`; a second check runs in a subprocess and
+fails if importing the domain loads torch, ultralytics, sam2, matplotlib, PySide6, cv2 or
+pandas. Both were proven to fail on a real violation (M2-T09).
+
+The library is synchronous and in-process. There is no server, task queue, database or DI
+container yet — `app/` is where they will be wired (M5, M6).
 
 ### Dependency direction
 
 ```text
-src/types.py
+core/entities, core/values          ← imports nothing of ours
     ↑
-afm_io.py, preprocess.py, measure.py, segmentation.py, detection/*
+core/ports                          ← entities only
     ↑
-preprocessing_pipeline.py, pipeline.py
+core/science                        ← entities; never ports, never outward
     ↑
-visualization.py, notebooks, external callers
+infrastructure/*                    ← core.science, core.entities
+    ↑
+application/use_cases               ← core.science, infrastructure, capabilities
+    ↑
+gui/, notebooks, external callers
 ```
 
-`src.types` is intentionally the dependency root and imports no other `src` module. `src.pipeline` imports detection, segmentation, and measurement code. `src.visualization` is a consumer of `PipelineResult`, not a processing stage required by the core.
+Measured, not asserted: `import nanoscope.core.entities` loads **185 modules in 0.07 s**,
+of which 141 are numpy. Before M2-T09 the equivalent import cost 626 modules and pulled in
+matplotlib and pandas.
+
+**One honest exception.** `application/use_cases/pipeline.py` imports `YoloDetector` from
+`infrastructure` by name instead of receiving a `Detector`. That is the `if/elif` dispatch
+the port exists to remove, and M4 removes it when a container exists to do the choosing.
+mypy already reports it as an error rather than letting it pass quietly.
 
 ## 5. Core data model
 
@@ -124,7 +142,7 @@ All arrays are expected to be two-dimensional image-like arrays unless stated ot
 
 ### `AFMRawData`
 
-Defined in `src/types.py`.
+Defined in `nanoscope/core/entities/`.
 
 ```python
 AFMRawData(
@@ -186,7 +204,7 @@ Coordinates are image coordinates in pixels. LoG detections have a synthetic squ
 
 ### `PipelineConfig`
 
-Defined in `src/types.py`. Current Python fields:
+Defined in `nanoscope/core/entities/`. Current Python fields:
 
 | Group | Fields and defaults |
 |---|---|
@@ -219,7 +237,7 @@ The `masks` dictionaries contain NumPy boolean masks and model scores, so the ob
 The standard entry point is:
 
 ```python
-from src.preprocessing_pipeline import run_preprocessing
+from nanoscope.application.use_cases import run_preprocessing
 
 pre = run_preprocessing("scan.spm", fmt="spm")
 ```
@@ -234,7 +252,7 @@ load_afm
   -> PreprocessingResult
 ```
 
-### 6.1 Loading: `src/afm_io.py`
+### 6.1 Loading: `nanoscope/core/science/io/nanoscope_spm.py` + `nanoscope/infrastructure/storage/loaders.py`
 
 `load_afm(file_path, fmt, pixel_size_nm=None, scan_size_nm=None)` supports only:
 
@@ -254,7 +272,7 @@ For SPM, `_read_nanoscope_z`:
 
 `load_microscopy_image(path, modality, nm_per_pixel=None)` reads a grayscale image with OpenCV and returns `MicroscopyData`. Supported modality literals are `"sem"` and `"tem"`.
 
-### 6.2 Flattening: `src/preprocess.py`
+### 6.2 Flattening: `nanoscope/core/science/preprocessing/`
 
 - `flatten_plane(z)` fits `z = ax + by + c` using least squares and subtracts the plane.
 - `flatten_lines(z, poly_order=1)` fits and subtracts a polynomial independently for every row. The default is linear detrending.
@@ -292,7 +310,7 @@ All detectors implement `BaseDetector.detect(image, pixel_size_nm) -> list[Detec
 
 ### 7.1 LoG detector
 
-Files: `src/detection/base.py`, `src/detection/log_detector.py`.
+Files: `nanoscope/core/science/detection/base.py`, `nanoscope/core/science/detection/log.py`.
 
 `LogDetector` wraps the functional `detect_particles` implementation and retains the raw blob array in `last_blobs` for SAM2 or circular baseline measurement.
 
@@ -319,7 +337,7 @@ There is also `estimate_log_threshold`, which estimates `3 * substrate_noise_std
 
 ### 7.2 YOLO detector
 
-File: `src/detection/yolo_detector.py`.
+File: `nanoscope/infrastructure/models/yolo.py`.
 
 `YoloDetector` prepares an input image by resizing to `640 x 640` by default, normalizing to `[0, 255]`, inverting it, and converting grayscale to RGB.
 
@@ -338,7 +356,7 @@ Required local weights are normally under `checkpoints/`; the Python default is 
 
 ### 8.1 SAM2 segmentation
 
-File: `src/segmentation.py`.
+File: `nanoscope/infrastructure/models/sam2.py`.
 
 SAM2 is deliberately isolated from the rest of the code so detection and baseline measurement can run without importing SAM2 internals. The caller must provide an initialized `SAM2ImagePredictor` when `PipelineConfig.mode == "segment"`.
 
@@ -363,7 +381,7 @@ The result list stores NumPy masks (`mask`, optionally `mask_inner` and `ring`),
 
 ### 8.2 Circular baseline mode
 
-File: `src/measure.py`.
+File: `nanoscope/core/science/measurement/`.
 
 `measure_all_baseline` is available only for AFM + LoG through `run_pipeline`.
 
@@ -409,7 +427,7 @@ The baseline DataFrame normally contains:
 Main entry point:
 
 ```python
-from src.pipeline import run_pipeline
+from nanoscope.application.use_cases import run_pipeline
 result = run_pipeline(data, cfg, predictor=None)
 ```
 
@@ -419,7 +437,7 @@ result = run_pipeline(data, cfg, predictor=None)
 
 > **This table documents `nanoscope/application/capabilities.py`; it does not define the
 > rules.** Before M2-T10 the same matrix existed here, as `if` statements in
-> `src/pipeline.py`, and hardcoded in the React client — where the audit found it had
+> `nanoscope/application/use_cases/pipeline.py`, and hardcoded in the React client — where the audit found it had
 > already drifted (D-19). One copy executes; this one is for reading. A test asserts the
 > row count matches, which is the most a document can be held to.
 
@@ -443,96 +461,30 @@ invalid combination costs nothing (audit D-14). The messages are unchanged.
 
 ## 10. Visualization and batch processing
 
-File: `src/visualization.py`.
+File: `nanoscope/infrastructure/imaging/plots.py`.
 
 - `plot_afm`: renders a height map with physical nm axes and optional colorbar.
 - `afm_viewer`: interactive matplotlib viewer with cursor readout and two-point height profile.
 - `plot_detections`: renders LoG circles and centres.
 - `plot_detections_histogram` and `plot_pipeline_result` were deleted in M2-T13 — no caller in code, tests or notebooks.
-- `afm_to_rgb` and `overlay_masks` live in `src/segmentation.py` and are used for mask visualization.
+- `afm_to_rgb` and `overlay_masks` live in `nanoscope/infrastructure/imaging/colormap.py` (M2-T07 — neither has anything to do with SAM2).
 
-`preprocess_batch.py` is a CLI that recursively finds files whose extensions are numeric (for example `.001`, `.002`), applies the SPM preprocessing sequence, and writes rendered `.jpg` maps while mirroring the input directory structure.
+`preprocess_batch.py` was **deleted** by ADR-0012. It unpacked `AFMRawData` as a 3-tuple
+and therefore failed on every file it was given (D-02); it had been broken since the commit
+that introduced the dataclass. Batch processing returns as a use case when there is an
+application to run it from.
 
-```bash
-python preprocess_batch.py data/raw/ data/preprocessed/
-```
+## 11. The web client (removed)
 
-It does not save a structured `PreprocessingResult`; it saves visualization images only.
+The React/Vite client under `frontend/` was **deleted** by **ADR-0012** (2026-08-04), which
+supersedes ADR-0007. It targeted a `POST /analyze` backend that was never written, and the
+product direction is a Qt6 desktop application (ADR-0002). It also hardcoded its own copy
+of the execution matrix, which the audit found had already drifted from the Python one
+(D-19) — that duplication is what M2-T10 finally removed.
 
-## 11. Frontend architecture
+The code remains in git history. Nothing in this document describes it as current.
 
-The frontend is a standalone Vite application under `frontend/`. It has no router, state library, chart library, or UI component library. State is local React state in `AnalyzePage`.
-
-```text
-App
-  -> AnalyzePage
-       -> UploadZone
-       -> ConfigPanel
-       -> ResultViewer
-       -> StatsPanel
-       -> Histogram (0..2 instances)
-       -> LoadingOverlay (during request)
-```
-
-### Frontend behavior
-
-- `UploadZone` accepts `.spm`, `.npy`, `.jpg`, `.jpeg`, `.png`, `.tif`, `.tiff`.
-- `ConfigPanel` supports AFM/SEM/TEM, LoG/YOLO, and detect/baseline/segment.
-- Baseline is disabled for SEM/TEM in the UI.
-- LoG controls: percentile and overlap.
-- YOLO controls: tiling and confidence.
-- `ResultViewer` displays a server-provided base64 PNG and a particle count badge.
-- `StatsPanel` computes means/medians client-side from returned detections/measurements.
-- `Histogram` renders SVG bars and mean/median guide lines without a chart library.
-- `LoadingOverlay` covers the page during `POST /analyze`.
-
-### Frontend HTTP contract
-
-`frontend/src/api/client.ts` sends:
-
-```http
-POST ${VITE_API_URL}/analyze
-Content-Type: multipart/form-data
-
-image=<uploaded file>
-config=<JSON stringified PipelineConfig>
-```
-
-`VITE_API_URL` is currently `http://localhost:8000` in `frontend/.env` and is also the client fallback.
-
-The frontend expects this JSON shape:
-
-```ts
-interface PipelineResult {
-  detections: Detection[];
-  masks_preview_b64: string;
-  measurements: ParticleMeasurement[];
-  pixel_size_nm: number | null;
-  detector_name: "log" | "yolo";
-  mode: "detect" | "baseline" | "segment";
-  modality: "afm" | "sem" | "tem";
-  particle_count: number;
-}
-```
-
-The frontend config additionally contains `modality` and optional `nm_per_pixel`:
-
-```ts
-interface PipelineConfig {
-  modality: "afm" | "sem" | "tem";
-  detector: "log" | "yolo";
-  mode: "detect" | "baseline" | "segment";
-  nm_per_pixel?: number;
-  log_overlap?: number;
-  log_percentile?: number;
-  yolo_use_tiling?: boolean;
-  yolo_conf?: number;
-}
-```
-
-The adapter/backend still needs to map this HTTP contract to the Python objects, serialize dataclasses/DataFrames/masks, render a PNG preview, and calculate `particle_count`.
-
-## 12. Python and frontend dependencies
+## 12. Dependencies
 
 ### Python
 
@@ -549,12 +501,16 @@ Declared in `pyproject.toml` and locked in `uv.lock`:
 - `patched-yolo-infer`: tiled YOLO inference.
 - tqdm, requests, ipykernel: utility/notebook/runtime support.
 
-### Frontend
+### Development and CI
 
-- Runtime: `react`, `react-dom`.
-- Build/tooling: Vite, TypeScript, `@vitejs/plugin-react`.
-- Styling: Tailwind CSS, PostCSS, Autoprefixer.
-- No backend dependency is declared in this repository.
+Declared in `[dependency-groups]`: **pytest 9.1.1, pytest-cov 7.1.0, ruff 0.16.1,
+mypy 2.3.0, pre-commit 4.6.1** (M1-T02).
+
+There is a second group, `ci`, and it is deliberately smaller than the runtime one:
+numpy, scipy, scikit-image, pandas, matplotlib, headless OpenCV and the dev tools —
+**no torch, ultralytics, sam2 or patched-yolo-infer**. Every heavy import in the library is
+function-local, so the suite never reaches them, and CI has no reason to resolve a CUDA
+wheel or clone SAM2. A step in the workflow asserts this rather than trusting it.
 
 ## 13. Installation and common commands
 
@@ -566,15 +522,6 @@ uv sync
 
 The project requires Python `>=3.12`. PyTorch is configured for the CUDA 11.8 package index in `pyproject.toml`; change the `tool.uv.sources` configuration if a CPU or another CUDA setup is required.
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-npm run build
-npm run preview
-```
 
 The current frontend can build as a static client, but it cannot complete analysis without an HTTP service implementing `POST /analyze`.
 
@@ -583,10 +530,14 @@ The current frontend can build as a static client, but it cannot complete analys
 AFM preprocessing plus baseline measurement:
 
 ```python
-from src.afm_io import load_afm
-from src.preprocess import flatten_plane, flatten_lines, build_substrate_map
-from src.detection import detect_particles
-from src.measure import measure_all_baseline
+from nanoscope.core.science.detection import detect_particles
+from nanoscope.core.science.measurement import measure_all_baseline
+from nanoscope.core.science.preprocessing import (
+    build_substrate_map,
+    flatten_lines,
+    flatten_plane,
+)
+from nanoscope.infrastructure.storage import load_afm
 
 raw = load_afm("data/sample.spm", fmt="spm")
 z_flat = flatten_lines(flatten_plane(raw.z_raw), poly_order=1)
@@ -600,9 +551,9 @@ df = measure_all_baseline(z_flat, z_result, blobs)
 Preferred high-level preprocessing call:
 
 ```python
-from src.preprocessing_pipeline import run_preprocessing
-from src.pipeline import run_pipeline
-from src.types import PipelineConfig
+from nanoscope.application.use_cases import run_preprocessing
+from nanoscope.application.use_cases import run_pipeline
+from nanoscope.core.entities import PipelineConfig
 
 pre = run_preprocessing("data/sample.spm", fmt="spm")
 result = run_pipeline(pre, PipelineConfig(detector="log", mode="baseline"))
@@ -612,48 +563,76 @@ For `mode="segment"`, initialize a compatible `SAM2ImagePredictor` separately an
 
 ## 14. Tests and quality gates
 
-Current test coverage is minimal. `tests/test_io.py` contains a smoke test for SPM loading but does not assert output values and references a path that may not exist in a clean checkout. There are no unit tests covering preprocessing, detectors, SAM2, measurement, pipeline dispatch, frontend behavior, or HTTP serialization.
-
-Configured checks:
+**One command, and it is the one CI runs** (M1-T10):
 
 ```bash
-pytest
-ruff check .
+make check      # ruff format --check -> ruff check -> pytest, stopping at the first failure
+make fast       # everything except the golden (~1 s) — the inner loop, not a merge gate
 ```
 
-Frontend type/build check:
+`make` on its own lists the targets. `.github/workflows/ci.yml` invokes those same targets
+rather than repeating the commands, so the local gate and CI cannot describe different
+things.
 
-```bash
-cd frontend
-npm run build
-```
+**118 tests**, of which the important one is the characterization golden: 8 seeded phantoms,
+compared at `rtol=1e-6`, covering preprocessing, LoG detection, baseline measurement, YOLO
+input preparation, degenerate inputs and the serialization contract. It runs inside
+`pytest` (M1-T05) rather than by discipline, and every one of M2's sixteen relocations had
+to pass it.
 
-When changing numerical code, add deterministic tests with small synthetic arrays before relying on notebook output. When changing the API boundary, test both the serialized backend shape and the TypeScript consumer shape.
+The golden records error *types and messages* as well as numbers, which is why translating
+one Russian exception message in M2-T12 showed up as a declared four-line change — and why
+**B-058** matters: it is pinned to CPython's minor version, so a Python upgrade reads as
+drift. That needs an ADR before anyone upgrades.
+
+Also enforced, and each proven to fail on a real violation:
+
+| Check | File |
+|---|---|
+| `core` imports nothing from an outer layer; the domain loads no torch/matplotlib/Qt | `tests/unit/test_import_graph.py` |
+| No `print` in library code | `tests/unit/test_logging.py` |
+| Both detectors satisfy the `Detector` port | `tests/unit/test_ports.py` |
+| Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
+
+Nine pre-commit hooks run on every commit (M1-T07); `pytest` and mypy are deliberately not
+among them — the golden alone takes 190 s, and a hook that slow is a hook people bypass.
+
+mypy reports **20 errors**, all inside `nanoscope`, all inherited with the moved code and
+none silenced. New code is strict from its first line; the moved scientific core runs at
+default strictness under a declared override that shrinks as M3 lands.
 
 ## 15. Known implementation gaps and risks
 
 These are observations from the current source, not proposed behavior.
 
-### High priority: frontend/backend contract is incomplete
+> **These are tracked, not just noted.** Every item below is a numbered defect in
+> `docs/audit/2026-07-28-baseline-audit.md` with a task in `docs/TASKS.md` §M3. M2 moved the
+> code without fixing any of them, on purpose: a move that also changes a number makes a red
+> golden ambiguous.
 
-- No FastAPI, Flask, or other server module exists.
-- Python `PipelineResult` does not have `masks_preview_b64` or `particle_count`.
-- Python `PipelineConfig` does not have `modality` or `nm_per_pixel`.
-- Python masks contain NumPy arrays and measurements are a pandas DataFrame; neither is directly JSON serializable.
-- The frontend currently assumes the server has already rendered the result preview.
+### Resolved since this document was first written
 
-### High priority: preprocessing manual-radius path
+- **The frontend/backend contract** is not incomplete, it is gone — ADR-0012 deleted the
+  client. Serialization returns as a concern in M6, against a desktop application.
+- **Validation ran after inference** (D-14): fixed in M2-T10. Every rejection now happens
+  before a detector is constructed.
+- **13 `print` calls and 197 Russian lines** in library code: fixed in M2-T11 and M2-T12.
+- **Five import cycles** (D-18): fixed in M2-T09, and a test refuses new ones.
 
-In `build_substrate_map`, the `manual_radius_px is not None` branch computes the substrate and sizes but does not assign `opening_radius` before the final return statement. Calling this branch can raise `UnboundLocalError`.
+### Critical: the manual-radius path fails on every call
+
+In `build_substrate_map`, the `manual_radius_px is not None` branch never assigns
+`opening_radius` before returning it — `UnboundLocalError`, 100% of calls. **D-01, M3-T01**,
+and the golden already records the exception, so the fix will show as a declared change.
 
 ### Numerical edge cases
 
 - LoG normalization divides by `z_above.max()`. A zero or non-positive map can produce invalid values or unstable thresholding.
 - Otsu sizing can leave an empty radius array after minimum-size filtering even when connected components exist.
-- The automatic rough-radius fallback prints a warning and uses approximately 1% of image width; this is a heuristic, not a calibrated estimate.
+- The automatic rough-radius fallback logs a warning (M2-T11) and uses approximately 1% of image width; this is a heuristic, not a calibrated estimate.
 - Morphological opening assumes its radius exceeds the largest particle radius. An incorrect radius changes the physical meaning of `z_result`.
 - Local ring measurement falls back to a global baseline when the ring is too small, which can hide local substrate gradients.
-- `estimate_rough_radius` is annotated as returning `int` but can return a float after multiplying by its scale.
+- `estimate_rough_radius` is annotated as returning `int` but can return a float after multiplying by its scale. mypy reports this; it is not silenced.
 - The SPM parser assumes the relevant header fields and the image layout match the implemented regular expressions.
 
 ### Model and result semantics
@@ -671,41 +650,47 @@ In `build_substrate_map`, the `manual_radius_px is not None` branch computes the
 - `project.md` is closer to the current architecture but still contains older function signatures in places.
 - `plan.md` describes the intended frontend/backend integration, not an implemented backend.
 
-When documentation conflicts with executable code, prefer `src/types.py`, function signatures, and actual control flow.
+When documentation conflicts with executable code, prefer `nanoscope/core/entities/`, function signatures, and actual control flow.
 
 ## 16. Guidance for future AI agents
 
+**Read `docs/STATE.md` first.** It is updated every session and names the current task; this
+document is the map, not the log.
+
 Before implementing a change:
 
-1. Identify whether the change belongs to the Python core, frontend, or the missing adapter boundary.
-2. Read `src/types.py` and the complete call chain for the affected mode.
-3. Preserve coordinate conventions: arrays use `[y, x]`, `Detection` exposes `x_px` and `y_px`, and boxes are `(x1, y1, x2, y2)`.
-4. Preserve units: AFM `z_flat`, `z_result`, height, and radius values are in nanometres; pixel geometry is in pixels; SEM/TEM nanometre values require `nm_per_pixel`.
-5. Keep model loading outside low-level numerical functions unless the existing interface explicitly requires it.
-6. Do not serialize masks or DataFrames implicitly; define an explicit wire format at the HTTP boundary.
-7. Add or update tests for edge cases before changing default numerical behavior.
-8. Check repository status before editing and avoid touching local data, checkpoints, `node_modules`, or unrelated staged files.
-
-Recommended order for adding the web backend:
-
-```text
-define canonical wire schemas
-  -> implement file/config validation
-  -> implement AFM vs SEM/TEM loading
-  -> initialize/cache model predictors safely
-  -> call run_preprocessing + run_pipeline
-  -> serialize detections and measurements
-  -> render PNG preview to base64
-  -> add CORS/error handling
-  -> add an integration test against frontend/src/types/pipeline.ts
-```
+1. **Identify the layer.** Numerical science → `core/science`. Orchestration →
+   `application/use_cases`. Anything touching a file, a GPU or a framework →
+   `infrastructure`. If a change to `core` needs something from an outer layer, that is a
+   port, and `tests/unit/test_import_graph.py` will refuse the shortcut.
+2. Read `nanoscope/core/entities/` and the complete call chain for the affected mode.
+3. **Preserve coordinate conventions:** arrays are `[y, x]`, `Detection` exposes `x_px` and
+   `y_px`, boxes are `(x1, y1, x2, y2)`.
+4. **Preserve units:** AFM `z_flat`, `z_result`, height and radius are nanometres; pixel
+   geometry is pixels; SEM/TEM nanometre values require `nm_per_pixel`.
+5. Keep model loading and heavy imports out of low-level numerical functions. CI installs
+   no torch — a module-level `import torch` turns the job red, which is the point.
+6. **Run `make check` before claiming anything works.** If the golden moves, the change is
+   numerical whether or not it was meant to be.
+7. **A numerical change gets its own commit, its own ADR, its own golden update, and a
+   quantified before/after delta in `docs/Progress.md`.** Never bundled — that rule is what
+   makes the golden a gate instead of a formality (ADR-0008, ADR-0010).
+8. Do not touch local data, checkpoints, or unrelated staged files.
 
 ## 17. Suggested next work, ordered by impact
 
-1. Fix and test `build_substrate_map(manual_radius_px=...)`.
-2. Add numerical input validation for empty, constant, negative-only, and malformed maps.
-3. Define one canonical JSON schema shared by Python backend and TypeScript frontend.
-4. Implement the missing `/analyze` adapter, including model lifecycle and preview encoding.
-5. Add tests for preprocessing, LoG, baseline measurement, pipeline mode validation, and serialization.
-6. Refresh `README.md` and `project.md` from this architecture document to remove stale claims.
-7. Decide whether the legacy notebooks and `preprocess_batch.py` remain supported interfaces or should be marked experimental.
+M2 is complete: the domain is extracted, the layout is enforced by tests, and every golden
+number survived. The order below is `docs/Roadmap.md`'s, not a separate opinion.
+
+1. **M3-T01** — fix `build_substrate_map(manual_radius_px=...)` (D-01, `UnboundLocalError`
+   on 100% of calls). First numerical fix in the project.
+2. **M3-T03** — YOLO input: normalise *then* cast. Only 12.6% of the dynamic range
+   currently survives the conversion (D-03).
+3. **Three defects need an operator decision before they can be fixed**, and each blocks a
+   task: `min_size_nm` semantics (B2/M3-T02), opening-radius rounding (B4/M3-T09),
+   detection polarity for TEM (B3/M3-T10). They are physics questions, not engineering ones.
+4. **B-058** — the golden compares CPython exception text, so a Python upgrade reads as
+   drift. Needs an ADR before anyone upgrades.
+5. **M3-T15** — an evaluation harness (precision/recall/localisation against phantom ground
+   truth). Until it exists, "the detector got better" is not a measurable claim.
+6. Refresh `README.md` and `project.md`, which still carry pre-M2 claims (M9-T01).
