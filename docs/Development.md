@@ -171,8 +171,17 @@ Two consequences worth knowing:
 
 `src/` is reported, never blocking — the same posture as the hooks and as mypy (M1-T04).
 The counts go to the run summary so a regression shows up in review without freezing the
-sixteen M2 relocation tasks. When the code moves to `nanoscope/`, its check is strict and
-blocking from the first line.
+sixteen M2 relocation tasks.
+
+**When the code moves to `nanoscope/`, the checks get sharper but not instantly total**
+(M2-T03). `ruff check` becomes *blocking* on moved science, with six named rules ignored
+for `nanoscope/core/science/` — Russian text (M2-T12), `print` (M2-T11),
+implicit-optional (M3), `RET504`. mypy runs that subtree at its default strictness rather
+than the strict `nanoscope.*` settings. Both are declarations that code is in transit, not
+exemptions: every entry names the task that deletes it, and everything outside
+`core/science/` is strict and at zero. Legacy code cannot satisfy strict rules the same
+commit it arrives, and fixing the defects mid-move would change numbers the golden
+records — that is M3's job, with a declared delta.
 
 `pre-commit run --all-files` is **not** run in CI. Its blocking content — ruff check and
 format — already runs directly with the same configuration, so running it again would only

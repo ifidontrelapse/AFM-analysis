@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/core-entities` · **Base commit:** `e02c997`
+**Last updated:** 2026-08-04 · **Branch:** `feat/core-preprocessing` · **Base commit:** `06d1fa9`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -20,10 +20,11 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T03` — move `preprocess.py`** into `core/science/preprocessing/`. Status:
-**selected, not started**. It is the first move of *behaviour* rather than declarations, so
-the golden stops being a formality. `docs/CURRENT_TASK.md` still describes the finished
-M2-T02 and is rewritten when M2-T03 starts.
+**`M2-T04` — move I/O parsing.** `afm_io.py` splits: pure parsing into
+`core/science/io/`, an `ImageLoader` port implemented in `infrastructure/storage/`. Status:
+**selected, not started**. The first move that is also a *shape* change, and the first to
+touch the 22 unit tests from M1-T06. `docs/CURRENT_TASK.md` still describes the finished
+M2-T03 and is rewritten when M2-T04 starts.
 
 ---
 
@@ -55,6 +56,17 @@ M2-T02 and is rewritten when M2-T03 starts.
   errors.** Finally `Modality`, `Polarity`, `PixelScale`, `DeviceKind` with 8
   mutation-validated tests — **defined, adopted by nothing**, because adoption changes what
   `asdict` produces. Golden: **zero drift**.
+
+- **M2-T03** ✅ (2026-08-04) — preprocessing moved to
+  `nanoscope/core/science/preprocessing/` (`flatten.py` + `substrate.py`); `preprocess.py`
+  is a shim. The first move of real behaviour — plane fitting, line detrending,
+  morphological opening, Otsu. **Proved before the gate ran:** all six functions
+  AST-identical, docstrings differing only in trailing whitespace, and the 5 mypy errors
+  travelled with the code (21 before, 21 after). Golden: **zero drift**. What the task
+  actually settled is how legacy enters a strict package: **declared once in configuration**
+  — mypy at default strictness for `nanoscope.core.science.*`, ruff still blocking there
+  but ignoring six named rules — instead of a `type: ignore` on every audited defect across
+  fifteen more moves. Every entry names the task that deletes it (M2-T11, M2-T12, M3).
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -165,16 +177,20 @@ M2-T02 and is rewritten when M2-T03 starts.
 
 ## In progress
 
-Nothing. M2-T01 and M2-T02 are done; **M2-T03 is selected, not started**.
+Nothing. M2-T01…T03 are done; **M2-T04 is selected, not started**.
 
-**Repository state:** `main` is at `e02c997` and carries all of M0, all of M1 and M2-T01.
-M2-T02 is on `feat/core-entities`. CI on `main` is green: **216 s**, of which `make test`
+**Repository state:** `main` is at `06d1fa9` and carries all of M0, all of M1 and
+M2-T01…T02. M2-T03 is on `feat/core-preprocessing`. CI on `main` is green: **216 s**, of which `make test`
 is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
 green for the right reason.
 
-**`src/` is now two things.** `types.py` is a shim with no definitions; the other eleven
-modules are untouched legacy. That is the shape every remaining M2 move leaves behind,
-until M2-T15 deletes the shim wholesale.
+**`src/` is now two things.** `types.py` and `preprocess.py` are shims with no
+definitions; the other ten modules are untouched legacy. That is the shape every remaining
+M2 move leaves behind, until M2-T15 deletes them wholesale.
+
+**Legacy in transit is declared, not hidden.** `nanoscope.core.science.*` runs at mypy's
+default strictness and carries six named ruff ignores; every entry names the task that
+deletes it (M2-T11, M2-T12, M3). The rest of `nanoscope` stays strict and 0.
 
 Locally, `make check` is green end to end: format, lint, then 23 tests including the
 golden, exit 0.
@@ -230,7 +246,7 @@ None of the remaining questions blocks M1 or M2.
 | Meaningful tests | **31, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
-| ruff findings, legacy core | **109**, all in `src/` (was 117) | 0 | `ruff check src --no-fix --no-force-exclude` |
+| ruff findings, legacy core | **74** in `src/` + **22** declared-and-owned in `nanoscope/core/science/` (was 109 + 0) | 0 | `make lint-legacy` |
 | ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
 | mypy errors | 21, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
