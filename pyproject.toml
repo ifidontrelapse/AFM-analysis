@@ -114,6 +114,23 @@ no_implicit_optional = true
 warn_return_any = true
 strict_equality = true
 
+# The moved scientific core (M2-T03 onwards). `nanoscope.*` is strict; code that
+# arrives verbatim from `src/` under the characterization golden cannot be, and the
+# alternative — a `type: ignore` on every defect the audit already lists — buries
+# the real errors in noise and has to be unpicked in M3 anyway.
+#
+# This is not silencing: mypy still checks these modules at its default strictness,
+# exactly as it checks `src/` today, and CI publishes the count. It is the M1-T04
+# posture applied to code in transit. Delete this block when M3 closes; the strict
+# settings above then apply to the science too, which is the point of moving it.
+[[tool.mypy.overrides]]
+module = "nanoscope.core.science.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+warn_return_any = false
+
 # Third-party packages that ship neither stubs nor a py.typed marker. Scoped
 # per module on purpose: a blanket `ignore_missing_imports` would also hide a
 # typo in a first-party import.
@@ -215,3 +232,15 @@ classmethod-decorators = ["classmethod"]
 # Test scripts print by design. `S101` (assert) was listed here, but the `S`
 # rule family is not selected — dead configuration, removed. See backlog B-056.
 "tests/*" = ["T20"]
+
+# The moved scientific core (M2-T03 onwards), where `ruff check` **is** blocking —
+# unlike `src/`, which is excluded wholesale. Three rules, each with the task that
+# deletes the entry. Everything else (E, F, B, UP, SIM, …) blocks here as normal,
+# which is the difference between this and the `src` carve-out.
+"nanoscope/core/science/*" = [
+    "RUF001", "RUF002", "RUF003",  # Russian text — M2-T12 translates it, D-22
+    "T201",                        # print in library code — M2-T11 adds a log sink, D-23
+    "RUF013",                      # implicit Optional — a real defect signature, M3
+    "RET504",                      # `x = ...; return x` — cosmetic, and rewriting
+                                   # science for a style rule is PROJECT_RULES §4.1
+]
