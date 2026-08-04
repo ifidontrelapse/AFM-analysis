@@ -8,7 +8,6 @@ called directly, exactly as they were from `src/afm_io.py`.
 from nanoscope.infrastructure.storage.loaders import (
     load_afm,
     load_microscopy_image,
-    make_synthetic_afm,
 )
 
-__all__ = ["load_afm", "load_microscopy_image", "make_synthetic_afm"]
+__all__ = ["load_afm", "load_microscopy_image"]

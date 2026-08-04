@@ -128,21 +128,3 @@ def run_pipeline(
         pixel_size_nm=nm_per_pixel, detector_name=cfg.detector,
         mode=cfg.mode, modality=modality,
     )
-
-
-def run_full_pipeline(
-    pre: PreprocessingResult,
-    cfg: PipelineConfig,
-    predictor=None,
-) -> PipelineResult:
-    """
-    Convenience wrapper: accepts a PreprocessingResult directly.
-
-    This is the standard production call path for AFM data.
-
-    Args:
-        pre:       output of run_preprocessing()
-        cfg:       pipeline configuration
-        predictor: initialised SAM2ImagePredictor — required when cfg.mode="segment"
-    """
-    return run_pipeline(pre, cfg, predictor=predictor)
