@@ -11,11 +11,20 @@ design, not an endorsement; revisit it with the import-weight work in M2-T09.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
-
-import pandas as pd
+from typing import TYPE_CHECKING, Any, Literal
 
 from nanoscope.core.entities.detection import Detection
+
+if TYPE_CHECKING:
+    # Annotation-only. `from __future__ import annotations` means the string
+    # "pd.DataFrame" is never evaluated, so importing pandas at run time bought
+    # nothing but weight: it was ~380 of the modules that `import
+    # nanoscope.core.entities` used to load (M2-T09).
+    #
+    # This does not change `dataclasses.fields(...).type`, which is that same
+    # string either way, and the golden records field *names*. It would break
+    # `typing.get_type_hints(PipelineResult)` at run time; nothing calls it.
+    import pandas as pd
 
 
 @dataclass
