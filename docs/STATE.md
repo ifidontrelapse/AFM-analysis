@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/logging-english-deadcode-install` · **Base commit:** `a42bdd5`
+**Last updated:** 2026-08-04 · **Branch:** `feat/delete-src-shims` · **Base commit:** `8229f06`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -9,10 +9,16 @@
 
 ## Current milestone
 
-**M2 — Domain extraction (behaviour-preserving)**
+**M3 — Numerical correctness**
 
-Move the scientific core into the Clean Architecture skeleton with every golden number
-unchanged. Gate for every task: zero drift. Exit criteria in `docs/Roadmap.md`.
+Fix the defects the audit reproduced. **The rules change here:** every task gets its own
+commit, its own ADR, its own golden update, and a quantified before/after delta in
+`docs/Progress.md`. Never bundled (ADR-0010).
+
+**M2 closed 2026-08-04** — sixteen tasks, 2 021 lines of science moved into four named
+layers, and **not one number changed**. Five of six exit criteria met in full; the sixth
+(ports) is partly met on purpose and M4 owns the rest. Milestone summary in
+`docs/Progress.md`.
 
 **M1 closed 2026-08-04** — all eleven tasks done, four of five exit criteria met. The
 fifth (no tracked file over 1 MB) has two known exceptions, the README figures, filed as
@@ -20,16 +26,17 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T15` — delete the `src/` shims.** Status: **selected, not started**. Every caller
-moves to `nanoscope` first: the characterization harness, `tests/unit/test_afm_io.py`, and
-the two notebooks. The `pythonpath = ["."]` entry goes with them. `docs/CURRENT_TASK.md`
-describes the finished M2-T11…T14 batch and is rewritten when M2-T15 starts.
+**`M3-T01` — fix `build_substrate_map(manual_radius_px=...)`.** Status: **in progress**.
+`opening_radius` is never assigned on the manual branch, so the call raises
+`UnboundLocalError` **100% of the time** (D-01, critical). The golden already records that
+exception, so the fix appears as a declared change rather than a surprise. First numerical
+change in the project.
 
 ---
 
 ## Completed
 
-### M2 — Domain extraction (in progress)
+### M2 — Domain extraction ✅ (closed 2026-08-04)
 
 - **M2-T01** ✅ (2026-08-04) — `nanoscope/` exists: the six layers from ADR-0011
   (`app` `core` `application` `infrastructure` `gui` `resources`) plus `py.typed`, each
@@ -120,6 +127,14 @@ describes the finished M2-T11…T14 batch and is rewritten when M2-T15 starts.
   SEM/TEM entry point, three are used by the notebooks. `nanoscope` is now a real wheel
   (`py.typed` in, `src/` out) and the `pythonpath` hack is half deleted. Ruff findings inside
   `nanoscope/` with ignores off: **64 → 13**.
+
+- **M2-T15 / M2-T16** ✅ (2026-08-04) — **`src/` deleted entirely**, and the milestone with
+  it. The title understated the task: three modules had never had a shim and had to move
+  first (`pipeline` and `preprocessing_pipeline` → `application/use_cases/`, `visualization`
+  → `infrastructure/imaging/`). `pythonpath` deleted outright; mypy points at one package.
+  A test caught a naming trap a review would not have: a module and a function of the same
+  name shadow each other through `__init__`. M2-T16 rewrote `PROJECT_CONTEXT.md`, which had
+  drifted to describing `src/`, the deleted frontend and a `pytest.ini` removed in M1-T05.
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -230,17 +245,15 @@ describes the finished M2-T11…T14 batch and is rewritten when M2-T15 starts.
 
 ## In progress
 
-Nothing. M2-T01…T14 are done; **M2-T15 is selected, not started** — two tasks left in M2.
+**M2 is closed.** `M3-T01` is in progress on the same branch as M2-T15/T16.
 
-**Repository state:** `main` is at `a42bdd5` and carries all of M0, all of M1 and
-M2-T01…T10. M2-T11…T14 are on `feat/logging-english-deadcode-install`. CI on `main` is green: **216 s**, of which `make test`
+**Repository state:** `main` is at `8229f06` and carries all of M0, M1 and M2-T01…T14.
+M2-T15/T16 are on `feat/delete-src-shims`. CI on `main` is green: **216 s**, of which `make test`
 is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
 green for the right reason.
 
-**`src/` is now two things.** Eight modules are shims with no definitions — `types`,
-`preprocess`, `afm_io`, `measure`, `segmentation`, `detection/base`,
-`detection/log_detector`, `detection/yolo_detector`. Four are untouched legacy:
-`pipeline.py`, `preprocessing_pipeline.py`, `visualization.py`, `__init__.py`. That is the shape every remaining
+**There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
+rather than path-hacked. That is the shape every remaining
 M2 move leaves behind, until M2-T15 deletes them wholesale.
 
 **Legacy in transit is declared, not hidden.** `nanoscope.core.science.*` runs at mypy's
@@ -298,12 +311,12 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **115, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **119, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
-| `src/` modules moved into `nanoscope/` | **8 of 12** (shims left behind) | 12 | `git ls-files src` |
-| ruff findings, legacy core | **20** in `src/` + **64** declared-and-owned in `nanoscope/` (was 109 + 0) | 0 | `make lint-legacy` |
-| ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
-| mypy errors | 21, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
+| `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
+| ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
+| ruff findings, blocking | **0** ✅ | 0 | `make lint` |
+| mypy errors | **20**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |

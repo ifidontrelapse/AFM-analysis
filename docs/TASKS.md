@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M2-T15`
+**Updated:** 2026-08-04 · **Active:** `M3-T01`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -64,8 +64,8 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M2-T12 | English-only library code | Done 2026-08-04: 197 lines across **six** modules (`visualization.py` translated in place though it has not moved). `grep -rn "[а-яА-ЯёЁ]"` over `nanoscope/ src/ tests/` returns nothing. **First declared golden change in the project**, and the diff is the argument for having one: **6 lines, not one a number** — 4 translated exception messages plus `stdout_lines` 8→0 and 4→0, the latter being M2-T11 arriving. Re-baselined with `--write`; re-compare clean | [x] |
 | M2-T13 | Retire dead code | Done 2026-08-04: **4 deleted, not 10** — `run_full_pipeline`, `plot_pipeline_result`, `plot_detections_histogram`, `make_synthetic_afm`. **Reporting four is the finding.** The audit counted callers; six of its ten are load-bearing for reasons a caller count cannot see: `load_microscopy_image` is the only SEM/TEM entry point and has 4 tests; **`estimate_log_threshold` is recorded by the golden on every phantom** and is the baseline the adaptive variant was adopted against; `run_preprocessing` is the documented entry point M4 wires up; three more are used by the notebooks M1-T09 kept | [x] |
 | M2-T14 | Package installation | Done 2026-08-04: `[build-system]` hatchling, `packages = ["nanoscope"]`; `src/` deliberately unpackaged (shipping it would publish `import src`, the collision ADR-0011 renamed away from). Wheel verified: `py.typed` in, no `src/`, 37 modules. **The `pythonpath` hack is half gone**: the `"src"` entry — the real one, which shadowed stdlib `types` and `pipeline` — is deleted; `"."` stays until M2-T15 removes the shims, and the reason is now written down. Also established: **CI does not install the project** (`--only-group ci` installs the group only, deliberately, or torch would return), so CI resolves `nanoscope` through that same entry | [x] |
-| M2-T15 | Delete the `src/` shim | Only when nothing — including notebooks — imports it | [ ] |
-| M2-T16 | Refresh `PROJECT_CONTEXT.md` to the new layout | It is the machine-readable map; it must not drift | [ ] |
+| M2-T15 | Delete the `src/` shim | Done 2026-08-04: **`src/` deleted entirely.** The title understated it — three modules had never had a shim (`pipeline`, `preprocessing_pipeline`, `visualization`) and had to move first: the two orchestrations to `application/use_cases/`, plotting to `infrastructure/imaging/`. Callers rewired: the golden harness (7 sites), three test modules, both notebooks. **`pythonpath` deleted outright**, mypy now points at one package. A test caught a naming trap — a module and a function with the same name shadow each other through `__init__`, so `use_cases/run_pipeline.py` became `pipeline.py` | [x] |
+| M2-T16 | Refresh `PROJECT_CONTEXT.md` to the new layout | Done 2026-08-04: it had drifted past usefulness — describing `src/`, the ADR-0012 frontend, a `pytest.ini` deleted in M1-T05 and a batch script broken since `AFMRawData` landed. Repository map, layer diagram, dependency direction, every path in §5–§10, dependencies, gates, gaps and agent guidance rewritten. The dependency rule is now described as **a test** with the file enforcing it and the measured import weight; the gaps section names the audit ID and M3 task for every defect M2 deliberately did not fix | [x] |
 
 ---
 

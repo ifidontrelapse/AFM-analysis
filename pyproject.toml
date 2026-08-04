@@ -201,24 +201,11 @@ exclude = [
     "*.md",
 ]
 
-# The legacy core, excluded from the blocking checks (M1-T07, M1-T08).
-#
-# `ruff check .` and `ruff format --check .` are what pre-commit and CI run, and
-# they must mean "the code we own is clean". `src/` has 109 open findings;
-# blocking on them would make every M2 commit impossible, and rewriting the
-# science to satisfy a formatter is forbidden by PROJECT_RULES §4.1. Same
-# posture mypy takes (M1-T04): reported, not silenced.
-#
-# `force-exclude` extends that to paths named explicitly on the command line,
-# which is what pre-commit passes. To measure the legacy baseline anyway:
-#
-#     ruff check src --no-fix --no-force-exclude
-#
-# One path, not a list: `preprocess_batch.py` was the second entry and was
-# deleted in ADR-0012. M2 moves `src/` to `nanoscope/`, where it arrives clean,
-# and M2-T15 deletes this line.
-extend-exclude = ["src"]
-force-exclude = true
+# There is no exclusion any more. `extend-exclude = ["src"]` and `force-exclude`
+# lived here from M1-T07 until M2-T15, because `src/` carried 109 findings and
+# blocking on them would have made every M2 commit impossible. `src/` is deleted;
+# every line the project owns is now linted, blocking, with the exceptions listed
+# under `[tool.ruff.lint.per-file-ignores]` — each naming the task that removes it.
 
 [tool.ruff.lint]
 select = [

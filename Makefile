@@ -22,7 +22,7 @@ help:
 	@echo 'fast         pytest without the golden (~1 s) — the inner loop, not a merge gate'
 	@echo 'golden       the characterization golden alone'
 	@echo 'types        mypy — reports on src/, non-zero today, not part of check'
-	@echo 'lint-legacy  ruff findings inside src/ — report only'
+	@echo 'lint-legacy  what the per-file ignores hide inside nanoscope/ — report only'
 
 check: format lint test
 
@@ -49,5 +49,9 @@ golden:
 types:
 	uv run mypy --no-pretty
 
+# `src/` is gone (M2-T15), so this no longer means "the excluded directory". It
+# now reports what the per-file ignores in pyproject.toml are holding back inside
+# `nanoscope` — every one of which names the task that deletes it. Same purpose as
+# before: the number is published so a regression is visible in review.
 lint-legacy:
-	uv run ruff check src --no-fix --no-force-exclude --statistics
+	uv run ruff check nanoscope --no-fix --statistics --config 'lint.per-file-ignores = {}'

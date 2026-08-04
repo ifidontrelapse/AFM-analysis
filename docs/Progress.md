@@ -7,6 +7,96 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T15 · M2-T16 · **`src/` is gone, and M2 closes**
+
+**Tasks:** `M2-T15` delete the shims · `M2-T16` refresh `PROJECT_CONTEXT.md`.
+**Branch:** `feat/delete-src-shims`. **Scientific impact:** none. 119 tests, golden zero
+drift.
+
+### M2-T15 — the task was bigger than its title
+
+"Delete the shims" could not be done by deleting shims. Three modules had never had one —
+`src/pipeline.py`, `src/preprocessing_pipeline.py`, `src/visualization.py` were still real
+code importing `src.types` — so the exit criterion *"the pytest path hack is deleted"* was
+unreachable until they moved as well:
+
+| From | To | Why there |
+|---|---|---|
+| `src/pipeline.py` | `application/use_cases/pipeline.py` | It coordinates: picks a detector, sequences science and adapters, owns neither |
+| `src/preprocessing_pipeline.py` | `application/use_cases/preprocessing.py` | Same |
+| `src/visualization.py` | `infrastructure/imaging/plots.py` | matplotlib is a rendering dependency; the domain is defined by not having one |
+
+Callers rewired: the characterization harness (7 import sites), three test modules, and both
+notebooks. **`pythonpath` is deleted outright, not shrunk** — `nanoscope` is imported the
+same way in tests, in CI, and by someone who installed the wheel. mypy points at one package
+instead of two.
+
+**A test caught a naming trap.** `use_cases/run_pipeline.py` containing `run_pipeline()`
+shadows itself through the package `__init__`: `import ...use_cases.run_pipeline` hands back
+the *function*, and `monkeypatch.setattr` on it fails with a confusing `AttributeError`. The
+modules are `pipeline` and `preprocessing` now. A review would not have found that.
+
+Two mypy errors followed the moved code under the strict override and are declared rather
+than fixed. One is worth naming: `use_cases/pipeline.py` assigns a `YoloDetector` to a name
+inferred as `LogDetector` — **that is exactly the `if/elif` dispatch the `Detector` port
+exists to remove**, so the type error is the design note. M4 removes it.
+
+### M2-T16 — the map had drifted past usefulness
+
+`PROJECT_CONTEXT.md` described `src/`, a React frontend deleted by ADR-0012, a `pytest.ini`
+deleted in M1-T05, and `preprocess_batch.py` — a script that had been broken since the
+commit introducing `AFMRawData`. Rewritten: repository map, layer diagram, dependency
+direction, every module path in §5–§10, dependencies, quality gates, known gaps, agent
+guidance.
+
+Three things are now said differently on purpose: the dependency rule is described as a
+**test** with the file that enforces it and the measured import weight; the gaps section
+says which defects M2 resolved and which it deliberately did not, with an audit ID and M3
+task for each; and the agent guidance leads with *read `STATE.md` first* and with the rule
+that a numerical change gets its own commit, ADR, golden update and quantified delta.
+
+---
+
+## M2 — milestone summary
+
+Sixteen tasks, `M2-T01`…`M2-T16`, all closed. Against `docs/Roadmap.md`:
+
+| Exit criterion | Result |
+|---|---|
+| Zero golden drift after every move | ✅ Sixteen relocations. **The only golden change in the entire milestone was six non-numeric lines**, declared in M2-T12: four translated exception messages and two `stdout_lines` counts |
+| Import-graph test passes | ✅ Static over the AST, proven to fail on a real violation |
+| Domain imports nothing heavy | ✅ Asserted by name. **185 modules, 0.07 s** (was 626 with matplotlib and pandas). The criterion's "< 100" was itself wrong and was corrected |
+| All ports defined, behaviour reachable through them | ⚠️ **Partly, and deliberately.** One port exists because one is implemented; two of the seven were *removed* rather than deferred; behaviour still reaches `YoloDetector` by name. **M4 owns it** |
+| Zero `print`, zero non-English strings | ✅ Both asserted, not just done |
+| `src/` and the path hack deleted | ✅ Entirely |
+
+**What M2 actually bought.** 2 021 lines of scientific code moved out of a directory called
+`src` into four named layers, and **not one number changed**. That claim is mechanical: 8
+seeded phantoms compared at `rtol=1e-6` on every commit, on a machine that is not the
+author's. Tests went 23 → 119. Ruff findings in the code we own: 109 → 13, each remaining
+one behind an ignore that names the task deleting it.
+
+**What M2 got wrong, and corrected in the open.** Three plans written before the code
+existed did not survive it: **"< 100 modules"** was unachievable (numpy is 141);
+**seven ports** became one, with two removed outright (ADR-0013); **"10 unreachable
+functions"** was four, because six were load-bearing in ways a caller count cannot see.
+Each is recorded where the original claim was made, not quietly reinterpreted.
+
+**What M2 did not touch, on purpose:** 28 open defects, 20 mypy errors, the three physics
+questions blocking M3. Moving code and changing numbers in one commit makes a red golden
+ambiguous — that rule held for all sixteen tasks and is the reason the milestone is
+believable.
+
+### Next
+
+**M3 — numerical correctness**, and the rules change: every task gets its own commit, its
+own ADR, its own golden update, and a quantified before/after delta. `M3-T01` is first —
+`build_substrate_map(manual_radius_px=...)` raises `UnboundLocalError` on 100% of calls
+(D-01), and the golden already records that exception, so the fix will show up as a declared
+change rather than a surprise.
+
+---
+
 ## 2026-08-04 — M2-T11…T14 · **The library stops shouting, speaks English, and installs**
 
 **Tasks:** `M2-T11` logging · `M2-T12` English-only · `M2-T13` dead code · `M2-T14`

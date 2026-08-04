@@ -84,8 +84,10 @@ with every golden number unchanged.
 the five import cycles; replace `print` with structured logging; translate Russian
 strings; retire dead code.
 
-**Exit criteria**
-- [ ] `python tests/characterization/capture.py` reports **zero drift** after every move
+**Exit criteria** — closed 2026-08-04, see the M2 summary in `docs/Progress.md`
+- [x] `python tests/characterization/capture.py` reports **zero drift** after every move —
+      sixteen tasks, and the only golden change in the whole milestone was six non-numeric
+      lines declared in M2-T12 (four translated exception messages, two `stdout_lines`)
 - [x] Import-graph test passes: `core` imports nothing from `gui`/`application`/`infrastructure`
       — static, over the AST, and proven to fail on a real violation (M2-T09)
 - [x] `import nanoscope.core.entities` loads no torch, no matplotlib, no Qt — **asserted
@@ -95,9 +97,15 @@ strings; retire dead code.
       (M2-T09): numpy alone is 141 modules and the domain is explicitly allowed to use it
       (`Architecture.md` §3), so no module holding an `np.ndarray` annotation can ever
       reach 100. Measured after the fix: **185**, down from 626.
-- [ ] All ports defined in `core/ports/`, all current behaviour reachable through them
-- [ ] Zero `print` calls and zero non-English strings in library code
-- [ ] `src/` shim deleted; `pytest.ini` path hack deleted
+- [~] Ports: **one defined, `Detector`, satisfied by both detectors from opposite layers.**
+      Two of the seven planned were removed rather than deferred — `LogSink` because the
+      standard library already provides the extension point (**ADR-0013**) — and the rest
+      ship with their first adapter, each with a named task in `core/ports/__init__.py`.
+      Behaviour is **not** yet reachable through a port: `use_cases/pipeline.py` still
+      constructs `YoloDetector` by name. **M4 owns that**, and mypy flags it today
+- [x] Zero `print` calls (M2-T11, asserted per module) and zero non-English strings
+      (M2-T12) in library code
+- [x] `src/` deleted entirely, not just the shims; `pythonpath` deleted outright (M2-T15)
 
 **Risk to scientific output:** must be zero. Any drift is a bug in the refactor.
 

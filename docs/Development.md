@@ -86,7 +86,7 @@ make check          # ruff format --check → ruff check → pytest, stopping at
 | `fast` | `pytest -m "not slow"` (~1 s) | no — the inner loop |
 | `golden` | the characterization golden alone | part of `test` |
 | `types` | `mypy --no-pretty` — reports on `src/` (M2: `nanoscope`) | **no**, exits 1 today |
-| `lint-legacy` | `ruff check src --no-force-exclude --statistics` | **no**, exits 1 today |
+| `lint-legacy` | what the per-file ignores hide inside `nanoscope/` | **no**, exits 1 today |
 
 `.github/workflows/ci.yml` invokes these targets rather than repeating the commands, so
 the local gate and CI cannot describe different things — the M1-T08 near-miss was exactly
@@ -99,10 +99,11 @@ baseline, which is non-zero by design (M1-T04, M1-T07), so a `check` that includ
 could never pass and would be bypassed within a day. CI publishes their output to the run
 summary instead.
 
-`ruff check .` skips `src/` (`extend-exclude` + `force-exclude`
-in `pyproject.toml`, declared once and shared by the hooks and CI). That is deliberate:
-109 open findings there would block every M2 commit. See *CI* below for how to measure
-them anyway.
+**Since M2-T15 there is no exclusion at all.** `src/` is deleted, so every line the project
+owns is linted and blocking — the `extend-exclude` carve-out that existed from M1-T07 is
+gone with it. What remains is a short list of per-file ignores in `pyproject.toml`, each
+naming the task that removes it; `make lint-legacy` prints what they hide (**14 findings**,
+down from 109).
 
 `pytest` now includes the characterization golden (M1-T05), so the drift check is no
 longer a separate command you have to remember. For the inner loop, skip it:
@@ -133,12 +134,11 @@ On a normal diff it costs about a second. `pytest` and mypy are deliberately **n
 — the golden alone takes 200 s, and a hook that slow is a hook people bypass. They run in
 CI (M1-T08).
 
-Hooks that **rewrite** a file (ruff format, the whitespace fixers) skip `src/`; hooks that
-only **refuse** apply everywhere, `src/` included. The
-reason is in `.pre-commit-config.yaml`: the core has 109 open ruff findings, so a blocking
-hook there would make every M2 commit impossible, and rewriting the science to satisfy a
-formatter is PROJECT_RULES §4.1. Same posture mypy takes — reported, not silenced, not
-rewritten.
+Every hook now applies everywhere. The `src/` carve-out that let rewriting hooks skip the
+scientific core existed because that core had 109 open findings; `src/` is deleted and the
+count is 14, all declared. The posture that produced it still stands, though — a formatter
+must not silently rewrite science, which is why M2 formatted each moved module in a commit
+that also proved the AST unchanged.
 
 > **`pre-commit run --all-files` edits your working tree, including uncommitted work.**
 > It ignores the index and rewrites files on disk. In M1-T07 it silently restored a
