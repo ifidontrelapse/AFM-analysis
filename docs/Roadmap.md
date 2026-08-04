@@ -59,12 +59,15 @@ and every "it works" is unverified.
 dependencies, repair the ruff configuration, add mypy, wire the characterization harness
 into pytest, replace the fake test, add pre-commit and CI, strip notebook outputs.
 
-**Exit criteria**
-- [ ] `git ls-files | wc -l` < 100
-- [ ] `ruff check .`, `ruff format --check .`, `mypy`, `pytest` all runnable via one command
-- [ ] `pytest` executes the golden comparison and passes
-- [ ] CI runs the full gate on every push, CPU-only, no weights, no network
-- [ ] No file over 1 MB is tracked
+**Exit criteria** — closed 2026-08-04, see the M1 summary in `docs/Progress.md`
+- [x] `git ls-files | wc -l` < 100 — **64**
+- [x] `ruff check .`, `ruff format --check .`, `mypy`, `pytest` all runnable via one
+      command — `make check`, with `mypy` as `make types` outside the blocking gate while
+      the legacy core is `src/` (joins `check` in M2-T01)
+- [x] `pytest` executes the golden comparison and passes
+- [x] CI runs the full gate on every push, CPU-only, no weights, no network
+- [ ] No file over 1 MB is tracked — **two README figures remain** (3.2 MB, 3.0 MB);
+      filed as **B-054**, deferred to M9-T01. The pre-commit limit stops new ones
 
 **Risk to scientific output:** none. No functional code is touched.
 

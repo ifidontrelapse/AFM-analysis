@@ -78,23 +78,32 @@ jobs:
           PY
 
       # ── blocking: the code we own ────────────────────────────────────────────
+      # Every check below runs a Makefile target, never its own copy of the
+      # command (M1-T10). `make check` locally and this job are then the same
+      # gate by construction; the alternative is what nearly happened in M1-T08,
+      # one exclusion declared in two files.
+      #
       # `src/` is excluded by `[tool.ruff] extend-exclude` + `force-exclude`,
       # declared once in pyproject.toml and shared with pre-commit. Everything
       # else must be clean.
+      #
+      # The steps stay separate rather than one `make check` so a red job names
+      # the stage in the UI without anyone opening a log.
       - name: Format
-        run: uv run ruff format --check .
+        run: make format
 
       - name: Lint
-        run: uv run ruff check . --no-fix
+        run: make lint
 
       # ── blocking: tests, including the golden ────────────────────────────────
       # ~200 s. This is the check M2 depends on: sixteen relocation tasks, each of
       # which must prove it moved no number, on a machine that is not the
-      # author's.
+      # author's. `tee` lives here, not in the target: it exists for the failure
+      # report below, which is a CI concern.
       - name: Tests and characterization golden
         run: |
           set -o pipefail
-          uv run pytest -q 2>&1 | tee pytest.log
+          make test 2>&1 | tee pytest.log
 
       # A red job that says only "exit code 1" teaches people to stop reading CI,
       # and the job log needs admin rights to fetch. Annotations and the run
@@ -128,11 +137,11 @@ jobs:
             echo
             echo '### ruff'
             echo '```'
-            uv run ruff check src --no-fix --no-force-exclude --statistics 2>&1 | tail -30
+            make lint-legacy 2>&1 | tail -30
             echo '```'
             echo '### mypy'
             echo '```'
-            uv run mypy --no-pretty 2>&1 | tail -30
+            make types 2>&1 | tail -30
             echo '```'
             echo '> Expected on a clean run: 109 ruff findings, 21 mypy errors.'
             echo '> 21, not the 22 measured locally — mypy infers less when'

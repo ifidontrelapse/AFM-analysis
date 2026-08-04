@@ -168,12 +168,13 @@ exists and it is treated as such.
 The following must pass before any merge:
 
 ```bash
-ruff check .                                   # lint
-ruff format --check .                          # format
-mypy nanoscope                                 # types
-pytest                                         # unit + integration + GUI smoke
-python tests/characterization/capture.py       # golden numerical drift
+make check                                     # format → lint → tests, including the golden
 ```
+
+One command, one definition, and CI runs the same targets (M1-T10). The pieces are
+`make format`, `make lint`, `make test`; `make` alone lists them. `make types` is
+outside the gate only while the legacy core is `src/` — when the code lives in
+`nanoscope/`, `mypy` is strict and blocking (M2-T01), and it joins `check`.
 
 - **New behaviour without a test is not done.** Bug fixes start with a failing test.
 - Tests are deterministic, CPU-only, and network-free. Seeded RNG or no RNG.

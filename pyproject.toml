@@ -85,7 +85,8 @@ markers = [
 python_version = "3.12"
 files = ["src"]                 # becomes ["nanoscope"] in M2-T01 (ADR-0011)
 show_error_codes = true
-pretty = true
+# `pretty` is not set here: the Makefile's `types` target passes `--no-pretty`
+# (M1-T10), so a value here would be dead configuration contradicted by the flag.
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true

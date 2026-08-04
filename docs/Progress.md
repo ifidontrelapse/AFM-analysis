@@ -7,6 +7,111 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1-T10 · **One command is the gate — and M1 closes**
+
+**Task:** `M1-T10` — add a one-command gate. **Branch:** `chore/make-check`.
+**Scientific impact:** none. `make check` green: 23 passed, golden zero drift. No file
+under `src/` was touched.
+
+### What changed
+
+A 53-line `Makefile` at the repository root, and `.github/workflows/ci.yml` rewritten to
+call its targets.
+
+| Target | Runs | In `check` |
+|---|---|---|
+| `check` | `format` → `lint` → `test` | — it *is* the gate |
+| `format` | `ruff format --check .` | yes |
+| `lint` | `ruff check . --no-fix` | yes |
+| `test` | `pytest` (~190 s, golden included) | yes |
+| `fast` | `pytest -m "not slow"` (1.4 s) | no — inner loop |
+| `golden` | the golden alone | part of `test` |
+| `types` | `mypy --no-pretty` | **no** |
+| `lint-legacy` | `ruff check src --no-force-exclude --statistics` | **no** |
+
+Bare `make` prints that list and runs nothing. Recipes are not silenced with `@`, so
+`make check` shows the commands it runs rather than replacing them with a spinner.
+
+**The point of the task was the second half, not the Makefile.** CI no longer contains a
+copy of any command: its Format, Lint, Tests and legacy-report steps are `make format`,
+`make lint`, `make test`, `make lint-legacy` + `make types`. The workflow still owns what
+only it can own — the interpreter pin, `--only-group ci`, `UV_NO_SYNC`, the CPU-only
+assertion, the failure report — and nothing else. The steps stay separate rather than
+collapsing into one `make check` so a red job names the stage in the UI without anyone
+needing log access, which M1-T08 established they do not have.
+
+### Proven, not assumed
+
+- **Fails closed, at the first step.** A deliberately misformatted file stopped `check`
+  during `format` after **0.04 s** with exit 2 — it never reached lint or the 190 s test
+  step. Reverted.
+- **A failing test fails the target.** A temporary `assert False` turned `make fast` red
+  with exit 2. Reverted. Both checks matter because every target is a single command:
+  make's per-line shell semantics, the classic way to build a gate that cannot fail, have
+  nothing to hide behind here.
+- Every target was run alone. `types` reports 22 errors and `lint-legacy` 109 findings —
+  both exit non-zero, both unchanged from M1-T04 and M1-T07.
+
+### Decisions
+
+- **`make`, not `just`** — present on every Linux machine, which is the stated target
+  platform. One line, as the task asked; no survey.
+- **`types` and `lint-legacy` are outside `check`.** The legacy baseline is non-zero *by
+  design* (M1-T04: reported, never silenced, never blocking). A `check` that included them
+  could not pass today, and a gate that cannot pass is a gate people learn to skip. They
+  are targets so the awkward flags — `--no-force-exclude` especially — are not retyped
+  from memory, and CI publishes both to the run summary.
+- **`.NOTPARALLEL:`** — one line, because `make -j check` would interleave the gate's
+  stages and the order is the point.
+- **`pretty = true` deleted from `[tool.mypy]`.** The target passes `--no-pretty` so one
+  wording reads the same in a terminal and in a job summary; leaving the setting would
+  have made it configuration contradicted by a flag — exactly the two-descriptions
+  problem this task exists to remove.
+
+### Learned
+
+- **Three descriptions of one gate had already drifted.** `docs/Development.md` §4 listed
+  bare `mypy`; `PROJECT_RULES` §6 listed `mypy nanoscope`, a package that does not exist
+  yet, and `python tests/characterization/capture.py`, which M1-T05 folded into `pytest`.
+  Nobody noticed, because nobody executes a document. Both now point at targets.
+- **A gate is only single-sourced if the *slow* runner uses it too.** A Makefile that CI
+  ignores is a fourth description, not a consolidation.
+
+### M1 — milestone summary
+
+Eleven tasks, `M1-T01`…`M1-T11`, all closed. Against the exit criteria in
+`docs/Roadmap.md`:
+
+| Exit criterion | Result |
+|---|---|
+| `git ls-files \| wc -l` < 100 | ✅ **64** (was 2 877) |
+| lint, format, types, tests runnable via one command | ✅ `make check` — **with one deviation**: `mypy` is `make types`, deliberately outside the blocking gate while the legacy core is `src/`. It joins `check` in M2-T01, where the package is strict and blocking from its first line |
+| `pytest` executes the golden and passes | ✅ 23 tests, golden inside the run (M1-T05) |
+| CI runs the full gate on every push, CPU-only, no weights, no network | ✅ green, ~160 s warm, CPU-only asserted rather than assumed |
+| No file over 1 MB is tracked | ❌ **two remain** — `images/yolo_sam2_comparison.png` (3.2 MB) and `images/log.png` (3.0 MB). Known and filed as **B-054**, deferred to the README rewrite (M9-T01) because recompressing published figures is a content decision. The pre-commit limit stops *new* ones; these predate it |
+
+Also delivered beyond the stated scope: 22 unit tests for the SPM parser where there had
+been one fake test, 9 commit hooks each demonstrated failing, four new defects found by
+the tooling (M3-T17…T20) and two answered decisions executed (B1, B5 / ADR-0011, ADR-0012).
+
+**What M1 actually bought.** Before: 2 877 tracked files, no linter, no type checker, one
+test that could not pass, a golden enforced by discipline. After: a change is reviewable,
+and "it works" is a command anyone can run — including a machine that is not the author's.
+Every one of M2's sixteen relocation tasks has to prove it moved no number, and that proof
+now exists mechanically.
+
+**What M1 did not fix, on purpose:** 109 ruff findings and 22 mypy errors in `src/`, 28
+open defects, 5 import cycles, 13 `print` calls, 197 non-English lines. These are M2 and
+M3. M1 built the instrument; it did not use it.
+
+### Next
+
+`M2-T01` — the `nanoscope` package skeleton. Unblocked since B1 was answered; every other
+M2 task depends on it. Before any Python upgrade, **B-058**: the golden compares CPython
+exception text, so a new interpreter reads as characterization drift.
+
+---
+
 ## 2026-08-04 — Decisions · **B1 and B5 answered; ADR-0012**
 
 **Tasks:** none — this is the operator closing two open decisions, executed under

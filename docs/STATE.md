@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `chore/ci` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-04 · **Branch:** `chore/make-check` · **Base commit:** `269a8d0`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -9,17 +9,20 @@
 
 ## Current milestone
 
-**M1 — Repository hygiene & quality gates**
+**M1 — Repository hygiene & quality gates — CLOSED 2026-08-04.**
 
-Make the repository reviewable and verifiable before anything else is built.
-Exit criteria in `docs/Roadmap.md`.
+All eleven tasks done. Four of the five exit criteria met; the fifth (no tracked file over
+1 MB) has two known exceptions, the README figures, filed as **B-054** and deferred to
+M9-T01. Milestone summary in `docs/Progress.md`.
+
+**Next milestone: M2 — Domain extraction.**
 
 ## Current task
 
-**`M1-T10` — Add a one-command gate**
-
-Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**. It is the last
-task in M1.
+**`M2-T01` — the `nanoscope` package skeleton.** Status: **selected, not started**.
+Unblocked — B1 was answered on 2026-08-04 (ADR-0011 Accepted). Every other M2 task
+depends on it. `docs/CURRENT_TASK.md` still describes the finished M1-T10 and is rewritten
+when M2-T01 starts.
 
 ---
 
@@ -90,6 +93,16 @@ task in M1.
   **0-byte file that was not valid JSON** (audit §330) — deleted. Tracked working tree
   17 MB → **7.8 MB**. **`pre-commit run --all-files` is green for the first time**; the
   last red was a missing final newline in one archived document.
+- **M1-T10** ✅ (2026-08-04) — one gate, one description: a 53-line `Makefile`
+  (`check` `format` `lint` `test` `fast` `golden` `types` `lint-legacy`; bare `make` lists
+  them), and **CI rewritten to call the targets** — the workflow no longer holds a copy of
+  any command, which was the point. Proven to fail closed: a misformatted file stopped
+  `check` at step 1 in **0.04 s**, exit 2, never reaching the 190 s test step; a failing
+  test failed its target. `types`/`lint-legacy` stay outside `check` because the legacy
+  baseline is non-zero by design — a gate that cannot pass is a gate people skip. Writing
+  it exposed that the three existing descriptions had already drifted: `PROJECT_RULES` §6
+  listed `mypy nanoscope` (no such package yet) and a golden command M1-T05 had folded
+  into `pytest`. **M1 closes here.**
 
 ### Decisions executed (2026-08-04)
 
@@ -123,14 +136,15 @@ task in M1.
 
 ## In progress
 
-Nothing. M1-T09 closed; **M1-T10 is the last task in M1**.
+Nothing. **M1 is closed.** M2 has not started.
 
-**Repository state:** `main` is pushed (`bb5f3e8`) and carries all of M0, M1-T01…T09 and
-the B1/B5 decisions. CI is green on it — **~160 s** with a warm cache: environment install
-0 s, tests and golden 143 s, legacy report 4 s. The environment assertion (Python 3.12 +
+**Repository state:** `main` carries all of M0 and the B1/B5 decisions; M1-T10 is on
+`chore/make-check`. CI is green — **~160 s** with a warm cache: environment install 0 s,
+tests and golden 143 s, legacy report 4 s. The environment assertion (Python 3.12 +
 CPU-only) passes, so the green is green for the right reason.
 
-Working tree clean; `main` and `chore/notebooks` both at `bb5f3e8`, in sync with `origin`.
+Locally, `make check` is green end to end: format, lint, then 23 tests including the
+golden, 183 s, exit 0.
 
 ---
 
@@ -159,12 +173,14 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Execute `M1-T10`** — a one-command gate (`make check`). It is the **last task in M1**
-2. **Close M1**: write the milestone summary against the exit criteria in `docs/Roadmap.md`
-3. **Start M2-T01** — the package skeleton. Unblocked: the name is `nanoscope` (ADR-0011,
-   Accepted). Every later M2 task depends on this one
-4. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
+1. **Start `M2-T01`** — the `nanoscope` package skeleton. Unblocked (ADR-0011, Accepted).
+   Every later M2 task depends on this one. Rewrite `docs/CURRENT_TASK.md` for it
+2. When `nanoscope/` exists, `make types` becomes blocking and joins `make check` — the
+   one deviation recorded against M1's exit criteria
+3. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
    text, so a new interpreter reads as characterization drift
+4. **B-054** (two README figures over 1 MB) is the one M1 exit criterion left open;
+   it belongs to the README rewrite in M9-T01, not to M2
 
 ---
 
@@ -172,7 +188,7 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **63** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked files | **64** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
@@ -189,4 +205,6 @@ None of the remaining questions blocks M1 or M2.
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
 | Lint/type/test gate | **green end to end** ✅ — hooks on commit, CI on push | stays green | GitHub Actions |
+| The gate has one definition | **yes** ✅ — `make check`, and CI calls the same targets | one | `Makefile` |
+| Tracked files over 1 MB | **2** ❌ — two README figures, B-054 | 0 | `git ls-files` + `ls -l` |
 | Commit-time gate | **9 hooks, all proven to fire** ✅ (was: none) | enforced | `pre-commit run` |

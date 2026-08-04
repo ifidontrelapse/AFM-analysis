@@ -3,7 +3,8 @@
 **ID:** `M1-T10`
 **Title:** Add a one-command gate
 **Milestone:** M1 — Repository hygiene & quality gates — **last task**
-**Status:** selected — not started
+**Status:** **done 2026-08-04** — and with it, M1. The next session rewrites this file for
+`M2-T01`; the record of what was done lives in `docs/Progress.md`.
 **Branch to use:** `chore/make-check`
 **Estimated size:** S
 **Risk to scientific output:** none — a wrapper around commands that already exist
@@ -56,16 +57,17 @@ This closes M1.
 
 ## Definition of done
 
-- [ ] `make` with no arguments prints the target list and runs nothing slow
-- [ ] `make check` runs the full gate and passes on a clean tree
-- [ ] `make check` **fails, with a non-zero exit, on the first broken step** — proven by
+- [x] `make` with no arguments prints the target list and runs nothing slow
+- [x] `make check` runs the full gate and passes on a clean tree
+- [x] `make check` **fails, with a non-zero exit, on the first broken step** — proven by
       breaking one thing, observing red, reverting
-- [ ] Every individual target works alone
+- [x] Every individual target works alone
 - [ ] `.github/workflows/ci.yml` invokes the Makefile targets; a green CI run proves it
-- [ ] No command is described in two places any more — or, where it must be, the duplication
+      — written and committed; ticked when the run is green, as in M1-T08
+- [x] No command is described in two places any more — or, where it must be, the duplication
       is named and justified in a comment
-- [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md`, `docs/Development.md` updated
-- [ ] Commit: `M1-T10: add a one-command gate`
+- [x] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md`, `docs/Development.md` updated
+- [x] Commit: `M1-T10: add a one-command gate`
 
 ---
 
