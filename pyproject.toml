@@ -243,4 +243,16 @@ classmethod-decorators = ["classmethod"]
     "RUF013",                      # implicit Optional — a real defect signature, M3
     "RET504",                      # `x = ...; return x` — cosmetic, and rewriting
                                    # science for a style rule is PROJECT_RULES §4.1
+    "N806",                        # a local `HEADER_READ_BYTES` — cosmetic, M3 when it
+                                   # touches the parser anyway
+    "SIM108",                      # if/else → ternary — cosmetic
+    "RUF046",                      # "int() around an already-int". **Not cosmetic:**
+                                   # `round(np.float64)` returns np.float64, so dropping
+                                   # the `int()` in measure_all_baseline would change the
+                                   # dtype of the x_px/y_px DataFrame columns. Ruff is
+                                   # reasoning about builtins; this code is fed numpy
+                                   # scalars. Left exactly as it is.
 ]
+# Legacy that landed in an adapter rather than in the science tree (M2-T04). Same
+# status, same expiry: M2-T12 translates the docstring and this entry goes.
+"nanoscope/infrastructure/storage/loaders.py" = ["RUF002"]

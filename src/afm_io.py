@@ -1,174 +1,26 @@
 """
-Утилиты для загрузки AFM данных из различных форматов и генерации топологических карт
-(в нанометрах) для тестирования и демонстрации.
+Утилиты для загрузки AFM данных из различных форматов.
 
-- load_afm: поддержка форматов .spm, .ibw, .gwy и .npy.
-- make_synthetic_afm: планируется
+**Shim.** The parsing moved to `nanoscope.core.science.io` and the file-reading to
+`nanoscope.infrastructure.storage` in M2-T04; this module re-exports and defines
+nothing. `src/preprocessing_pipeline.py` and `tests/unit/test_afm_io.py` still
+import from here.
+
+Deleted in M2-T15, once nothing imports `src`.
 """
 
 from __future__ import annotations
 
-from typing import Literal
+from nanoscope.core.science.io import _read_nanoscope_z
+from nanoscope.infrastructure.storage import (
+    load_afm,
+    load_microscopy_image,
+    make_synthetic_afm,
+)
 
-import numpy as np
-import os
-import re
-
-from src.types import AFMRawData, MicroscopyData
-
-
-def _read_nanoscope_z(file_path: str) -> np.ndarray:
-    HEADER_READ_BYTES = 65536
-
-    with open(file_path, "rb") as f:
-        raw = f.read(HEADER_READ_BYTES)
-
-    header = raw.split(b"\x1A")[0].decode("latin-1", errors="ignore")
-
-    blocks = header.split("\\*Ciao image list")
-    if len(blocks) < 2:
-        raise ValueError("Ciao image list blocks not found")
-
-    # Ищем блок Height явно, не просто первый блок
-    blk = None
-    for b in blocks[1:]:
-        if '"Height"' in b:
-            blk = b
-            break
-    if blk is None:
-        blk = blocks[1]
-
-    def find_int(pattern: str):
-        m = re.search(pattern, blk)
-        return int(m.group(1)) if m else None
-
-    data_offset = find_int(r"Data offset\s*:\s*(\d+)")
-    data_length = find_int(r"Data length\s*:\s*(\d+)")
-    samps       = find_int(r"Samps/line\s*:\s*(\d+)")
-    lines       = find_int(r"Number of lines\s*:\s*(\d+)")
-    bpp         = find_int(r"Bytes/pixel\s*:\s*(\d+)")
-
-    if None in (data_offset, data_length, samps, lines, bpp):
-        raise ValueError("Header fields missing in SPM file")
-
-    # Число ПОСЛЕ скобок = реальный Z диапазон скана в вольтах
-    zscale_match = re.search(
-        r"@2:Z scale:[^\n]*\([^)]+\)\s*([\d.eE+-]+)\s*V",
-        blk
-    )
-    if not zscale_match:
-        raise ValueError("Z scale voltage not found")
-    z_scale_v = float(zscale_match.group(1))   # 9.238140 V
-
-    # Zsens — точный паттерн, не поймает ZsensSens
-    zsens_match = re.search(
-        r"@Sens\.\s*Zsens\s*:\s*V\s+([\d.eE+-]+)\s*nm/V",
-        header
-    )
-    if not zsens_match:
-        raise ValueError("Zsens nm/V not found")
-    nm_per_v = float(zsens_match.group(1))     # 11.42934 nm/V
-
-    z_scale = z_scale_v * nm_per_v / 65536
-
-    dtype = np.int16 if bpp == 2 else np.int32
-
-    with open(file_path, "rb") as f:
-        f.seek(data_offset)
-        raw_data = np.frombuffer(f.read(data_length), dtype=dtype)
-
-    z = raw_data[:lines * samps].reshape((lines, samps)).astype(np.float32)
-    z *= z_scale
-
-    # В блоке изображения (blk) после нахождения Height
-    scan_match = re.search(
-        r"Scan Size:\s*([\d.]+)\s*([\d.]+)\s*(~m|nm|um|µm)",
-        blk
-    )
-    if scan_match:
-        scan_size = float(scan_match.group(1))
-        unit = scan_match.group(3)
-        if unit in ('~m', 'um', 'µm'):
-            scan_size_nm = scan_size * 1000   # µm → нм
-        else:
-            scan_size_nm = scan_size          # уже в нм
-    else:
-        scan_size_nm = None
-
-    pixel_size_nm = scan_size_nm / samps     # нм/пиксель
-
-    return scan_size_nm, pixel_size_nm, z
-
-def load_afm(
-    file_path: str,
-    fmt: str,
-    pixel_size_nm: float | None = None,
-    scan_size_nm: float | None = None,
-) -> "AFMRawData":
-    """
-    Load a raw AFM file.
-
-    For "spm": pixel_size_nm and scan_size_nm are extracted from the file header.
-    For "npy": no metadata is stored in the file — pass them explicitly,
-               or they default to 1.0 / array_size if unknown.
-
-    Args:
-        file_path:     path to the file
-        fmt:           "spm" or "npy"
-        pixel_size_nm: nm/pixel — required for "npy", ignored for "spm"
-        scan_size_nm:  full scan size in nm — required for "npy", ignored for "spm"
-
-    Returns:
-        AFMRawData with z_raw (float32, nm), pixel_size_nm, scan_size_nm
-    """
-    if fmt == "spm":
-        scan_size, px_size, z = _read_nanoscope_z(file_path)
-        return AFMRawData(z_raw=z, pixel_size_nm=px_size, scan_size_nm=scan_size)
-
-    elif fmt == "npy":
-        z = np.load(file_path).astype(np.float32)
-        return AFMRawData(
-            z_raw=z,
-            pixel_size_nm=pixel_size_nm or 1.0,
-            scan_size_nm=scan_size_nm or float(z.shape[0]),
-        )
-
-    else:
-        raise ValueError(f"Unsupported format: {fmt}")
-
-
-def make_synthetic_afm(size: int = 256, n_particles: int = 40, seed: int = 42) -> np.ndarray:
-    """
-    Генерация синтетической AFM Z-карты с заданным количеством частиц и размером.
-    Планируется.
-    """
-    pass
-
-
-def load_microscopy_image(
-    file_path: str,
-    modality: Literal["sem", "tem"],
-    nm_per_pixel: float | None = None,
-) -> "MicroscopyData":
-    """
-    Load a SEM or TEM image from disk. No preprocessing applied.
-
-    Args:
-        file_path:    path to image file (JPEG, PNG, TIFF, etc.)
-        modality:     "sem" or "tem"
-        nm_per_pixel: physical scale; None if unknown
-
-    Returns:
-        MicroscopyData
-    """
-    import cv2
-
-    image = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)
-    if image is None:
-        raise FileNotFoundError(f"Could not read image: {file_path}")
-
-    return MicroscopyData(
-        image=image,
-        nm_per_pixel=nm_per_pixel,
-        modality=modality,
-    )
+__all__ = [
+    "_read_nanoscope_z",
+    "load_afm",
+    "load_microscopy_image",
+    "make_synthetic_afm",
+]
