@@ -75,7 +75,13 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   and would have reinstalled the full runtime (`UV_NO_SYNC` set), and `ruff format` rewrites
   Python inside Markdown docs (`*.md` excluded). The legacy exclusion moved into
   `pyproject.toml`, declared once for hooks and CI. Both rejection cases confirmed red.
-  **Never executed on GitHub — needs a push.**
+  **Then it was pushed, and three runs found what local verification could not:** no
+  readable failure reason (job logs need admin → diagnostics added), a non-existent
+  `setup-uv@v9` tag (my error; both actions now pinned exactly), and — the real one — a
+  single golden difference that was an exception *message*, not a number. CI resolved
+  **Python 3.14**, which reworded `too many values to unpack`; 3.12 is now pinned and
+  asserted. **Run 4 is green.** The underlying fragility — the golden stores CPython
+  exception text — is filed as **B-058** and needs an ADR, not a quiet edit.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -101,12 +107,15 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T08 closed; M1-T09 selected and awaiting execution.
+Nothing. M1-T08 closed — CI is green on `ubuntu-latest` after four runs; M1-T09 selected
+and awaiting execution.
 
-**One thing is unfinished and is not a task:** `.github/workflows/ci.yml` has never run.
-Nothing in this session has been pushed to `origin`. The workflow was verified locally,
-step by step, in an environment built the way CI builds it — but a push is what makes it
-real, and that is the operator's call.
+**Two things to know about the repository state:**
+
+- `chore/ci` is pushed to `origin`; `main` is fast-forwarded **locally only** and has not
+  been pushed
+- The green run was confirmed from the workflow badge. The anonymous GitHub API rate limit
+  was exhausted by polling, so per-step timings were not read
 
 ---
 
@@ -157,5 +166,5 @@ None of these blocks M1-T01 or the rest of M1.
 | Import cycles | 5 | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
-| Lint/type/test gate | **`pytest` green**, hooks refuse on commit, CI written | green on GitHub | push `chore/ci` |
+| Lint/type/test gate | **green end to end** ✅ — hooks on commit, CI on push | stays green | GitHub Actions |
 | Commit-time gate | **9 hooks, all proven to fire** ✅ (was: none) | enforced | `pre-commit run` |

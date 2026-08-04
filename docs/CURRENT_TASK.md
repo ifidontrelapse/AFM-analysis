@@ -117,7 +117,7 @@ After T09 only **M1-T10** (`make check`) remains, and M1 closes.
 
 Two things are carried, neither of them a task:
 
-- **`.github/workflows/ci.yml` has never run.** It needs one push to `origin`. Verified
-  locally step by step, but a workflow that has not executed is a hypothesis.
+- **CI is green** (M1-T08), after four runs that each failed differently. Worth reading
+  the entry in `Progress.md` before trusting a "verified locally" claim again.
 - **B1, the package name**, is the only thing blocking M2 — open since M0, and every M2
   task depends on it.

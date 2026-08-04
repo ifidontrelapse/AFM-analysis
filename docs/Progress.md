@@ -7,9 +7,9 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
-## 2026-08-04 — M1 · `M1-T08` CI · **verified locally, not yet run on GitHub**
+## 2026-08-04 — M1 · `M1-T08` CI · **green, after four runs taught a lesson**
 
-**Task:** M1-T08 (complete, with one caveat below)
+**Task:** M1-T08 (complete)
 **Branch:** `chore/ci`
 **Scientific impact:** none. Golden zero drift, in two environments.
 
@@ -81,12 +81,12 @@ remembering when M2 makes `nanoscope/` strict: the strictness is only as good as
 present. Documented in `Development.md` §4 with both numbers, because a CI summary that
 disagrees with `STATE.md` and explains nothing is how people learn to ignore CI.
 
-### Verification
+### Verification before pushing
 
-The workflow has **not** run on GitHub — that needs a push, and nothing in this session has
-been pushed. What was done instead: the exact command sequence was executed against a
-scratch environment built the way CI builds it (`uv sync --only-group ci --locked` into a
-separate `UV_PROJECT_ENVIRONMENT`, leaving the dev venv untouched).
+The exact command sequence was executed against a scratch environment built the way CI
+builds it (`uv sync --only-group ci --locked` into a separate `UV_PROJECT_ENVIRONMENT`,
+leaving the dev venv untouched). All of it passed — and the section after this one is about
+why that was not enough.
 
 | Step, run in the CI-shaped environment | Result |
 |---|---|
@@ -123,13 +123,58 @@ non-gate as a test that cannot fail (M1-T05, M1-T06). Confirmed red on both.
 - **Tooling has opinions outside its remit.** Ruff reformatting documentation prose is the
   same class of surprise as `fix = true` rewriting the scientific core (M1-T03).
 
+### Then it was pushed, and the local verification turned out to be insufficient
+
+Everything above was true and none of it was enough. Four runs on `ubuntu-latest`:
+
+| Run | Result | Cause |
+|---|---|---|
+| 1 | red at `pytest` | **Unreadable.** The annotation said `Process completed with exit code 1`; job logs need admin rights on the repository. A gate that cannot explain itself is barely a gate — pytest output now goes to `::error::` annotations and the run summary, both readable without admin. |
+| 2 | red at `Install uv` | **My error.** `releases/latest` returned `v9.0.0` and I assumed a floating `@v9` tag. `actions/checkout` publishes floating majors; `astral-sh/setup-uv` does not. Both now pinned to exact releases, checked against the tag list rather than inferred. |
+| 3 | red at `pytest` | **The real one.** Exactly one golden difference, and not a number. |
+| 4 | **green** | Python 3.12 pinned and asserted. Confirmed from the workflow badge — the anonymous API rate limit was exhausted by polling, so per-step timings were not read. |
+
+### The finding — the golden is pinned to the interpreter, and nobody knew
+
+```
+degenerate_inputs.three_dimensional.flatten_plane.error_message:
+  'too many values to unpack (expected 2)'          ← golden
+  'too many values to unpack (expected 2, got 3)'   ← CI
+```
+
+`capture.py:_record` stores `str(exc)` verbatim, and `degenerate_inputs` compares it
+exactly. CPython 3.14 reworded that message. Reproduced locally in seconds once the
+comparison was visible: 3.12.13 gives the short form, 3.14.6 the long one.
+
+CI was on 3.14 because `requires-python = ">=3.12"` let uv take the newest interpreter on
+the runner — `.python-version` was not enough. Fixed with `uv python install 3.12`,
+`uv sync --python 3.12`, and an assertion on `sys.version_info` beside the CPU-only one, so
+an environment mismatch fails where it happens instead of surfacing three minutes later as
+mystery drift.
+
+**The fragility itself is not fixed and should not be fixed quietly.** `Development.md`
+warned that upgrading scikit-image or SciPy may move golden numbers; nobody knew the same
+was true of the Python patch version, for values that are not numbers at all. M2 rests on
+"zero drift" holding on a machine that is not the author's. Filed as **B-058** with three
+candidate fixes; changing what the harness records is a characterization-contract change
+and needs an ADR (PROJECT_RULES §4.3).
+
+### Learned
+
+- **"Verified locally" is a weaker claim than it sounds.** Every step was run here, in an
+  environment built the way CI builds it, and it passed. It still missed the one variable
+  the local environment held constant: the interpreter. The only thing that found it was
+  running it somewhere else.
+- **A gate that cannot say why it failed trains people to ignore it.** Two of the four runs
+  were spent making the failure legible rather than fixing anything.
+- **Do not infer a tag from a release.** `v9.0.0` existing says nothing about `v9` existing.
+
 ### Next
 
-`M1-T09` — notebooks. Then `M1-T10` (`make check`) closes M1.
+`M1-T09` (notebooks), then `M1-T10` (`make check`), and M1 closes. `main` is fast-forwarded
+locally but not pushed.
 
-**Open, and now the only thing between here and M2: B1, the package name.**
-
-**Also open: this workflow has never executed.** It needs one push to `origin` to be real.
+**B1, the package name, is still the only thing between here and M2.**
 
 ---
 
