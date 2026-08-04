@@ -125,10 +125,12 @@ task in M1.
 
 Nothing. M1-T09 closed; **M1-T10 is the last task in M1**.
 
-**Repository state:** `main` is pushed (`8ba3ded`) and carries all of M0 and M1-T01…T09.
-CI is green on it — **236 s total**: environment install 3 s, tests and golden 202 s,
-legacy report 7 s. The environment assertion (Python 3.12 + CPU-only) passes, so the green
-is green for the right reason.
+**Repository state:** `main` is pushed (`bb5f3e8`) and carries all of M0, M1-T01…T09 and
+the B1/B5 decisions. CI is green on it — **~160 s** with a warm cache: environment install
+0 s, tests and golden 143 s, legacy report 4 s. The environment assertion (Python 3.12 +
+CPU-only) passes, so the green is green for the right reason.
+
+Working tree clean; `main` and `chore/notebooks` both at `bb5f3e8`, in sync with `origin`.
 
 ---
 
