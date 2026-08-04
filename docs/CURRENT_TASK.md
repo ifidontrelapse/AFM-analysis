@@ -60,7 +60,7 @@ creates it. B1 was answered on 2026-08-04, so the name is settled: **`nanoscope`
 - [x] `[project] name = "nanoscope"`, and `uv lock --check` passes — the lock is not stale
 - [x] mypy checks `nanoscope` and its strict override is no longer reported as unused
 - [x] `make check` green; golden zero drift
-- [ ] CI green
+- [x] CI green — run 15, `uv sync --locked` accepted the renamed lock
 - [x] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
 - [x] Commit: `M2-T01: create the nanoscope package skeleton`
 

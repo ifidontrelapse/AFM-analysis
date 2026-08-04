@@ -51,6 +51,9 @@ Also: distribution `afm-analysis` → **`nanoscope`**, mypy's `files` extended t
 - `import nanoscope` and all six layer packages import from the repository root; the
   existing `pythonpath = ["."]` already covers it, so no packaging work was needed here.
   The editable install is M2-T14.
+- **CI green, run 15.** The step that mattered was `uv sync --locked`: it accepts the
+  renamed lock, which is the half of a distribution rename that fails silently locally
+  and loudly on a runner.
 
 ### Decisions
 
