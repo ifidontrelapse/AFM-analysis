@@ -208,7 +208,7 @@ Everything above was true and none of it was enough. Four runs on `ubuntu-latest
 | 1 | red at `pytest` | **Unreadable.** The annotation said `Process completed with exit code 1`; job logs need admin rights on the repository. A gate that cannot explain itself is barely a gate — pytest output now goes to `::error::` annotations and the run summary, both readable without admin. |
 | 2 | red at `Install uv` | **My error.** `releases/latest` returned `v9.0.0` and I assumed a floating `@v9` tag. `actions/checkout` publishes floating majors; `astral-sh/setup-uv` does not. Both now pinned to exact releases, checked against the tag list rather than inferred. |
 | 3 | red at `pytest` | **The real one.** Exactly one golden difference, and not a number. |
-| 4 | **green** | Python 3.12 pinned and asserted. Confirmed from the workflow badge — the anonymous API rate limit was exhausted by polling, so per-step timings were not read. |
+| 4 | **green** | Python 3.12 pinned and asserted. |
 
 ### The finding — the golden is pinned to the interpreter, and nobody knew
 
@@ -245,10 +245,27 @@ and needs an ADR (PROJECT_RULES §4.3).
   were spent making the failure legible rather than fixing anything.
 - **Do not infer a tag from a release.** `v9.0.0` existing says nothing about `v9` existing.
 
+### Timings, from the green run on `main`
+
+**236 s end to end**, comfortably inside the 8-minute budget:
+
+| step | |
+|---|---:|
+| checkout + uv + Python | 4 s |
+| install the CI environment | **3 s** |
+| assert environment (3.12, CPU-only) | 0 s |
+| ruff format + check | 0 s |
+| **tests and characterization golden** | **202 s** |
+| legacy baseline report | 7 s |
+
+The install being 3 s is the `ci` dependency group paying for itself — a full `uv sync`
+would have fetched a CUDA torch wheel and cloned SAM2 before running a single test. The
+golden is 96% of the run, which is the right shape: everything cheap happens first and fails
+fast, and the one expensive check is the one M2 depends on.
+
 ### Next
 
-`M1-T09` (notebooks), then `M1-T10` (`make check`), and M1 closes. `main` is fast-forwarded
-locally but not pushed.
+`M1-T09` (notebooks), then `M1-T10` (`make check`), and M1 closes.
 
 **B1, the package name, is still the only thing between here and M2.**
 

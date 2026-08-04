@@ -117,12 +117,10 @@ task in M1.
 
 Nothing. M1-T09 closed; **M1-T10 is the last task in M1**.
 
-**Two things to know about the repository state:**
-
-- `chore/ci` is pushed to `origin`; `main` is fast-forwarded **locally only** and has not
-  been pushed
-- The green run was confirmed from the workflow badge. The anonymous GitHub API rate limit
-  was exhausted by polling, so per-step timings were not read
+**Repository state:** `main` is pushed (`8ba3ded`) and carries all of M0 and M1-T01…T09.
+CI is green on it — **236 s total**: environment install 3 s, tests and golden 202 s,
+legacy report 7 s. The environment assertion (Python 3.12 + CPU-only) passes, so the green
+is green for the right reason.
 
 ---
 
