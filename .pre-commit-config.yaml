@@ -1,0 +1,88 @@
+# Pre-commit hooks — the fast half of the quality gate (PROJECT_RULES §6).
+#
+# Install once per clone; a fresh clone has no hooks until you do:
+#
+#     uv run pre-commit install
+#
+# What is deliberately NOT here: pytest and mypy. The characterization golden
+# alone takes 200 s, and a hook that slow is a hook people bypass with
+# `--no-verify`. A gate that gets routed around is worse than no gate, so the
+# slow checks belong in CI (M1-T08). Everything below runs in about a second.
+
+# A hook must never edit the golden file. This one exclusion is global.
+exclude: '^tests/characterization/golden/'
+
+# --- the legacy exclusion, used by every hook that REWRITES a file -----------
+#
+# `src/` and `preprocess_batch.py` are the scientific core in flight. Two
+# reasons they are excluded from the rewriting hooks, and neither is taste:
+#
+#   1. `ruff check` reports 109 findings in `src/` and more in
+#      `preprocess_batch.py`. A blocking hook there would make every commit
+#      that touches the core impossible until it is clean — which is M2's job,
+#      sixteen tasks long. The gate would be bypassed on day one.
+#   2. PROJECT_RULES §4.1: do not rewrite the science to make the architecture
+#      prettier. A formatter or a whitespace trim riding along inside an M2
+#      relocation commit is noise in the one diff that must be readable as a
+#      pure move.
+#
+# Same posture mypy already takes (M1-T04): the core is reported, not silenced,
+# and not rewritten. CI shows the findings without blocking (M1-T08). When the
+# code moves to `nanoscope/` it arrives clean and this exclusion narrows; M2-T15
+# deletes it with `src/`.
+#
+# The hooks that only *refuse* — large files, merge conflicts, yaml/toml — apply
+# everywhere, including `src/`. Nothing is exempt from being stopped.
+
+repos:
+  # ── ruff — the project's own installed version, not a mirror ───────────────
+  #
+  # `repo: local` on purpose. The usual `astral-sh/ruff-pre-commit` mirror
+  # declares a second ruff version in a second file, and the two drift silently
+  # until local and CI disagree about what is a finding. Here `pyproject.toml`
+  # is the only place a version is stated. The price is that hooks need `uv` on
+  # PATH, which this project requires anyway (docs/Development.md §1).
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        exclude: &legacy '^(src/|preprocess_batch\.py)'  # see the note above
+
+      # Check only — never `--fix`. Formatting is not an opinion (PROJECT_RULES
+      # §3: `ruff format` decides), but a lint autofix rewrites logic, and
+      # M1-T03 removed `fix = true` precisely so that asking ruff a question
+      # cannot edit the scientific core as a side effect.
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --no-fix
+        language: system
+        types_or: [python, pyi]
+        exclude: *legacy
+
+  # ── hygiene ───────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # M1-T01 removed a 26 MB checkpoint from the index with hours to spare
+      # before it was permanent. This is the hook that would have refused it.
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      # These two rewrite, so the legacy exclusion applies. Without it, an
+      # `--all-files` run trims whitespace inside `src/preprocess.py` and
+      # friends — measured in M1-T07, and reverted.
+      - id: end-of-file-fixer
+        exclude: *legacy
+      - id: trailing-whitespace
+        exclude: *legacy
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+
+  # ── notebooks are experiments, not interfaces (PROJECT_RULES §7) ───────────
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      - id: nbstripout

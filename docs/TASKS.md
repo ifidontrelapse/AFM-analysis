@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M1-T07`
+**Updated:** 2026-08-04 · **Active:** `M1-T08`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -35,7 +35,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M1-T04 | Add mypy configuration | Done 2026-08-04: strict for `nanoscope.*` from its first line; `src/` checked but not silenced (22 errors, 13 of them static confirmations of D-01/D-02/D-07/D-10/D-16); `ignore_missing_imports` per module. Three new defects filed as M3-T17…T19 | [x] |
 | M1-T05 | Wire the characterization harness into pytest | Done 2026-08-04: `tests/characterization/test_golden.py` calls the existing runner through a new `diff_against_golden()` seam; marked `slow` (192 s), marker registered. `pytest.ini` folded into `pyproject.toml` and deleted. Failure proven by perturbing a golden value | [x] |
 | M1-T06 | Replace `tests/test_io.py` | Done 2026-08-04: deleted; replaced by `tests/unit/test_afm_io.py` — 22 tests over a synthetic Nanoscope byte stream (round trip, calibration, unit conversion, 8 failure modes, npy, SEM/TEM). No binary fixture, no `data/`. **`pytest` is green.** Suite validated by killing 4 mutants of the parser; one new defect found and filed as M3-T20. D-20 | [x] |
-| M1-T07 | Add pre-commit | ruff, ruff-format, end-of-file-fixer, `check-added-large-files` (1 MB), nbstripout | [ ] |
+| M1-T07 | Add pre-commit | Done 2026-08-04: 9 hooks, each demonstrated failing on a deliberately bad staged file. ruff runs as a `repo: local` hook on the project's own version, so no second version is ever declared. Rewriting hooks skip `src/` + `preprocess_batch.py` (109 findings there would block every M2 commit); refusing hooks apply everywhere. pytest/mypy stay out of the commit path → CI | [x] |
 | M1-T08 | Add CI | GitHub Actions, Python 3.12, CPU-only, no weights, no network: lint → types → tests → golden | [ ] |
 | M1-T09 | Clean notebooks | Strip outputs from the committed 6.5 MB and 2.2 MB notebooks; move all to `notebooks/`; mark experimental | [ ] |
 | M1-T10 | Add a one-command gate | `Makefile` (or `justfile`) with `check`, `lint`, `types`, `test`, `golden` | [ ] |

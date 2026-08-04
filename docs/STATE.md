@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `test/spm-io` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-04 · **Branch:** `chore/pre-commit` · **Base commit:** `11e0ecc`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -16,7 +16,7 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T07` — Add pre-commit**
+**`M1-T08` — Add CI**
 
 Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
@@ -61,6 +61,13 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   `data/`. **`pytest` is green for the first time (23 passed, 200 s).** The suite was
   validated by mutation: 4 edits to the parser, 3 killed immediately, and the 4th exposed a
   test that could not fail — now fixed. One new defect found → **M3-T20**.
+- **M1-T07** ✅ (2026-08-04) — pre-commit: **9 hooks, each demonstrated failing** on a
+  deliberately bad staged file. ruff runs as a `repo: local` hook on the project's own
+  version, so no second version is ever declared. Rewriting hooks (format, whitespace) skip
+  `src/` **and `preprocess_batch.py`** — the `--all-files` sweep caught them editing the
+  scientific core, which the original `^src/` exclusion missed; refusing hooks apply
+  everywhere. pytest and mypy stay off the commit path by design. `src/` files modified:
+  **0**; golden: zero drift.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -86,7 +93,7 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T06 closed; M1-T07 selected and awaiting execution.
+Nothing. M1-T07 closed; M1-T08 selected and awaiting execution.
 
 ---
 
@@ -109,10 +116,11 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T07`** — pre-commit; with a green suite the gate can start refusing bad
-   commits instead of reporting them afterwards
-2. `M1-T08` — CI; at that point the gate is real
-3. `M1-T09` / `M1-T10` — notebooks, then `make check`
+1. **Execute `M1-T08`** — CI: the slow half of the gate that pre-commit deliberately
+   refuses to run. At that point the gate is real
+2. `M1-T09` — notebooks; `pre-commit run --all-files` is still red on the two committed
+   ones, which is M1-T09's property, not a bug in the hooks
+3. `M1-T10` — `make check`
 4. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
 
 ---
@@ -135,4 +143,5 @@ None of these blocks M1-T01 or the rest of M1.
 | Import cycles | 5 | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
-| Lint/type/test gate | **`pytest` green**; lint/type findings still open, no CI | green in CI | M1-T07, M1-T08 |
+| Lint/type/test gate | **`pytest` green**, hooks refuse on commit; lint/type findings open, no CI | green in CI | M1-T08 |
+| Commit-time gate | **9 hooks, all proven to fire** ✅ (was: none) | enforced | `pre-commit run` |

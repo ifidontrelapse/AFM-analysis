@@ -7,6 +7,122 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1 · `M1-T07` Pre-commit — the first mechanism that can refuse
+
+**Task:** M1-T07 (complete)
+**Branch:** `chore/pre-commit`
+**Scientific impact:** none. No file under `src/` is modified; the golden reports zero
+drift. The characterization harness was reformatted — see below, with the proof.
+
+### What was added
+
+`.pre-commit-config.yaml`, nine hooks, and `pre-commit 4.6.1` in the dev group.
+
+**ruff runs as a `repo: local` hook**, calling the project's own `uv run ruff`. The
+conventional `astral-sh/ruff-pre-commit` mirror declares a second ruff version in a second
+file, and the two drift until local and CI disagree about what counts as a finding.
+`pyproject.toml` is now the only place a version is stated.
+
+**`ruff check --no-fix`, never `--fix`.** Formatting is not an opinion (PROJECT_RULES §3:
+`ruff format` decides), but a lint autofix rewrites logic — and M1-T03 removed `fix = true`
+for exactly this reason. Format rewrites; check reports.
+
+**pytest and mypy are not hooks.** The golden alone is 200 s. A hook that slow is a hook
+people bypass with `--no-verify`, and a gate that gets routed around is worse than no gate.
+They go to CI (M1-T08).
+
+### Every hook was proven to fire
+
+Nine hooks, each given a deliberately bad staged file:
+
+| Probe | Result |
+|---|---|
+| 2 MB binary | `check-added-large-files` **refused** |
+| unformatted Python | `ruff format` rewrote it, commit **aborted** |
+| unused import | `ruff check` **refused** |
+| trailing whitespace / no final newline | both fixers **rewrote**, commit **aborted** |
+| broken YAML, broken TOML | both **refused** |
+| notebook with outputs | `nbstripout` **stripped** them, commit **aborted** |
+
+An accident along the way: the first large-file probe used a `.pt` file and nothing
+happened, because M1-T01's `.gitignore` had already excluded it. The hook is the second
+line of defence, not the first.
+
+### What `--all-files` revealed — the reason this task nearly shipped a bug
+
+The sweep modified **`src/measure.py`, `src/preprocess.py`, `src/visualization.py` and
+`preprocess_batch.py`**. The ruff hooks were excluded from `^src/`, but two things were not
+caught by that:
+
+- `end-of-file-fixer` and `trailing-whitespace` had **no exclusion at all** and trimmed
+  inside the scientific core;
+- `preprocess_batch.py` lives at the repository root, not under `src/`, so `ruff format`
+  reformatted it — it is core code that the path-based exclusion simply missed.
+
+Everything was reverted and the config now uses one named exclusion, `^(src/|preprocess_batch\.py)`,
+applied to every hook that **rewrites** a file. Hooks that only **refuse** — large files,
+merge conflicts, YAML/TOML — still apply everywhere, `src/` included. Nothing is exempt
+from being stopped; the core is only exempt from being edited.
+
+The posture is deliberate and matches mypy's from M1-T04: the core is reported, not
+silenced, and not rewritten. Two reasons, neither of them taste. `ruff check` reports 109
+findings in `src/`, so a blocking hook there would make every commit that touches the core
+impossible — M2 is sixteen such tasks, and the gate would be bypassed on day one. And
+PROJECT_RULES §4.1 forbids rewriting the science to make the architecture prettier: a
+whitespace trim riding inside an M2 relocation commit is noise in the one diff that has to
+be readable as a pure move.
+
+### The characterization harness was cleaned, deliberately
+
+`--all-files` also flagged 8 ruff findings and formatting in `tests/characterization/`.
+Those were applied by hand rather than reverted, because a gate that is red on the day it
+arrives gets ignored. All eight are behaviour-identical — `int(len(x))` → `len(x)`, two
+dead `noqa: BLE001` directives (the `S`/`BLE` families are not selected), import order, and
+line joins. **The golden was run afterwards and reports zero drift**, which is the only
+argument that counts for a file that generates the baseline.
+
+### Damage report — an uncommitted file was rewritten
+
+`pre-commit run --all-files` ignores the index and rewrites the working tree. The tree held
+an uncommitted `project.md` from before this session; the sweep restored its missing final
+newline, and the file is now byte-identical to `HEAD`. Nothing was lost beyond that one
+newline — 11752 bytes before, 11753 after, no textual difference — but the hazard is real
+and is now a warning in `docs/Development.md` §4: commit or stash before running
+`--all-files`.
+
+### Measurements
+
+| | |
+|---|---|
+| Hooks configured / proven to fire | 9 / 9 |
+| `pytest` | 23 passed, 188 s |
+| Characterization golden | zero drift, after the harness reformat |
+| Files under `src/` modified by this task | **0** |
+| `--all-files` still failing on | the two committed notebooks (M1-T09) and one archived doc — knowingly, both are other tasks' property |
+
+### Learned
+
+- **A path-based exclusion is only as good as the paths.** `^src/` looks like "the
+  scientific core" and is not: `preprocess_batch.py` sits at the root and imports it. The
+  sweep is what showed this; a config review would not have.
+- **Hooks that rewrite and hooks that refuse need different scopes.** Conflating them
+  either blocks legitimate commits or edits code nobody asked to touch. Splitting the two
+  made the whole configuration obvious.
+- **`--all-files` is not a dry run.** It edited a file that was not staged, not committed,
+  and not part of this task.
+- The `.gitignore` from M1-T01 already stopped the model-weight probe before pre-commit saw
+  it. Layered defences are working as intended, and worth remembering when reading a green
+  hook run: it may be green because something earlier said no.
+
+### Next
+
+`M1-T08` — CI. The slow half of the gate that pre-commit deliberately refuses to run:
+`pytest` including the golden, plus ruff and mypy reporting on `src/` without blocking.
+
+**B1 remains the only thing blocking M2.**
+
+---
+
 ## 2026-08-04 — M1 · `M1-T06` A real test for the SPM parser · **the suite is green**
 
 **Task:** M1-T06 (complete)

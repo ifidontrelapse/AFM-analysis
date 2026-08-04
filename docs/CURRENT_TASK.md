@@ -1,31 +1,29 @@
 # CURRENT TASK
 
-**ID:** `M1-T07`
-**Title:** Add pre-commit
+**ID:** `M1-T08`
+**Title:** Add CI
 **Milestone:** M1 — Repository hygiene & quality gates
 **Status:** selected — not started
-**Branch to use:** `chore/pre-commit`
-**Estimated size:** S–M
-**Risk to scientific output:** none — hooks do not edit `src/` unless a hook is configured
-to, and this task configures none that do
+**Branch to use:** `chore/ci`
+**Estimated size:** M
+**Risk to scientific output:** none — CI observes, it does not edit
 **Selected:** 2026-08-04
 
 ---
 
 ## Why this task is next
 
-The gate now works and reports the truth: `pytest` is green (M1-T05, M1-T06), ruff and
-mypy are configured and honest (M1-T03, M1-T04). Everything it says arrives **after** the
-commit, though, and M1-T01 exists precisely because that is too late — a 26 MB checkpoint
-and 2 800 `node_modules` files were already in the index by the time anyone looked.
+Pre-commit (M1-T07) deliberately refuses to run the slow half of the gate: `pytest` with
+the 200 s golden, and the lint/type findings on `src/`. Those checks exist, they pass, and
+right now nothing runs them except a person who remembers to. That is the same gap M1-T05
+closed for the golden, one level up.
 
-Pre-commit is the first mechanism in this project that can refuse. It is also the cheap
-half of the gate: hooks run in under a second on a normal diff, while CI (M1-T08) takes
-minutes and belongs on the server.
+CI is also what makes the M1-T07 posture honest. The hooks skip `src/` on purpose — 109
+ruff findings and 22 mypy errors would block every commit — but "reported, not silenced"
+only means something if something reports. Today nothing does.
 
-M2 is the reason for the timing. It moves twelve modules; it will produce many commits in
-a row, and the failure it must not allow is a stray `.pt`, a notebook with 6 MB of
-outputs, or an unformatted file slipping through while attention is on the refactor.
+And it is the last piece before M2. Sixteen relocation tasks, each of which must prove
+zero golden drift, on a machine that is not the author's.
 
 ---
 
@@ -33,55 +31,59 @@ outputs, or an unformatted file slipping through while attention is on the refac
 
 **In scope**
 
-1. `pre-commit` as a dev dependency in `[dependency-groups] dev`, pinned like the others
-2. `.pre-commit-config.yaml` with, at minimum:
-   - `ruff check --fix` and `ruff format` — same version as `pyproject.toml`, no drift
-   - `check-added-large-files` at **1 MB**
-   - `end-of-file-fixer`, `trailing-whitespace`, `check-merge-conflict`, `check-yaml`,
-     `check-toml`
-   - `nbstripout` — notebooks are committed without outputs (PROJECT_RULES §7)
-3. Decide, and record, **which checks are not hooks.** Recommended: `pytest` and mypy stay
-   out of the commit path. The golden alone is 200 s; a hook that slow gets bypassed with
-   `--no-verify`, and a gate people route around is worse than no gate. They belong in CI.
-4. Verify each hook actually fires: stage a 2 MB file, an unformatted file, a notebook with
-   outputs, a file with no trailing newline — each must be refused or fixed
-5. `pre-commit run --all-files` once, deliberately, and **record what it changes**. It will
-   touch `src/` — 109 ruff findings are open there, many auto-fixable. See the risk below;
-   this task does **not** apply them.
-6. Document installation (`pre-commit install`) in `docs/Development.md`, including the
-   fact that a fresh clone has no hooks until that command is run
+1. `.github/workflows/ci.yml` — GitHub Actions, Ubuntu, Python 3.12, `uv` for the
+   environment, triggered on push and pull request
+2. Job order, fail-fast on the cheap things: `ruff format --check` → `ruff check` →
+   `mypy` → `pytest` (golden included)
+3. **CPU-only, no weights, no network.** No CUDA index resolution, no SAM2 checkout, no
+   model download. The test suite already respects this; the dependency install must too —
+   see the risk below, this is the hard part of the task
+4. **Two postures, deliberately different**, mirroring M1-T04 and M1-T07:
+   - `tests/` and any new package: **blocking**
+   - `src/` and `preprocess_batch.py`: **reported, not blocking** — publish the counts as
+     a summary so a regression is visible in review without freezing M2
+5. Cache the uv environment; a run that takes fifteen minutes gets ignored like a slow hook
+6. Run `pre-commit run --all-files` in CI **only** over the paths the hooks actually own,
+   or not at all — decide, and record why. It is currently red on the two committed
+   notebooks (M1-T09) and one archived doc
+7. A status badge in `README.md` only if it is accurate; `README.md` is stale until M9, so
+   a badge that claims health it does not have is worse than none
 
 **Out of scope**
 
-- Fixing the 109 ruff findings in `src/` (M2 — and each has to be read, not auto-applied)
-- CI (M1-T08)
-- Running the golden or mypy as hooks (see item 3 — record the decision, do not implement)
-- Notebook relocation to `notebooks/` (M1-T09); this task only strips outputs on commit
+- Fixing the 109 ruff findings or 22 mypy errors (M2/M3)
+- Notebook hygiene (M1-T09) — CI must not be what forces it
+- Publishing coverage (pytest-cov is installed and unwired; separate task)
+- Release/publish workflows, matrix builds across OSes or Python versions
 
 ---
 
 ## Definition of done
 
-- [ ] `pre-commit install` works from a clean clone; hooks fire on `git commit`
-- [ ] Every configured hook demonstrated failing on a deliberately bad staged file
-- [ ] A commit of an unchanged tree is clean and takes **under ~2 s**
-- [ ] `src/` is not reformatted by this task — hooks are added, findings stay open
-- [ ] Hook tool versions match `pyproject.toml`; a drift between them is a bug
-- [ ] `pytest` still green, golden still zero-drift
+- [ ] A pushed branch produces a green run, from a clean checkout, with no local state
+- [ ] The golden runs in CI and reports zero drift there — **the M2 precondition**
+- [ ] Total wall time under ~8 minutes, warm cache
+- [ ] `src/` findings appear in the run summary without failing the job; a *new* finding in
+      `tests/` or a new package **does** fail it
+- [ ] No CUDA wheel, no SAM2 clone, no weight download in the install step — verified by
+      reading the log, not by assuming
+- [ ] A deliberately broken commit (a failing test, then a drifted golden) is **rejected**
+      by CI — pushed to a scratch branch, confirmed red, deleted
 - [ ] `docs/Development.md`, `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
-- [ ] Commit: `M1-T07: add pre-commit hooks`
+- [ ] Commit: `M1-T08: add CI`
 
 ---
 
 ## Plan
 
-1. Branch `chore/pre-commit`
-2. Add the dependency; write `.pre-commit-config.yaml`
-3. `pre-commit install`; commit a deliberately bad file four ways and confirm four refusals
-4. `pre-commit run --all-files`, capture the output, then **revert everything it changed in
-   `src/`** and record the count in `Progress.md` as the M2 work list
-5. Decide the ruff hook's posture — `--fix` or check-only — and write the reason down
-6. Update the docs; commit; advance `CURRENT_TASK.md` to `M1-T08`
+1. Branch `chore/ci`
+2. Read `pyproject.toml`'s `[tool.uv.sources]` first — torch resolves from a CUDA 11.8
+   index and `sam-2` from GitHub. Decide how CI installs *only* what the tests need
+3. Write the workflow; push to a scratch branch and iterate there, not on the task branch
+4. Break it on purpose twice — a failing assertion, then a perturbed golden — and confirm
+   red both times
+5. Record the actual timings, and the size of the `src/` report
+6. Update the docs; commit; advance `CURRENT_TASK.md` to `M1-T09`
 
 ---
 
@@ -89,19 +91,21 @@ outputs, or an unformatted file slipping through while attention is on the refac
 
 | Risk | Mitigation |
 |---|---|
-| **`ruff --fix` as a hook silently rewrites the scientific core.** This is exactly what M1-T03 removed `fix = true` for: `ruff check` must answer a question, not edit `src/`. | The hook stages only what is already being committed, so it cannot touch untouched files. Verify this claim rather than assuming it — stage one file in `src/`, commit, and confirm no sibling module changed. If it cannot be constrained, use check-only and let the author run `--fix` deliberately. |
-| A slow hook trains everyone to use `--no-verify` | Nothing over ~2 s on the commit path. The golden and mypy go to CI. |
-| `nbstripout` mangles a notebook someone cares about | The two committed notebooks (6.5 MB, 2.2 MB) are experiments (PROJECT_RULES §7) and B5 is open on their fate. Strip outputs only; do not reorganise. If B5 says delete, M1-T09 does it. |
-| Hook versions drift from `pyproject.toml`, so local and CI disagree | Pin the ruff rev to the installed version and state in the config that the two move together. M1-T08 should read the same version. |
+| **`uv sync` in CI drags in torch from the CUDA index and a GitHub checkout of SAM2** — minutes of download for code the tests never import | The suite is CPU-only and imports neither. Install the dev group plus the numerical stack only, or use a CPU torch index for CI. Verify by reading the install log; if a CUDA wheel appears, the job is wrong even when it is green. |
+| CI reports the `src/` baseline as a failure and freezes M2 | Non-blocking step for `src/`, blocking for everything else. Same split as `.pre-commit-config.yaml`; keep the two in agreement or they will disagree silently. |
+| The 200 s golden makes every run slow, so people stop reading CI | It is the one check M2 depends on — it runs. Keep the rest fast and cached so the golden is the floor, not the addition. |
+| A green CI badge on a stale `README.md` implies the project is finished | Badge only if it is accurate about what it measures. README is M9's problem; do not create a second wrong claim to fix later. |
+| Hook versions in CI drift from `pyproject.toml` | M1-T07 made `pyproject.toml` the only place a ruff version is declared. CI must call the same `uv run ruff`, not a marketplace action that pins its own. |
 
 ---
 
 ## Notes for the next session
 
-After T07: T08 (CI), T09 (notebooks), T10 (`make check`) — then M1 is closed.
+After T08 the gate is real end to end. Remaining M1: T09 (notebooks), T10 (`make check`).
 
-**B1 is the only thing blocking M2** and has been open since M0. Every M2 task depends on
-the package name, and M2 is the next milestone. It should be answered before M1 closes.
+`pre-commit run --all-files` is knowingly red on the two committed notebooks and one
+archived doc. That is M1-T09's property — do not let CI be the thing that forces it, and do
+not fix it here.
 
-New defect **M3-T20** was filed during M1-T06 (`load_afm(fmt="npy")` fabricates a physical
-scale); it is pinned by a test assertion and needs no action before M3.
+**B1 is the only thing blocking M2**, open since M0. Every M2 task depends on the package
+name. It should be answered before M1 closes.

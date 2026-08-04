@@ -96,6 +96,35 @@ After M1-T10 this is one command:
 make check
 ```
 
+### Pre-commit — the fast half, run automatically
+
+**A fresh clone has no hooks.** Install them once, per clone:
+
+```bash
+uv run pre-commit install
+```
+
+After that, `git commit` runs ruff format, ruff check, a 1 MB file-size limit,
+end-of-file/whitespace fixers, merge-conflict and YAML/TOML checks, and `nbstripout`.
+On a normal diff it costs about a second. `pytest` and mypy are deliberately **not** hooks
+— the golden alone takes 200 s, and a hook that slow is a hook people bypass. They run in
+CI (M1-T08).
+
+Hooks that **rewrite** a file (ruff format, the whitespace fixers) skip `src/` and
+`preprocess_batch.py`; hooks that only **refuse** apply everywhere, `src/` included. The
+reason is in `.pre-commit-config.yaml`: the core has 109 open ruff findings, so a blocking
+hook there would make every M2 commit impossible, and rewriting the science to satisfy a
+formatter is PROJECT_RULES §4.1. Same posture mypy takes — reported, not silenced, not
+rewritten.
+
+> **`pre-commit run --all-files` edits your working tree, including uncommitted work.**
+> It ignores the index and rewrites files on disk. In M1-T07 it silently restored a
+> missing final newline in an uncommitted `project.md`. Commit or stash first.
+
+When a hook modifies a file, the commit aborts by design — inspect the change, `git add`
+it, commit again. `--no-verify` exists; using it routinely means the hook is wrong, so fix
+the hook.
+
 **Tool versions** (installed by M1-T02, declared in `[dependency-groups] dev`):
 
 | Tool | Version | State |
@@ -104,6 +133,7 @@ make check
 | pytest-cov | 7.1.0 | installed, not yet wired |
 | ruff | 0.16.1 | configured (M1-T03); **128 findings**, 109 of them in `src/` |
 | mypy | 2.3.0 | configured (M1-T04); **22 errors** in 7 files, deliberately not silenced |
+| pre-commit | 4.6.1 | configured (M1-T07); `pre-commit install` required per clone |
 
 **Current reality:** the suite is green and the golden runs inside it. The lint and type
 findings are real and still open — they are `src/` defects fixed in M2/M3, not

@@ -93,14 +93,16 @@ def _array_digest(a: np.ndarray, k: int = 6) -> dict:
 
 
 def _df_digest(df) -> dict:
-    out = {"n_rows": int(len(df)), "columns": sorted(map(str, df.columns))}
+    out = {"n_rows": len(df), "columns": sorted(map(str, df.columns))}
     for col in sorted(df.columns):
         s = df[col]
         if s.dtype.kind in "ifb":
             out[f"col::{col}"] = _array_digest(s.to_numpy())
         else:
             vals, counts = np.unique(s.astype(str).to_numpy(), return_counts=True)
-            out[f"col::{col}"] = {"value_counts": dict(zip(map(str, vals), map(int, counts), strict=True))}
+            out[f"col::{col}"] = {
+                "value_counts": dict(zip(map(str, vals), map(int, counts), strict=True))
+            }
     return out
 
 
@@ -121,7 +123,7 @@ def _record(fn, *args, **kwargs) -> dict:
         with np.errstate(all="ignore"), _quiet() as buf:
             value = fn(*args, **kwargs)
         return {"ok": True, "value": value, "stdout_lines": len(buf.getvalue().splitlines())}
-    except Exception as exc:  # noqa: BLE001 - characterizing arbitrary failure
+    except Exception as exc:
         return {
             "ok": False,
             "error_type": type(exc).__name__,
@@ -169,7 +171,7 @@ def capture_preprocessing(ph: phantoms.Phantom) -> dict:
                 "typical_radius_px": _num(sizes["typical_radius_px"]),
                 "typical_radius_nm": _num(sizes["typical_radius_nm"]),
                 "n_objects_reported": _num(sizes["n_objects"]),
-                "n_radii_kept": int(len(sizes["radii_px"])),
+                "n_radii_kept": len(sizes["radii_px"]),
                 "otsu_threshold": _num(sizes["otsu_threshold"]),
                 "radii_px": _array_digest(sizes["radii_px"]),
             },
@@ -223,7 +225,7 @@ def capture_log_detection(ph: phantoms.Phantom) -> dict:
             blobs = rb["value"]
             out[key] = {
                 "ok": True,
-                "n_blobs": int(len(blobs)),
+                "n_blobs": len(blobs),
                 "n_true_particles": ph.n_particles,
                 "y_px": _array_digest(blobs[:, 0]),
                 "x_px": _array_digest(blobs[:, 1]),
@@ -251,19 +253,15 @@ def capture_baseline_measurement(ph: phantoms.Phantom) -> dict:
         return {"detection_failed": det}
     blobs = det["value"]
 
-    out: dict[str, Any] = {"n_blobs_in": int(len(blobs))}
+    out: dict[str, Any] = {"n_blobs_in": len(blobs)}
     r = _record(measure_all_baseline, z_flat, z_above, blobs)
-    out["measure_all_baseline"] = (
-        {"ok": True, **_df_digest(r["value"])} if r["ok"] else r
-    )
+    out["measure_all_baseline"] = {"ok": True, **_df_digest(r["value"])} if r["ok"] else r
 
     # Constant height offset invariance: heights must not move when the whole
     # map is shifted. Recorded now so the property test in Phase 5 has a datum.
     r2 = _record(measure_all_baseline, z_flat + 100.0, z_above, blobs)
     if r["ok"] and r2["ok"] and len(r["value"]) and "height_nm" in r["value"]:
-        d = np.abs(
-            r2["value"]["height_nm"].to_numpy() - r["value"]["height_nm"].to_numpy()
-        ).max()
+        d = np.abs(r2["value"]["height_nm"].to_numpy() - r["value"]["height_nm"].to_numpy()).max()
         out["height_invariance_under_100nm_offset_max_delta"] = _num(d)
 
     out["measure_all_baseline_empty_blobs"] = (
@@ -352,7 +350,7 @@ def capture_contracts() -> dict:
         json.dumps(dataclasses.asdict(res))
         serializable = True
         err = None
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         serializable = False
         err = f"{type(exc).__name__}: {str(exc)[:120]}"
     return {
@@ -377,8 +375,9 @@ def build_all() -> dict:
             "python": ".".join(map(str, sys.version_info[:3])),
         }
     }
-    import skimage
     import scipy
+    import skimage
+
     snapshot["_meta"]["scikit_image"] = skimage.__version__
     snapshot["_meta"]["scipy"] = scipy.__version__
 
@@ -409,9 +408,7 @@ def build_all() -> dict:
             },
             "image": _array_digest(ph.image),
             # SEM/TEM enter run_pipeline with the RAW image as the detector input.
-            "log_detection_on_raw_image": _record(
-                _log_on_raw, ph
-            ),
+            "log_detection_on_raw_image": _record(_log_on_raw, ph),
             "yolo_input_preparation": capture_yolo_preprocessing(ph),
         }
         r = snapshot[ph.name]["log_detection_on_raw_image"]
@@ -450,7 +447,11 @@ def compare(new: Any, old: Any, path: str, diffs: list[str]) -> None:
         for i, (a, b) in enumerate(zip(new, old, strict=True)):
             compare(a, b, f"{path}[{i}]", diffs)
         return
-    if isinstance(old, (int, float)) and isinstance(new, (int, float)) and not isinstance(old, bool):
+    if (
+        isinstance(old, (int, float))
+        and isinstance(new, (int, float))
+        and not isinstance(old, bool)
+    ):
         if not math.isclose(float(new), float(old), rel_tol=RTOL, abs_tol=ATOL):
             diffs.append(f"{path}: {old!r} -> {new!r}")
         return

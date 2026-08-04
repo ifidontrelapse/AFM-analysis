@@ -44,7 +44,7 @@ class Phantom:
 
     @property
     def n_particles(self) -> int:
-        return int(len(self.radii_px))
+        return len(self.radii_px)
 
 
 def _gaussian_caps(
@@ -144,8 +144,8 @@ def afm_tilted_polydisperse(
 
     z = _gaussian_caps((size, size), centres, radii, heights)
     yy, xx = np.mgrid[:size, :size].astype(np.float64)
-    z += tilt_nm_per_px[0] * xx + tilt_nm_per_px[1] * yy          # global plane tilt
-    z += rng.normal(0.0, line_artefact_nm, (size, 1))             # per-line offset
+    z += tilt_nm_per_px[0] * xx + tilt_nm_per_px[1] * yy  # global plane tilt
+    z += rng.normal(0.0, line_artefact_nm, (size, 1))  # per-line offset
     z += rng.normal(0.0, noise_nm, (size, size))
     return Phantom(
         name="afm_tilted_polydisperse",
