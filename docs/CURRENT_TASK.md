@@ -79,7 +79,8 @@ This closes M1.
    environment** — the assertion step must survive the refactor
 6. Update the docs; commit; push
 7. **Close M1**: write the milestone summary into `docs/Progress.md` against
-   `docs/Roadmap.md`'s exit criteria, and select the first M2 task — which needs **B1**
+   `docs/Roadmap.md`'s exit criteria, then select **M2-T01** — unblocked, the package is
+   `nanoscope`
 
 ---
 
@@ -99,13 +100,13 @@ This closes M1.
 **This is the last task in M1.** After it, write the milestone summary and check it against
 the exit criteria in `docs/Roadmap.md`.
 
-**B1 — the package name — blocks M2-T01 and every M2 task after it.** It has been open
-since M0. M2 cannot start without it, so it should be answered while M1-T10 is being done,
-not after.
+**M2 is unblocked.** B1 was answered on 2026-08-04 — the package is `nanoscope`, ADR-0011
+is Accepted, and M2-T01 can start the moment M1 closes.
 
 Also carried, neither of them a task:
 
-- **`main` is pushed and matches `chore/ci`'s history** — the M1 work is on the default
-  branch as of M1-T09
 - **B-058**: the golden is pinned to CPython's minor version, not just to the numerical
   libraries. Needs an ADR before anyone upgrades Python.
+- **ADR-0012** deleted `frontend/` and `preprocess_batch.py`. The blocking lint and format
+  checks now carve out exactly one path, `src/` — so when M2 dissolves it, the exclusion
+  disappears entirely rather than shrinking.

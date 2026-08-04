@@ -14,11 +14,12 @@ Use `TEMPLATE.md` for new records.
 | [0004](ADR-0004-device-manager.md) | A single Device Manager owns backend selection | Accepted | 2026-08-03 |
 | [0005](ADR-0005-pluggable-model-providers.md) | Models are pluggable providers behind ports and a registry | Accepted | 2026-08-03 |
 | [0006](ADR-0006-training-provider.md) | Training is an application module behind `TrainingProvider` | Accepted | 2026-08-03 |
-| [0007](ADR-0007-park-web-client.md) | The React web client is parked; the desktop app is the product | Accepted | 2026-08-03 |
+| [0007](ADR-0007-park-web-client.md) | The React web client is parked; the desktop app is the product | ~~Superseded by 0012~~ | 2026-08-03 |
 | [0008](ADR-0008-characterization-as-contract.md) | The characterization golden file is the refactor contract | Accepted | 2026-08-03 |
 | [0009](ADR-0009-repository-hygiene.md) | No build artifacts, weights, or datasets in git | Accepted | 2026-08-03 |
 | [0010](ADR-0010-isolated-numerical-changes.md) | One defect, one commit, one ADR, one golden update | Accepted | 2026-08-03 |
-| [0011](ADR-0011-package-name-and-layout.md) | Package name and import layout | **Proposed** | 2026-08-03 |
+| [0011](ADR-0011-package-name-and-layout.md) | Package name and import layout — `nanoscope` | Accepted | 2026-08-03 |
+| [0012](ADR-0012-delete-the-parked-client-and-batch-script.md) | Delete the parked React client and the broken batch script | Accepted | 2026-08-04 |
 
 ## When to write one
 

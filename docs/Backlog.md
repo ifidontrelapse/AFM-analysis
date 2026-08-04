@@ -50,12 +50,12 @@ now) · `rejected` (with a reason) · `promoted → M#-T##`.
 | ID | Item | Status | Notes |
 |---|---|---|---|
 | B-040 | **Purge `node_modules` and weights from git history** | candidate | M1-T01 stops the bleeding; history still carries 78 MB. A rewrite affects the remote and needs operator approval. Trigger: clone time becomes a complaint. |
-| B-041 | **Delete `frontend/`** | parked | Blocked on decision B5. ADR-0007 parks the web client; deleting the directory is a separate, reversible-only-via-git action. |
-| B-042 | **Delete or port `preprocess_batch.py`** | candidate | Broken on every file since `e8caf25` (D-02). Either fix it as a real CLI or remove it — do not leave it half-alive. Scheduled as M2-T13. |
+| B-041 | **Delete `frontend/`** | **done → ADR-0012** | Operator authorised deletion 2026-08-04. 21 tracked files removed; recoverable from history. |
+| B-042 | **Delete or port `preprocess_batch.py`** | **done → ADR-0012** | Deleted 2026-08-04. Broken on every file since `e8caf25` (D-02) and nobody noticed, which settled the question. Batch processing stays out of scope (B-001); when it returns it is an entry point over the application layer, not a script importing `src`. |
 | B-043 | Notebook policy — keep as documentation, or move to a separate repository | idea | 8.7 MB of committed notebooks with outputs. M1-T09 strips outputs; the policy question remains. |
 | B-044 | Property-based tests for the numerical core (Hypothesis) | candidate | Degenerate inputs are exactly what property testing is for. After M3-T13. |
 | B-045 | Benchmark suite + performance regression tracking | idea | LoG on a 2048² scan is the practical limit today; nobody has measured it. |
-| B-046 | Type-checked frontend contract, if the web client is ever revived | parked | Only if B-041 is reversed. |
+| B-046 | Type-checked frontend contract, if the web client is ever revived | rejected | The client is deleted (ADR-0012). Reviving it means a new ADR and starting from `docs/archive/plan-frontend-react-client.md`. |
 | B-047 | Translations / i18n (Russian UI) | candidate | PROJECT_RULES requires English in source; user-facing strings go through a catalog precisely so this stays possible. |
 | B-048 | Accessibility pass on the Qt UI | idea | Contrast, focus order, keyboard navigation. |
 | B-049 | Telemetry-free crash reports the user can inspect before sending | candidate | M9-T04 builds the bundle; sending it is a separate decision. |

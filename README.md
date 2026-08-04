@@ -94,7 +94,7 @@ print(df.head())
 Batch preprocessing of a whole directory:
 
 ```bash
-python preprocess_batch.py data/raw/ data/preprocessed/
+# (batch processing is out of scope for v1 — see docs/Backlog.md B-001)
 ```
 
 This recursively finds all files with numeric extensions (`.001`, `.002`, …), applies the preprocessing pipeline, and saves `z_above` as a `.jpg` mirroring the input directory structure.
@@ -115,7 +115,6 @@ AFM-analysis/
 ├── notebooks/
 │   ├── afm_gold_nanoparticles.ipynb  # End-to-end analysis on real data
 │   └── preprocessing.ipynb           # Preprocessing exploration
-├── preprocess_batch.py    # CLI batch processor
 ├── tests/
 │   └── test_io.py
 ├── checkpoints/           # Model weights (not committed)

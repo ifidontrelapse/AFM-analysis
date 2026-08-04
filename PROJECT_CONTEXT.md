@@ -10,7 +10,7 @@
 - **Primary language:** Python 3.12+.
 - **Web client:** React 18 + TypeScript + Vite + Tailwind CSS.
 - **License:** Apache-2.0 (`LICENSE`).
-- **Current repository state:** the Python analysis library and a frontend client exist; a FastAPI or other HTTP backend does not currently exist in this repository.
+- **Current repository state:** the Python analysis library exists. There is no HTTP backend and no web client — the React client was deleted in ADR-0012, and the product is a Linux desktop application (ADR-0002).
 
 The central AFM workflow is:
 
@@ -36,9 +36,8 @@ For implementation tasks, inspect the relevant source files before changing this
 2. `src/preprocessing_pipeline.py` — standard AFM preprocessing entry point.
 3. `src/pipeline.py` — detector/mode orchestration.
 4. `src/detection/` and `src/segmentation.py` — model and algorithm implementations.
-5. `frontend/src/types/pipeline.ts` — frontend-side result/config contract, which is currently not identical to the Python contract.
 
-Do not infer that a feature exists only because it is mentioned in `README.md`, `project.md`, `plan.md`, a notebook, or a frontend type. Verify the implementation in `src/` or `frontend/src/`.
+Do not infer that a feature exists only because it is mentioned in `README.md`, `project.md`, a notebook, or this file. Verify the implementation in `src/`. This document is refreshed in M2-T16 and lags the tree until then.
 
 ## 3. Repository map
 
@@ -70,7 +69,6 @@ AFM-analysis/
 ├── data/                              # local raw/preprocessed data; ignored by git
 ├── dataset/                           # local generated dataset; ignored by git
 ├── images/                            # committed example figures
-├── preprocess_batch.py                # recursive SPM preprocessing CLI
 ├── *.ipynb                            # notebooks and experiments
 ├── pyproject.toml                     # Python metadata and uv dependencies
 ├── uv.lock                            # Python lock file

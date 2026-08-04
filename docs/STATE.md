@@ -91,6 +91,14 @@ task in M1.
   17 MB → **7.8 MB**. **`pre-commit run --all-files` is green for the first time**; the
   last red was a missing final newline in one archived document.
 
+### Decisions executed (2026-08-04)
+
+- **B1 → `nanoscope`** — ADR-0011 Accepted. Unblocks every M2 task.
+- **B5 → delete** — **ADR-0012** (supersedes ADR-0007): `frontend/` and
+  `preprocess_batch.py` removed. Tracked files **78 → 63**, and the blocking lint/format
+  carve-out shrank from two paths to one, `src/`, which M2 then dissolves. Ruff findings in
+  the legacy core **117 → 109**, all now in `src/`. Both files remain in git history.
+
 ### M0 — Engineering foundation (2026-08-03)
 
 - Repository analysed: 12 source modules / 2 021 LOC, plus a React client, notebooks and
@@ -130,24 +138,31 @@ Decisions only the operator can make. Each blocks a specific task.
 
 | # | Question | Blocks | Why it needs the operator |
 |---|---|---|---|
-| B1 | **Package name.** `nanoscope` is proposed; distribution name is still `afm-analysis`. The project now covers SEM/TEM, so "AFM" is too narrow. | M2-T01 | Naming is a product decision, and renaming later is expensive |
 | B2 | **`min_size_nm` semantics (D-04).** `int(5 / 9.77) == 0` disables the noise filter on 90% of your scans. What *should* the minimum particle size mean at coarse pixel scales — a floor of 1 px, a rounded value, or an error? | M3-T02 | It defines what counts as a particle; that is physics, not engineering |
 | B3 | **Detection polarity (D-12).** TEM particles are dark on bright; the detector keeps the bright side and finds 0 of 22. Explicit configuration per modality, or auto-detection? | M3-T10 | Determines whether TEM support is a setting or a heuristic |
 | B4 | **Opening-radius rounding (D-10).** Half-integer radii produce an even-sized structuring element with no centre pixel, shifting `z_result` by half a pixel. Round up, round to nearest odd, or floor? | M3-T09 | Changes substrate estimation on real data |
-| B5 | **Fate of `frontend/`** (React client for a backend that was never written), `preprocess_batch.py` (broken on every file), and the committed notebooks with outputs. Park, archive, or delete? | M1-T09, M2-T13 | Deleting work is the owner's call, not the engineer's |
 | B6 | **Real sample data in git.** `data/` holds 628 SPM scans and is ignored. Should one small representative scan be committed as a test fixture? | M3-T16 | Data ownership and repository size |
 
-None of these blocks M1-T01 or the rest of M1.
+**Closed 2026-08-04 by the operator:**
+
+- **B1 — package name → `nanoscope`.** ADR-0011 moves from Proposed to **Accepted**. This
+  was the last thing blocking **M2**; M2-T01 can start as soon as M1 closes.
+- **B5 — fate of the parked work → delete.** `frontend/` (21 tracked files) and
+  `preprocess_batch.py` removed under **ADR-0012**, which supersedes ADR-0007. The third
+  part of B5, the notebooks, was answered differently in M1-T09: kept, stripped, moved.
+
+None of the remaining questions blocks M1 or M2.
 
 ---
 
 ## Next
 
-1. **Push `chore/ci` to `origin`** so the workflow actually runs once — it is written and
-   locally verified, but no GitHub run exists. Operator's call
-2. **Execute `M1-T09`** — notebooks; `pre-commit run --all-files` is still red on the two
-   committed ones, which is M1-T09's property, not a bug in the hooks
-3. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
+1. **Execute `M1-T10`** — a one-command gate (`make check`). It is the **last task in M1**
+2. **Close M1**: write the milestone summary against the exit criteria in `docs/Roadmap.md`
+3. **Start M2-T01** — the package skeleton. Unblocked: the name is `nanoscope` (ADR-0011,
+   Accepted). Every later M2 task depends on this one
+4. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
+   text, so a new interpreter reads as characterization drift
 
 ---
 
@@ -155,15 +170,15 @@ None of these blocks M1-T01 or the rest of M1.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **78** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
-| Tracked working tree | **7.8 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
+| Tracked files | **63** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
 | Meaningful tests | **23, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
-| ruff findings, legacy core | 117 (109 `src/` + 8 `preprocess_batch.py`) | 0 | `ruff check src preprocess_batch.py --no-fix --no-force-exclude` |
+| ruff findings, legacy core | **109**, all in `src/` (was 117) | 0 | `ruff check src --no-fix --no-force-exclude` |
 | ruff findings, code we own | **0** ✅ | 0 | `ruff check . --no-fix` |
 | mypy errors | 22 in 7 files locally, **21 in CI** (no `ultralytics` → less inference) | 0 | `mypy` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |

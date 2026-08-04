@@ -50,7 +50,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 | ID | Task | Detail | Status |
 |---|---|---|---|
-| M2-T01 | Confirm the package name and create the skeleton | ADR-0011. `nanoscope/{app,core,application,infrastructure,gui,resources}` with `py.typed`; `src/` kept as a shim | [ ] |
+| M2-T01 | Create the package skeleton | **Name confirmed: `nanoscope`** (ADR-0011 Accepted, 2026-08-04 — B1 closed). `nanoscope/{app,core,application,infrastructure,gui,resources}` with `py.typed`; `src/` kept as a shim; distribution renamed `afm-analysis` → `nanoscope` | [ ] |
 | M2-T02 | Extract entities and value objects | `types.py` → `core/entities/` + `core/values/`; add `Modality`, `PixelScale`, `Polarity`, `DeviceKind` | [ ] |
 | M2-T03 | Move preprocessing | `preprocess.py` → `core/science/preprocessing/`, unchanged | [ ] |
 | M2-T04 | Move I/O parsing | `afm_io.py` → `core/science/io/` (pure parsing) + an `ImageLoader` port implemented in `infrastructure/storage/` | [ ] |
@@ -62,7 +62,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M2-T10 | One owned capability matrix, validated before inference | Rules currently duplicated in `pipeline.py`, `ConfigPanel.tsx` and prose, and already disagreeing. Fixes D-14 | [ ] |
 | M2-T11 | Structured logging | Replace 13 `print` calls in library code; `LogSink` port. D-23 | [ ] |
 | M2-T12 | English-only library code | 197 Russian lines across five modules; nine reach runtime output. D-22 | [ ] |
-| M2-T13 | Retire dead code | 10 unreachable functions; `preprocess_batch.py` fails on every file (D-02) — port to a CLI entry point or delete (operator decision) | [ ] |
+| M2-T13 | Retire dead code | 10 unreachable functions. Narrowed by ADR-0012: `preprocess_batch.py` was the other half and is deleted | [ ] |
 | M2-T14 | Package installation | Editable install; delete the `pytest.ini` `pythonpath` hack | [ ] |
 | M2-T15 | Delete the `src/` shim | Only when nothing — including notebooks — imports it | [ ] |
 | M2-T16 | Refresh `PROJECT_CONTEXT.md` to the new layout | It is the machine-readable map; it must not drift | [ ] |

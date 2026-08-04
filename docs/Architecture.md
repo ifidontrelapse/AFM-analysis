@@ -36,7 +36,6 @@ src/                          2021 LOC, 12 modules — the working scientific co
 ├── pipeline.py               detector × mode dispatcher
 └── visualization.py          matplotlib plots and an interactive viewer
 
-frontend/                     React + TS + Vite client for a backend that was never written
 notebooks/, *.ipynb           experiments, some committed with outputs
 tests/                        1 non-test + a Phase 0 characterization harness (good)
 docs/audit/                   Phase 0 audit: 24 confirmed defects, golden baseline
@@ -60,10 +59,10 @@ docs/audit/                   Phase 0 audit: 24 confirmed defects, golden baseli
 | # | Weakness | Evidence | Fixed in |
 |---|---|---|---|
 | W1 | **No application layer at all.** The code is a library plus notebooks. No projects, no persistence, no jobs, no settings, no logging. | `src/` has no state management of any kind | M4 |
-| W2 | **No UI.** The only client is a React app talking to an HTTP backend that does not exist. | `PROJECT_CONTEXT.md` §4, §11 | M5–M7 (Qt), ADR-0007 |
+| W2 | **No UI at all.** The only client was a React app talking to an HTTP backend that does not exist; it was deleted rather than finished. | `PROJECT_CONTEXT.md` §4, §11 | M5–M7 (Qt), ADR-0012 |
 | W3 | **Five import cycles; the "dependency root" pulls in 1179 modules.** | Audit D-18: `import src.types` → 0.67 s, matplotlib + pandas loaded | M2 |
 | W4 | **Modality is inferred from types, not modelled.** `isinstance(data, PreprocessingResult)` decides whether input is AFM. | `pipeline.py:44`, `segmentation.py:70` | M2-T10 |
-| W5 | **The capability matrix lives in three places and already disagrees with itself.** | `pipeline.py:88`, `ConfigPanel.tsx:109`, `PROJECT_CONTEXT.md` §9 | M2-T10 |
+| W5 | **The capability matrix lives in more than one place and already disagrees with itself.** | `pipeline.py:88`, `PROJECT_CONTEXT.md` §9 (a third copy was in `ConfigPanel.tsx:109`, deleted with the client) | M2-T10 |
 | W6 | **Validation runs after inference.** AFM+YOLO+baseline burns a full inference pass, then raises. | Audit D-14 | M2-T10 |
 | W7 | **Silent numerical defects on real data.** YOLO input keeps 12.6% of dynamic range; the minimum-size filter is off on 90% of the operator's scans. | Audit D-03, D-04, measured | M3 |
 | W8 | **No device management.** Nothing decides CPU vs CUDA vs ROCm vs MPS; it is implicit in torch defaults. | no such module exists | M4-T12 |
@@ -74,7 +73,7 @@ docs/audit/                   Phase 0 audit: 24 confirmed defects, golden baseli
 | W13 | **Repository hygiene is broken.** 2 800 tracked `node_modules` files = 98% of the repo; a 137 MB checkpoint is staged into history. | measured, audit D-19 | M1-T01 |
 | W14 | **No quality gate.** pytest, ruff and mypy are not declared or installed; the only test has no assertions. | audit D-20 | M1 |
 | W15 | **`print`-based diagnostics, partly in Russian, reaching users.** | audit D-22, D-23 | M2-T11, M2-T12 |
-| W16 | **Dead code on the main paths**: 10 unreachable functions, and `preprocess_batch.py` fails on every file. | audit D-02, §1 | M2-T13 |
+| W16 | **Dead code on the main paths**: 10 unreachable functions. (`preprocess_batch.py`, broken on every file since `e8caf25`, was deleted in ADR-0012.) | audit D-02, §1 | M2-T13 |
 
 **Summary judgment.** The domain layer is sound and worth preserving almost verbatim.
 Everything above it is missing, and everything around it (packaging, gates, hygiene) is
@@ -115,7 +114,7 @@ Clean Architecture, four rings, one composition root.
 ### 3.1 Package layout
 
 ```
-nanoscope/                          # ADR-0011 — name pending operator confirmation
+nanoscope/                          # ADR-0011 — confirmed by the operator 2026-08-04
 ├── app/
 │   ├── __main__.py                 # entry point: `nanoscope`
 │   ├── bootstrap.py                # builds the container, wires ports → adapters
@@ -297,7 +296,7 @@ in CI), so it is the least protected module in the repository.
 
 | Not building | Why | Revisit |
 |---|---|---|
-| HTTP backend / web client | The product is an offline desktop app. The React client is parked, not deleted. | ADR-0007, Backlog |
+| HTTP backend / web client | The product is an offline desktop app. The React client was deleted, not parked — ADR-0012 supersedes ADR-0007. | ADR-0012 |
 | Batch processing | Explicitly out of scope for v1. | Backlog |
 | Plugin system | Not needed now — but the registry and port layout make it addable without redesign. | Backlog |
 | Cloud storage / multi-user | Single-operator, single-machine, offline-first. | Backlog |
@@ -309,12 +308,14 @@ in CI), so it is the least protected module in the repository.
 
 Tracked in `docs/STATE.md` under *Blocked / needs decision*:
 
-1. **Package name** — `nanoscope` proposed; the distribution is still `afm-analysis`. (ADR-0011, Proposed)
+1. ~~**Package name**~~ — **closed 2026-08-04**: `nanoscope`, confirmed by the operator.
+   (ADR-0011, Accepted.) The distribution is renamed with the package in M2-T01.
 2. **`min_size_nm` semantics** (D-04) — what *should* the minimum particle size mean
    when a pixel is 9.77 nm? Requires the operator, not the engineer.
 3. **Detection polarity** (D-12) — explicit configuration, or auto-detected from the
    image? TEM currently detects the background.
-4. **Fate of `frontend/`, `preprocess_batch.py`, and the committed notebooks** — park,
-   archive, or delete. Deletion needs the operator's approval.
+4. ~~**Fate of `frontend/`, `preprocess_batch.py`, and the committed notebooks**~~ —
+   **closed 2026-08-04.** Notebooks kept and stripped (M1-T09); the other two deleted
+   (ADR-0012).
 5. **Real sample data in git** — the phantom set stands in for it today; committing a
    real scan is the operator's call.

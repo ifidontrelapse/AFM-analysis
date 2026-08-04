@@ -75,7 +75,7 @@ mypy                                           # types   — reports on src/ (M2
 pytest                                         # tests + numerical drift (~3 min)
 ```
 
-`ruff check .` skips `src/` and `preprocess_batch.py` (`extend-exclude` + `force-exclude`
+`ruff check .` skips `src/` (`extend-exclude` + `force-exclude`
 in `pyproject.toml`, declared once and shared by the hooks and CI). That is deliberate:
 109 open findings there would block every M2 commit. See *CI* below for how to measure
 them anyway.
@@ -115,8 +115,8 @@ On a normal diff it costs about a second. `pytest` and mypy are deliberately **n
 — the golden alone takes 200 s, and a hook that slow is a hook people bypass. They run in
 CI (M1-T08).
 
-Hooks that **rewrite** a file (ruff format, the whitespace fixers) skip `src/` and
-`preprocess_batch.py`; hooks that only **refuse** apply everywhere, `src/` included. The
+Hooks that **rewrite** a file (ruff format, the whitespace fixers) skip `src/`; hooks that
+only **refuse** apply everywhere, `src/` included. The
 reason is in `.pre-commit-config.yaml`: the core has 109 open ruff findings, so a blocking
 hook there would make every M2 commit impossible, and rewriting the science to satisfy a
 formatter is PROJECT_RULES §4.1. Same posture mypy takes — reported, not silenced, not
@@ -164,7 +164,7 @@ repository since M1-T09, so this is a design choice, not an exemption.)
 To measure the legacy baseline yourself, the exclusion has to be overridden explicitly:
 
 ```bash
-ruff check src preprocess_batch.py --no-fix --no-force-exclude --statistics
+ruff check src --no-fix --no-force-exclude --statistics
 ```
 
 **Tool versions** (installed by M1-T02, declared in `[dependency-groups] dev`):
@@ -173,14 +173,13 @@ ruff check src preprocess_batch.py --no-fix --no-force-exclude --statistics
 |---|---|---|
 | pytest | 9.1.1 | **green** — 23 tests (M1-T05, M1-T06) |
 | pytest-cov | 7.1.0 | installed, not yet wired |
-| ruff | 0.16.1 | configured (M1-T03); clean outside the legacy core, **117 findings** inside it |
+| ruff | 0.16.1 | configured (M1-T03); clean outside `src/`, **109 findings** inside it |
 | mypy | 2.3.0 | configured (M1-T04); **22 errors** locally / 21 in CI, deliberately not silenced |
 | pre-commit | 4.6.1 | configured (M1-T07); `pre-commit install` required per clone |
 
 **Current reality:** the suite is green, the golden runs inside it, hooks refuse on commit
 and CI runs the slow half. The lint and type findings that remain are real and confined to
-`src/` and `preprocess_batch.py` — they are defects fixed in M2/M3, not configuration
-noise.
+`src/` — they are defects fixed in M2/M3, not configuration noise.
 
 ---
 
@@ -294,7 +293,6 @@ docs/
   ADR/                  decisions
   audit/                Phase 0 audit — historical, frozen
 PROJECT_CONTEXT.md      machine-readable map of the current implementation
-frontend/               React client, parked — see ADR-0007
 notebooks/              experiments, not interfaces — outputs stripped on commit
 checkpoints/ data/ dataset/   local only, never committed
 ```
@@ -307,7 +305,6 @@ checkpoints/ data/ dataset/   local only, never committed
 |---|---|
 | `import src.types` looks cheap | It loads 1179 modules including matplotlib and pandas — five import cycles via `src/__init__.py` (D-18). Fixed in M2-T09. |
 | `build_substrate_map(manual_radius_px=...)` | Raises `UnboundLocalError` 100% of the time (D-01). Fixed in M3-T01. |
-| `preprocess_batch.py` | Fails on every file since `e8caf25` and reports it as `0 converted, N failed` (D-02). |
 | `README.md` | Stale: wrong return convention, modules that no longer exist (D-24). Rewritten in M9-T01. |
 | YOLO results | Input preparation currently keeps ~12.6% of the dynamic range (D-03). Any YOLO benchmark before M3-T03 is meaningless. |
 | Coarse scans | On 90% of real scans the minimum-size filter is silently disabled (D-04). |

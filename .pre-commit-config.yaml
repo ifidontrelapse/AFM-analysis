@@ -14,13 +14,12 @@ exclude: '^tests/characterization/golden/'
 
 # --- the legacy exclusion, used by every hook that REWRITES a file -----------
 #
-# `src/` and `preprocess_batch.py` are the scientific core in flight. Two
-# reasons they are excluded from the rewriting hooks, and neither is taste:
+# `src/` is the scientific core in flight. Two reasons it is excluded from the
+# rewriting hooks, and neither is taste:
 #
-#   1. `ruff check` reports 109 findings in `src/` and more in
-#      `preprocess_batch.py`. A blocking hook there would make every commit
-#      that touches the core impossible until it is clean — which is M2's job,
-#      sixteen tasks long. The gate would be bypassed on day one.
+#   1. `ruff check` reports 109 findings there. A blocking hook would make every
+#      commit that touches the core impossible until it is clean — which is M2's
+#      job, sixteen tasks long. The gate would be bypassed on day one.
 #   2. PROJECT_RULES §4.1: do not rewrite the science to make the architecture
 #      prettier. A formatter or a whitespace trim riding along inside an M2
 #      relocation commit is noise in the one diff that must be readable as a
@@ -49,7 +48,7 @@ repos:
         entry: uv run ruff format
         language: system
         types_or: [python, pyi]
-        exclude: &legacy '^(src/|preprocess_batch\.py)'  # see the note above
+        exclude: &legacy '^src/'  # see the note above
 
       # Check only — never `--fix`. Formatting is not an opinion (PROJECT_RULES
       # §3: `ruff format` decides), but a lint autofix rewrites logic, and

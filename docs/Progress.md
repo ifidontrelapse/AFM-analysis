@@ -7,6 +7,81 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — Decisions · **B1 and B5 answered; ADR-0012**
+
+**Tasks:** none — this is the operator closing two open decisions, executed under
+`PROJECT_RULES` §8 (a decision gets an ADR; reversing one gets a new ADR).
+**Branch:** `chore/notebooks`
+**Scientific impact:** none. `pytest` 23 passed, golden zero drift. No file under `src/`
+was touched.
+
+### B1 — the package is `nanoscope`
+
+ADR-0011 moves from **Proposed** to **Accepted**. It had been open since M0 and was the
+single remaining blocker on M2: every one of the sixteen relocation tasks needs the name.
+The distribution is renamed with the package in M2-T01 — not here, because renaming without
+the skeleton would leave the repository in a state neither old nor new.
+
+### B5 — delete the parked client and the broken batch script
+
+**ADR-0012**, superseding ADR-0007. That earlier ADR had parked `frontend/` rather than
+deleting it, explicitly because *"deleting the directory outright is a separate decision
+that needs the operator"*. The operator has now made it.
+
+- **`frontend/`** — 21 tracked files, a React client written against a FastAPI backend that
+  was never written. Everything ADR-0007 said about why it was never finished stands; only
+  the disposal changed.
+- **`preprocess_batch.py`** — broken on **every** input since `e8caf25` (**D-02**), reporting
+  its own failure as `0 converted, N failed`. It had been broken for the entire period the
+  audit covers and nobody noticed, which is the strongest available evidence that nothing
+  depended on it. Verified by grep before deleting, not assumed.
+
+Neither is destroyed: both are in git history, and ADR-0012 records the commit to recover
+them from.
+
+### The second-order effect, which is the real win
+
+`preprocess_batch.py` was the **only file outside `src/` excluded from the blocking lint and
+format checks**. It was carved out in three places — `pyproject.toml`,
+`.pre-commit-config.yaml`, and the CI workflow — and each was a place the exclusion could
+drift. All three now name exactly one path:
+
+| | before | after |
+|---|---|---|
+| legacy exclusion | `["src", "preprocess_batch.py"]` | `["src"]` |
+| ruff findings in the carve-out | 117 | **109**, all in `src/` |
+| tracked files | 78 | **63** |
+| tracked working tree | 7.8 MB | **7.6 MB** |
+
+The exclusion is now a single, temporary, well-understood thing that M2 dissolves entirely,
+rather than a list that grows whenever something else turns out to be unfixable.
+
+### Documents brought in line
+
+`README.md`, `PROJECT_CONTEXT.md`, `docs/Architecture.md` (§2.1, W2, W5, W16, §6, §7),
+`docs/Development.md`, `docs/Backlog.md` (B-041, B-042 closed; B-046 rejected), `TASKS.md`
+(M2-T13 narrowed to its remaining half; M2-T01 no longer says "confirm the name").
+
+`docs/audit/` and ADR-0009 keep every old path: they are records of what was true then, and
+PROJECT_RULES §0 freezes them. ADR-0007 is marked superseded but otherwise untouched —
+its reasoning is still why the client was never finished.
+
+### Learned
+
+- **"Parked" is a way of not deciding, and it has a running cost.** ADR-0007 listed
+  "a parked directory rots, and it will confuse future readers unless the documentation
+  keeps saying it is parked" as an accepted cost. Ten months of that cost was paid in one
+  afternoon of edits across eight documents.
+- **A carve-out with two entries is a list; with one entry it is a deadline.** The second
+  entry is what made the exclusion feel permanent, and it was there for a file nobody could
+  run.
+
+### Next
+
+`M1-T10` — the one-command gate — then M1 closes and **M2-T01 starts**.
+
+---
+
 ## 2026-08-04 — M1 · `M1-T09` Notebooks · **8.3 MB → 32 KB, and the gate is green everywhere**
 
 **Task:** M1-T09 (complete)

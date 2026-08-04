@@ -78,9 +78,9 @@ jobs:
           PY
 
       # ── blocking: the code we own ────────────────────────────────────────────
-      # `src/` and `preprocess_batch.py` are excluded by `[tool.ruff]
-      # extend-exclude` + `force-exclude`, declared once in pyproject.toml and
-      # shared with pre-commit. Everything else must be clean.
+      # `src/` is excluded by `[tool.ruff] extend-exclude` + `force-exclude`,
+      # declared once in pyproject.toml and shared with pre-commit. Everything
+      # else must be clean.
       - name: Format
         run: uv run ruff format --check .
 
@@ -128,13 +128,13 @@ jobs:
             echo
             echo '### ruff'
             echo '```'
-            uv run ruff check src preprocess_batch.py --no-fix --no-force-exclude --statistics 2>&1 | tail -30
+            uv run ruff check src --no-fix --no-force-exclude --statistics 2>&1 | tail -30
             echo '```'
             echo '### mypy'
             echo '```'
             uv run mypy --no-pretty 2>&1 | tail -30
             echo '```'
-            echo '> Expected on a clean run: 117 ruff findings, 21 mypy errors.'
+            echo '> Expected on a clean run: 109 ruff findings, 21 mypy errors.'
             echo '> 21, not the 22 measured locally — mypy infers less when'
             echo '> `ultralytics` is absent, which it is here by design (M1-T08).'
           } >> "$GITHUB_STEP_SUMMARY"

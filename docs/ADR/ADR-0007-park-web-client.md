@@ -1,6 +1,7 @@
 # ADR-0007 — The React web client is parked; the desktop app is the product
 
-- **Status:** Accepted
+- **Status:** **Superseded by ADR-0012** (2026-08-04) — the client is deleted, not parked.
+  The reasoning below stands and is why it was never finished; only the disposal changed.
 - **Date:** 2026-08-03
 - **Affects:** `frontend/`, `docs/archive/plan-frontend-react-client.md` · M1, M5
 

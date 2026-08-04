@@ -1,6 +1,6 @@
 # ADR-0011 — Package name and import layout
 
-- **Status:** **Proposed** — needs operator confirmation (`STATE.md` B1)
+- **Status:** **Accepted** — confirmed by the operator 2026-08-04 (`STATE.md` B1, now closed)
 - **Date:** 2026-08-03
 - **Affects:** every import in the project · blocks M2-T01
 
@@ -19,7 +19,7 @@ for nanoparticle microscopy analysis" — AFM is one modality among three.
 Renaming is cheap now, while the package has no external users, and expensive later —
 every import, every document, every notebook, every packaging artifact.
 
-## Decision (proposed)
+## Decision
 
 - **Import package:** `nanoscope`
 - **Distribution name:** `nanoscope`

@@ -152,19 +152,20 @@ exclude = [
 # The legacy core, excluded from the blocking checks (M1-T07, M1-T08).
 #
 # `ruff check .` and `ruff format --check .` are what pre-commit and CI run, and
-# they must mean "the code we own is clean". `src/` has 109 open findings and
-# `preprocess_batch.py` more; blocking on them would make every M2 commit
-# impossible, and rewriting the science to satisfy a formatter is forbidden by
-# PROJECT_RULES §4.1. Same posture mypy takes (M1-T04): reported, not silenced.
+# they must mean "the code we own is clean". `src/` has 109 open findings;
+# blocking on them would make every M2 commit impossible, and rewriting the
+# science to satisfy a formatter is forbidden by PROJECT_RULES §4.1. Same
+# posture mypy takes (M1-T04): reported, not silenced.
 #
 # `force-exclude` extends that to paths named explicitly on the command line,
 # which is what pre-commit passes. To measure the legacy baseline anyway:
 #
-#     ruff check src preprocess_batch.py --no-fix --no-force-exclude
+#     ruff check src --no-fix --no-force-exclude
 #
-# M2 moves this code to `nanoscope/`, where it arrives clean; M2-T15 deletes
-# both entries.
-extend-exclude = ["src", "preprocess_batch.py"]
+# One path, not a list: `preprocess_batch.py` was the second entry and was
+# deleted in ADR-0012. M2 moves `src/` to `nanoscope/`, where it arrives clean,
+# and M2-T15 deletes this line.
+extend-exclude = ["src"]
 force-exclude = true
 
 [tool.ruff.lint]
