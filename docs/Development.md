@@ -100,14 +100,14 @@ make check
 
 | Tool | Version | State |
 |---|---|---|
-| pytest | 9.1.1 | runs; the golden test passes, `tests/test_io.py` still fails (M1-T06) |
+| pytest | 9.1.1 | **green** — 23 tests (M1-T05, M1-T06) |
 | pytest-cov | 7.1.0 | installed, not yet wired |
 | ruff | 0.16.1 | configured (M1-T03); **128 findings**, 109 of them in `src/` |
 | mypy | 2.3.0 | configured (M1-T04); **22 errors** in 7 files, deliberately not silenced |
 
-**Current reality:** the tools are configured, and the golden runs under `pytest`. The
-suite is still red on one file — `tests/test_io.py`, replaced in M1-T06 — and there is no
-CI yet (M1-T08).
+**Current reality:** the suite is green and the golden runs inside it. The lint and type
+findings are real and still open — they are `src/` defects fixed in M2/M3, not
+configuration noise — and there is no CI yet (M1-T08).
 
 ---
 
@@ -175,6 +175,17 @@ One task per branch, one intent per commit.
 No other file changes. If you find yourself editing `pipeline`, `gui/`, or a config
 dataclass to add a model, the abstraction has failed — say so instead of working around it.
 
+### A new test
+
+Fast tests go in `tests/unit/`. Fixtures are **generated, never committed** — build the
+bytes or the array in the test module, seeded (PROJECT_RULES §7,
+`tests/characterization/phantoms.py`, `tests/unit/test_afm_io.py`). Nothing may depend on
+`data/`, on model weights, or on the network.
+
+Then make the test fail on purpose: break the code it covers, confirm it goes red, revert.
+M1-T06 wrote 23 tests this way and found that one of them could not fail — the mutation is
+what proved the other 22.
+
 ### A new ADR
 
 ```bash
@@ -195,6 +206,7 @@ milestone go to `docs/Backlog.md`.
 ```
 src/                    scientific core — moves to nanoscope/core in M2
 tests/
+  unit/                 fast tests, no I/O beyond tmp_path, no fixtures in git
   characterization/     golden safety net (works today)
 docs/
   PROJECT_RULES.md      the constitution — read first

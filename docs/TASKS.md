@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M1-T06`
+**Updated:** 2026-08-04 · **Active:** `M1-T07`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -34,7 +34,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M1-T03 | Repair the ruff configuration | Done 2026-08-03: removed `fix = true` (`ruff check` was rewriting sources), moved `select`/`ignore` to `[tool.ruff.lint]`, py311 → py312, fixed `known-first-party`, dropped dead `S101`, excluded notebooks. `src/` findings unchanged at 109 — repair only | [x] |
 | M1-T04 | Add mypy configuration | Done 2026-08-04: strict for `nanoscope.*` from its first line; `src/` checked but not silenced (22 errors, 13 of them static confirmations of D-01/D-02/D-07/D-10/D-16); `ignore_missing_imports` per module. Three new defects filed as M3-T17…T19 | [x] |
 | M1-T05 | Wire the characterization harness into pytest | Done 2026-08-04: `tests/characterization/test_golden.py` calls the existing runner through a new `diff_against_golden()` seam; marked `slow` (192 s), marker registered. `pytest.ini` folded into `pyproject.toml` and deleted. Failure proven by perturbing a golden value | [x] |
-| M1-T06 | Replace `tests/test_io.py` | No assertions, catches the wrong exception, references a path absent from a clean checkout. Replace with a synthetic-SPM round-trip test. D-20 | [ ] |
+| M1-T06 | Replace `tests/test_io.py` | Done 2026-08-04: deleted; replaced by `tests/unit/test_afm_io.py` — 22 tests over a synthetic Nanoscope byte stream (round trip, calibration, unit conversion, 8 failure modes, npy, SEM/TEM). No binary fixture, no `data/`. **`pytest` is green.** Suite validated by killing 4 mutants of the parser; one new defect found and filed as M3-T20. D-20 | [x] |
 | M1-T07 | Add pre-commit | ruff, ruff-format, end-of-file-fixer, `check-added-large-files` (1 MB), nbstripout | [ ] |
 | M1-T08 | Add CI | GitHub Actions, Python 3.12, CPU-only, no weights, no network: lint → types → tests → golden | [ ] |
 | M1-T09 | Clean notebooks | Strip outputs from the committed 6.5 MB and 2.2 MB notebooks; move all to `notebooks/`; mark experimental | [ ] |
@@ -95,6 +95,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M3-T17 | `_read_nanoscope_z` divides `None` by `samps` when the header has no `Scan Size` — the fallback branch crashes on the next line (`afm_io.py:95-98`) | **new**, found by mypy in M1-T04 | high | [ ] |
 | M3-T18 | `YoloDetector._last_result` is initialised to `None`, so its type is `None`; `.filtered_boxes` is accessed unguarded (`yolo_detector.py:50,87,99`) | **new**, mypy | medium | [ ] |
 | M3-T19 | `estimate_log_threshold_adaptive` rebinds `responses` from `list[float]` to ndarray before calling `.min()`/`.max()` (`log_detector.py:111,116`) | **new**, mypy | low | [ ] |
+| M3-T20 | `load_afm(fmt="npy")` fabricates a physical scale: `pixel_size_nm or 1.0` and `scan_size_nm or float(z.shape[0])` (`afm_io.py:132-133`). Unknown scale must be `None` — the invariant D-07 states. Two consequences: every downstream `_nm` becomes a pixel count wearing nanometre units, and `or` also swallows an explicit `0.0`. Row count is used as a length in nm, which is not even dimensionally a size | **new**, found by the M1-T06 tests | high | [ ] |
 
 ---
 

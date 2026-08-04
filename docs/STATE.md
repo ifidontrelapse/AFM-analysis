@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `chore/golden-in-pytest` · **Base commit:** `11e0ecc`
+**Last updated:** 2026-08-04 · **Branch:** `test/spm-io` · **Base commit:** `11e0ecc`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -16,7 +16,7 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T06` — Replace `tests/test_io.py`**
+**`M1-T07` — Add pre-commit**
 
 Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
@@ -54,6 +54,13 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   existed, pytest ignored `[tool.pytest.ini_options]` silently. The negative case was
   proven, not assumed: a perturbed golden produced a red run naming the moved quantity.
   **The M2 safety net is now mechanical.**
+- **M1-T06** ✅ (2026-08-04) — `tests/test_io.py` (no assertions, wrong exception, absent
+  fixture path) deleted; replaced by `tests/unit/test_afm_io.py`: **22 tests** over a
+  synthetic Nanoscope byte stream derived from a real local header — round trip,
+  calibration, unit conversion, 8 failure modes, npy and SEM/TEM. No binary fixture, no
+  `data/`. **`pytest` is green for the first time (23 passed, 200 s).** The suite was
+  validated by mutation: 4 edits to the parser, 3 killed immediately, and the 4th exposed a
+  test that could not fail — now fixed. One new defect found → **M3-T20**.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -79,7 +86,7 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T05 closed; M1-T06 selected and awaiting execution.
+Nothing. M1-T06 closed; M1-T07 selected and awaiting execution.
 
 ---
 
@@ -102,8 +109,9 @@ None of these blocks M1-T01 or the rest of M1.
 
 ## Next
 
-1. **Execute `M1-T06`** — replace `tests/test_io.py`; it is the only red test left
-2. `M1-T07` / `M1-T08` — pre-commit and CI; at that point the gate is real
+1. **Execute `M1-T07`** — pre-commit; with a green suite the gate can start refusing bad
+   commits instead of reporting them afterwards
+2. `M1-T08` — CI; at that point the gate is real
 3. `M1-T09` / `M1-T10` — notebooks, then `make check`
 4. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
 
@@ -117,13 +125,14 @@ None of these blocks M1-T01 or the rest of M1.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | 1 (the golden; `test_io.py` still failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **23, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
+| `src/` modules with a unit test | 1 of 12 (`afm_io`) | 12 | `tests/unit/` |
 | ruff findings in `src/` | 109 | 0 | `ruff check src/ --no-fix` |
 | mypy errors | 22 in 7 files | 0 | `mypy` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
-| Open defects | 27 (24 audit + 3 found by mypy) | 0 critical | audit §2, M3-T17…T19 |
+| Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | 5 | 0 | audit D-18 |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
-| Lint/type/test gate | tools configured; drift check green, one test red | green in CI | M1-T06…T08 |
+| Lint/type/test gate | **`pytest` green**; lint/type findings still open, no CI | green in CI | M1-T07, M1-T08 |

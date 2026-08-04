@@ -7,6 +7,105 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1 · `M1-T06` A real test for the SPM parser · **the suite is green**
+
+**Task:** M1-T06 (complete)
+**Branch:** `test/spm-io`
+**Scientific impact:** none — `src/` is not edited. The golden reports zero drift.
+
+### What was there
+
+Eleven lines that tested nothing: no assertion, `z` assigned and never read, `ImportError`
+caught for `pyfmreader` (a package this project does not depend on — the parser is
+hand-written) while the actual failure is `FileNotFoundError`, and a read of `data/5.011`,
+which is git-ignored and absent from any clean checkout. It failed on every machine, and
+had the file been present it would have passed regardless of what the parser returned.
+
+### What replaces it
+
+`tests/unit/test_afm_io.py` — **22 tests**, no binary fixture, no `data/`, no network.
+
+The fixture is a synthetic Nanoscope SPM byte stream built in the test module: preamble,
+a decoy image block, the Height block, `0x1A`, padding to the declared data offset, then
+an `int16`/`int32` payload. Field names and formats were taken from a **real** local file
+(`data/pvp8k/2-6-dmfa-pvp.039` — read, not committed), including the two details that
+matter: Nanoscope writes micrometres as `~m`, and every header carries a second
+sensitivity, `@Sens. ZsensSens`, thirty times the real one.
+
+| Group | Covers |
+|---|---|
+| Round trip | shape, `float32`, `[y, x]` orientation, values (non-square 6×4, so a transpose cannot survive), Height-block selection over a decoy, `int32` when `Bytes/pixel != 2` |
+| Calibration | `pixel_size_nm == scan_size_nm / samps`, the full LSB → volts → nm chain, and `~m` / `um` / `µm` / `nm` conversion |
+| Failure modes | missing file · no Ciao blocks · missing header field · no Z scale · no Zsens · truncated payload · no `Scan Size` (M3-T17) · unsupported format |
+| Other entry points | `fmt="npy"` with and without metadata; `load_microscopy_image` greyscale round trip, unknown scale, missing file |
+
+### The suite was tested, not just written
+
+A test suite that has never failed is a hypothesis. Four mutations of `src/afm_io.py`, run
+and reverted:
+
+| Mutation | Result |
+|---|---|
+| `pixel_size_nm = scan_size_nm / lines` instead of `/ samps` | **5 failed** |
+| Z scale divisor `65536 → 32768` | **4 failed** |
+| Height-block selection replaced by "take the first block" | **13 failed** |
+| Zsens regex loosened to `Zsens\w*`, so it also matches `ZsensSens` | **survived** |
+
+The fourth is the one worth recording. The decoy `ZsensSens` line was only being written
+when the correct `Zsens` line was also present and earlier in the file, so `re.search`
+found the right one either way and the test proved nothing. The real hazard is a header
+that has `ZsensSens` but no `Zsens`: a loosened pattern would then silently scale every
+height in the scan by ~30 and raise nothing. The fixture now always carries the decoy, and
+`test_spm_without_zsens_is_rejected_and_zsenssens_is_not_a_substitute` kills the mutant.
+
+Written and passed, that test was decoration. Only the mutation showed it.
+
+### New defect found — M3-T20
+
+`load_afm(fmt="npy")` fabricates a physical scale: `pixel_size_nm or 1.0` and
+`scan_size_nm or float(z.shape[0])`. PROJECT_RULES §3 and D-07 both say an unknown scale is
+`None` — never a stand-in. So every downstream `_nm` on that path is a pixel count wearing
+nanometre units; the row count is used as a length in nanometres, which is not even
+dimensionally a size; and because it is written with `or`, a caller who explicitly passes
+`0.0` is overruled too. Not in the audit, not previously filed → **M3-T20**, high.
+
+Both this and M3-T17 are pinned by assertions that name the task, so the fix flips a
+documented expectation instead of breaking a surprise.
+
+### Measurements
+
+| | |
+|---|---|
+| `pytest` | **23 passed**, 200 s — first green run in the project's history |
+| `pytest -m "not slow"` | 22 passed, **0.88 s** |
+| Characterization golden | zero drift |
+| mypy | 22 errors, unchanged — `files = ["src"]`, tests are not checked |
+| ruff check / format on the new file | clean |
+| Binary fixtures added | none |
+
+### Learned
+
+- **The parser is more testable than it looks.** It needs six header fields and two regex
+  matches; a faithful fixture is ~60 lines. The reason it had no tests was not difficulty.
+- **Deriving the fixture from a real file paid for itself immediately.** `~m` for
+  micrometres and the `ZsensSens` twin are not things one invents at a desk, and both are
+  now covered.
+- **Mutation testing found the one worthless test out of 23.** Cheap — four edits and four
+  runs — and it is the only reason the Zsens guard is real. Worth repeating whenever a test
+  claims to defend a subtle regex or a unit conversion.
+- The fast loop is 0.88 s, of which **1.4 s of import cost is D-18** — `import src.afm_io`
+  pulls 1209 modules through `src/__init__.py`. It is inside pytest's startup rather than
+  the test time, but it is the same defect, and M2-T09 removes it.
+
+### Next
+
+`M1-T07` — pre-commit hooks. With the suite green, the gate can start refusing bad commits
+instead of reporting them afterwards.
+
+**B1 remains the only thing blocking M2.**
+
+---
+
 ## 2026-08-04 — M1 · `M1-T05` The golden runs under pytest
 
 **Task:** M1-T05 (complete)
