@@ -22,6 +22,8 @@ from src.detection import LogDetector, YoloDetector
 from src.segmentation import run_sam2_from_blobs, run_sam2_from_boxes
 from src.measure import measure_all_baseline
 
+from nanoscope.application.capabilities import validate_request
+
 
 def run_pipeline(
     data: PreprocessingResult | MicroscopyData,
@@ -54,6 +56,13 @@ def run_pipeline(
         sizes        = None
         modality     = data.modality
 
+    # ── Validate before spending anything (M2-T10, audit D-14) ───────────────
+    # Every rule about which (modality, detector, mode) combinations exist lives
+    # in one module now, and it is consulted *here* — before a detector is
+    # constructed. This block used to sit after inference, so AFM + YOLO +
+    # baseline ran a full YOLO pass and then raised.
+    validate_request(modality, cfg.detector, cfg.mode, has_predictor=predictor is not None)
+
     # ── Detection ────────────────────────────────────────────────────────────
     if cfg.detector == "log":
         detector   = LogDetector(
@@ -73,7 +82,7 @@ def run_pipeline(
         detections = detector.detect(image, nm_per_pixel)
         blobs      = None
 
-    else:
+    else:  # pragma: no cover — validate_request rejected this before we got here
         raise ValueError(f"Unknown detector: {cfg.detector!r}")
 
     # ── Detect-only early exit ────────────────────────────────────────────────
@@ -86,10 +95,6 @@ def run_pipeline(
 
     # ── Baseline mode (AFM only) ──────────────────────────────────────────────
     if cfg.mode == "baseline":
-        if modality != "afm":
-            raise ValueError("mode='baseline' is only supported for AFM data")
-        if cfg.detector != "log":
-            raise ValueError("mode='baseline' requires detector='log'")
         measurements = measure_all_baseline(
             z_flat, image, blobs,
             outer_px=cfg.measure_outer_px,
@@ -102,9 +107,6 @@ def run_pipeline(
         )
 
     # ── Segment mode ──────────────────────────────────────────────────────────
-    if predictor is None:
-        raise ValueError("predictor must be provided when mode='segment'")
-
     if cfg.detector == "log":
         measurements, masks = run_sam2_from_blobs(
             predictor, z_flat, image, blobs,
