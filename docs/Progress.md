@@ -106,6 +106,10 @@ absent from its `site-packages`, torch absent, suite passing.
 `pyproject.toml`. What remains is one real defect signature (`RUF013`, implicit Optional)
 and three cosmetics that M3 takes when it touches the code anyway.
 
+**CI green, run 21** — including the re-baselined golden, which is the run that matters:
+the six declared changes reproduce on a machine that is not the author's, so the new
+baseline is a fact rather than a local artefact.
+
 ### Next
 
 `M2-T15` — delete the `src/` shims. Every caller must move to `nanoscope` first, including
