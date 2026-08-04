@@ -75,6 +75,10 @@ broken — the golden would have said `ok: true` and nothing else.
 
 Restoring the bug turns **5 of 6 red**.
 
+**CI green, run 22** — the first CI run with no `src/` at all, and the first to verify a
+numerical fix. The re-baselined golden reproduces on a machine that is not the author's,
+which is what makes the 50-difference delta a fact rather than a local observation.
+
 ### Next
 
 `M3-T03` — YOLO input preparation normalises *after* casting to `uint8`, so only 12.6% of
