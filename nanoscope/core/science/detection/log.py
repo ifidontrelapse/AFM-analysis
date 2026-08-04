@@ -10,6 +10,8 @@ it an adapter rather than domain — M2-T07 moves it to `infrastructure/models/`
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from skimage.feature import blob_log
 from skimage.filters import threshold_otsu
@@ -17,27 +19,30 @@ from skimage.filters import threshold_otsu
 from nanoscope.core.entities import Detection
 from nanoscope.core.science.detection.base import BaseDetector
 
+# Module-level logger, the stdlib way (M2-T11). No handler is configured here:
+# a library that configures logging steals the decision from the application.
+logger = logging.getLogger(__name__)
+
 
 def estimate_log_params(sizes: dict) -> dict:
     """
-    Вычисляет диапазон sigma для LoG из результатов estimate_radius_otsu.
+    Derive the LoG sigma range from the output of estimate_radius_otsu.
 
-    Связь радиуса и sigma: radius_px = sigma * sqrt(2)
-    Берём диапазон с запасом — LoG сам найдёт оптимальную sigma
-    для каждой частицы внутри диапазона.
+    Radius and sigma are related by radius_px = sigma * sqrt(2). The range is
+    deliberately generous: LoG finds the best sigma per particle within it.
 
     Args:
-        sizes: dict от estimate_radius_otsu (содержит radii_px)
+        sizes: dict from estimate_radius_otsu (contains radii_px)
 
     Returns:
-        dict с min_sigma и max_sigma в пикселях
+        dict with min_sigma and max_sigma, in pixels
     """
     radii_px = sizes["radii_px"]
 
-    min_sigma = radii_px.min() / np.sqrt(2) * 0.5  # вдвое меньше минимума
-    max_sigma = radii_px.max() / np.sqrt(2) * 2.0  # вдвое больше максимума
+    min_sigma = radii_px.min() / np.sqrt(2) * 0.5  # half the smallest radius
+    max_sigma = radii_px.max() / np.sqrt(2) * 2.0  # twice the largest radius
 
-    # Защита от вырожденных случаев
+    # Guard against degenerate cases
     min_sigma = max(min_sigma, 1.0)
     max_sigma = max(max_sigma, min_sigma * 2)
 
@@ -49,16 +54,16 @@ def estimate_log_params(sizes: dict) -> dict:
 
 def estimate_log_threshold(z_above: np.ndarray) -> float:
     """
-    Автоматический порог для LoG из шума подложки.
+    Automatic LoG threshold, derived from the substrate noise.
 
-    Пиксели ниже порога Otsu считаем подложкой.
-    Порог = 3 * std шума подложки, нормированный на максимум z_above.
+    Pixels below the Otsu threshold are treated as substrate. The threshold is
+    3 * the substrate noise std, normalised by the maximum of z_above.
 
     Args:
-        z_above: z_flat - substrate (частицы над подложкой)
+        z_above: z_flat - substrate (particles above the substrate)
 
     Returns:
-        порог для blob_log (безразмерный, 0..1)
+        threshold for blob_log (dimensionless, 0..1)
     """
     otsu_thresh = threshold_otsu(z_above)
     substrate_px = z_above[z_above < otsu_thresh]
@@ -74,27 +79,26 @@ def estimate_log_threshold_adaptive(
     z_above: np.ndarray, params: dict, percentile: float = 20.0
 ) -> float:
     """
-    Адаптивный порог из распределения откликов LoG.
+    Adaptive threshold, taken from the distribution of LoG responses.
 
-    Запускаем LoG с минимальным порогом, смотрим на распределение
-    максимальных откликов всех найденных блобов.
-    Порог = percentile от этого распределения.
+    Run LoG with a minimal threshold, look at the peak response of every blob it
+    finds, and take a percentile of that distribution.
 
-    Устойчив между изображениями — опирается на относительное
-    распределение откликов, а не абсолютное значение.
+    Stable across images, because it depends on the relative distribution of
+    responses rather than on an absolute value.
 
     Args:
         z_above:    z_flat - substrate
-        params:     dict от estimate_log_params (min_sigma, max_sigma)
-        percentile: нижний процентиль откликов для отсечения шума
-                    20 = отсекаем нижние 20% слабых откликов
+        params:     dict from estimate_log_params (min_sigma, max_sigma)
+        percentile: lower percentile of responses to cut off as noise;
+                    20 discards the weakest 20%
 
     Returns:
-        адаптивный threshold для blob_log
+        adaptive threshold for blob_log
     """
     z_norm = z_above / z_above.max()
 
-    # Находим все блобы с минимальным порогом
+    # Find every blob at a minimal threshold
     raw = blob_log(
         z_norm,
         min_sigma=params["min_sigma"],
@@ -107,7 +111,7 @@ def estimate_log_threshold_adaptive(
     if len(raw) == 0:
         return 0.05
 
-    # Для каждого блоба — максимальный отклик в окрестности центра
+    # Peak response in the neighbourhood of each blob centre
     responses = []
     for blob in raw:
         y, x, sigma = blob
@@ -121,9 +125,14 @@ def estimate_log_threshold_adaptive(
     responses = np.array(responses)
     threshold = float(np.percentile(responses, percentile))
 
-    print(f"   Откликов (min threshold): {len(responses)}")
-    print(f"   Отклики:                  {responses.min():.3f} – {responses.max():.3f}")
-    print(f"   Адаптивный порог ({percentile:.0f}%):  {threshold:.4f}")
+    logger.debug(
+        "adaptive LoG threshold: %d responses in [%.3f, %.3f], p%.0f = %.4f",
+        len(responses),
+        responses.min(),
+        responses.max(),
+        percentile,
+        threshold,
+    )
 
     return threshold
 
@@ -137,20 +146,20 @@ def detect_particles(
     percentile: float = 20.0,
 ) -> np.ndarray:
     """
-    Детекция частиц методом Laplacian of Gaussian (LoG).
+    Detect particles with a Laplacian of Gaussian filter.
 
-    Алгоритм:
-        1. Вычисляем диапазон sigma из радиусов Otsu
-        2. Вычисляем порог из шума подложки
-        3. Нормируем z_above в [0, 1] — LoG чувствителен к масштабу
-        4. Запускаем blob_log
-        5. Добавляем физический радиус в нм
+    Steps:
+        1. Derive the sigma range from the Otsu radii
+        2. Derive the threshold from the substrate noise
+        3. Normalise z_above to [0, 1] — LoG is sensitive to scale
+        4. Run blob_log
+        5. Attach the physical radius in nm
 
     Args:
-        z_above:       z_flat - substrate (частицы над подложкой)
-        pixel_size_nm: нм/пиксель
-        sizes:         dict от estimate_radius_otsu
-        overlap:       допустимое перекрытие блобов (0..1)
+        z_above:       z_flat - substrate (particles above the substrate)
+        pixel_size_nm: nm per pixel
+        sizes:         dict from estimate_radius_otsu
+        overlap:       permitted blob overlap (0..1)
 
     Returns:
         blobs: np.ndarray shape (N, 4) — [y, x, sigma_px, radius_nm]
@@ -159,7 +168,7 @@ def detect_particles(
     if threshold is None:
         threshold = estimate_log_threshold_adaptive(z_above, params, percentile)
 
-    # LoG работает на нормированном изображении [0, 1]
+    # LoG runs on an image normalised to [0, 1]
     z_norm = z_above / z_above.max()
 
     raw_blobs = blob_log(
@@ -172,52 +181,58 @@ def detect_particles(
     )
 
     if len(raw_blobs) == 0:
-        print("Частицы не найдены. Попробуй уменьшить threshold.")
+        logger.warning("no particles found; try lowering the threshold")
         return np.empty((0, 4))
 
-    # radius = sigma * sqrt(2) — стандартная связь для LoG
+    # radius = sigma * sqrt(2) — the standard LoG relation
     sigma_px = raw_blobs[:, 2]
     radius_nm = sigma_px * np.sqrt(2) * pixel_size_nm
 
     blobs = np.column_stack(
         [
             raw_blobs[:, :2],  # y, x
-            sigma_px,  # sigma в пикселях
-            radius_nm,  # радиус в нм
+            sigma_px,  # sigma in pixels
+            radius_nm,  # radius in nm
         ]
     )
 
     blobs = _filter_boundary_blobs(blobs, z_above.shape)
 
-    print(f"✅ Найдено частиц:  {len(blobs)}")
-    print(f"   Радиусы:         {radius_nm.min():.1f} – {radius_nm.max():.1f} нм")
-    print(f"   Медиана радиуса: {np.median(radius_nm):.1f} нм")
-    print(f"   LoG threshold:   {threshold:.4f}")
-    print(f"   sigma диапазон:  {params['min_sigma']:.1f} – {params['max_sigma']:.1f} пкс")
+    logger.info(
+        "found %d particles: radius %.1f-%.1f nm (median %.1f), "
+        "LoG threshold %.4f, sigma %.1f-%.1f px",
+        len(blobs),
+        radius_nm.min(),
+        radius_nm.max(),
+        np.median(radius_nm),
+        threshold,
+        params["min_sigma"],
+        params["max_sigma"],
+    )
 
     return blobs
 
 
 def _filter_boundary_blobs(blobs: np.ndarray, shape: tuple, margin: float = 1.0) -> np.ndarray:
     """
-    Удаляет частицы чей круг выходит за края изображения.
+    Drop particles whose circle extends past the edge of the image.
 
     Args:
         blobs:  (N, 4) — [y, x, sigma, radius_nm]
-        shape:  (height, width) изображения
-        margin: дополнительный отступ в пикселях (по умолчанию 1)
+        shape:  (height, width) of the image
+        margin: extra padding in pixels (default 1)
     Returns:
-        отфильтрованный массив blobs
+        the filtered blob array
     """
     h, w = shape
     y, x, sigma = blobs[:, 0], blobs[:, 1], blobs[:, 2]
     radius_px = sigma * np.sqrt(2)
 
     valid = (
-        (y - radius_px >= margin)  # верхний край
-        & (y + radius_px <= h - margin)  # нижний край
-        & (x - radius_px >= margin)  # левый край
-        & (x + radius_px <= w - margin)  # правый край
+        (y - radius_px >= margin)  # top edge
+        & (y + radius_px <= h - margin)  # bottom edge
+        & (x - radius_px >= margin)  # left edge
+        & (x + radius_px <= w - margin)  # right edge
     )
 
     return blobs[valid]

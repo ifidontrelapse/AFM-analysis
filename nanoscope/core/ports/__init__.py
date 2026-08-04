@@ -22,7 +22,6 @@ The rest ship with their first adapter, each with the task that brings one:
 
 | Port | Arrives with | Task |
 |---|---|---|
-| `LogSink` | the structured logger replacing 13 `print` calls | M2-T11 |
 | `ImageLoader` | a loader class, once `application` has a use case that needs one | M2-T10 / M6 |
 | `Segmenter` | the first SAM2 wrapper that is a class rather than a function | M4 |
 | `DeviceProvider` | `DeviceManager` — CPU / CUDA / ROCm / MPS | M4-T12 |

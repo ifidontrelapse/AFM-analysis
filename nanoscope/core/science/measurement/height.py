@@ -15,22 +15,26 @@ helper would be filing, not structure.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 from scipy.ndimage import binary_dilation
 from skimage.filters import threshold_otsu
 
+logger = logging.getLogger(__name__)
+
 
 def create_circular_mask(shape: tuple, cy: int, cx: int, radius: float) -> np.ndarray:
     """
-    Булева маска - диск радиуса radius с центром (cy, cx).
+    Boolean mask: a disk of the given radius centred on (cy, cx).
 
     Args:
-        shape:  (height, width) изображения
-        cy, cx: центр в пикселях
-        radius: радиус в пикселях
+        shape:  (height, width) of the image
+        cy, cx: centre, in pixels
+        radius: radius, in pixels
     Returns:
-        булева маска shape
+        a boolean mask of that shape
     """
     y, x = np.ogrid[: shape[0], : shape[1]]
     return ((x - cx) ** 2 + (y - cy) ** 2) <= radius**2
@@ -40,28 +44,28 @@ def get_clean_ring(
     mask_particle: np.ndarray, substrate_mask: np.ndarray, outer_px: int, inner_erode_px: int
 ) -> np.ndarray:
     """
-    Кольцо вокруг частицы очищенное от соседних частиц.
+    A ring around a particle, cleared of neighbouring particles.
 
-    Геометрическое кольцо = dilation(mask) - erosion(mask).
-    Очистка = оставляем только пиксели подложки (substrate_mask).
-    Это автоматически убирает и задетектированных и незадетектированных соседей.
+    The geometric ring is dilation(mask) - erosion(mask); clearing it means
+    keeping only substrate pixels (substrate_mask). That removes neighbours
+    whether or not they were detected.
 
     Args:
-        mask_particle:   булева маска текущей частицы
-        substrate_mask:  True там где подложка (z_above < otsu_threshold)
-        outer_px:        ширина кольца наружу в пикселях
-        inner_erode_px:  отступ от края маски внутрь (уходим со склона)
+        mask_particle:   boolean mask of this particle
+        substrate_mask:  True where the substrate is (z_above < otsu_threshold)
+        outer_px:        outward ring width, in pixels
+        inner_erode_px:  inward margin from the mask edge, to clear the slope
     Returns:
-        булева маска чистого кольца
+        a boolean mask of the cleaned ring
     """
-    # Расширяем маску на inner_erode_px — уходим со склона
+    # Grow the mask by inner_erode_px to get off the particle slope
     mask_expanded = binary_dilation(mask_particle, iterations=inner_erode_px)
 
-    # Кольцо строим от расширенной маски
+    # Build the ring from the grown mask
     outer = binary_dilation(mask_expanded, iterations=outer_px)
     ring = outer & ~mask_expanded
 
-    # Убираем соседей
+    # Remove neighbours
     clean_ring = ring & substrate_mask
 
     return clean_ring
@@ -77,29 +81,29 @@ def measure_height(
     min_ring_px: int = 5,
 ) -> dict:
     """
-    Измерение высоты одной частицы.
+    Measure the height of a single particle.
 
-    height = max(Z внутри маски) - median(Z в чистом кольце)
+    height = max(Z inside the mask) - median(Z in the cleaned ring)
 
-    Baseline берём из z_flat — физически правильные нанометры.
-    Если кольцо слишком маленькое (плотная упаковка) — используем
-    глобальный baseline (медиана всей подложки).
+    The baseline comes from z_flat, so the result is in physical nanometres.
+    If the ring is too small — dense packing — the global baseline is used
+    instead (the median of the whole substrate).
 
     Args:
-        z_flat:          выровненная Z-карта в нм
-        mask_particle:   булева маска частицы
-        substrate_mask:  True = подложка (z_above < otsu_threshold)
-        global_baseline: медиана подложки всего изображения (fallback)
-        outer_px:        ширина кольца наружу
-        inner_erode_px:  отступ от края маски внутрь
-        min_ring_px:     минимум пикселей в кольце для надёжного baseline
+        z_flat:          levelled Z map, in nm
+        mask_particle:   boolean mask of the particle
+        substrate_mask:  True where the substrate is (z_above < otsu_threshold)
+        global_baseline: median substrate of the whole image (fallback)
+        outer_px:        outward ring width
+        inner_erode_px:  inward margin from the mask edge
+        min_ring_px:     minimum ring pixels for a trustworthy baseline
 
     Returns:
         dict: height_nm, baseline_nm, area_px, ring_px, baseline_source
     """
     clean_ring = get_clean_ring(mask_particle, substrate_mask, outer_px, inner_erode_px)
 
-    # Выбираем baseline
+    # Choose the baseline
     if clean_ring.sum() >= min_ring_px:
         baseline = float(np.median(z_flat[clean_ring]))
         baseline_source = "ring"
@@ -129,31 +133,35 @@ def measure_all_baseline(
     min_ring_px: int = 5,
 ) -> pd.DataFrame:
     """
-    Измерение высот всех частиц baseline методом (круговые маски).
+    Measure every particle's height with the baseline method (circular masks).
 
-    Круговая маска строится по sigma из LoG:
+    The circular mask is built from the LoG sigma:
         radius_px = sigma * sqrt(2)
 
     Args:
-        z_flat:          выровненная Z-карта в нм
+        z_flat:          levelled Z map, in nm
         z_above:         z_flat - substrate
-        blobs:           результат detect_particles (N, 4) [y, x, sigma, radius_nm]
-        outer_px:        ширина кольца
-        inner_erode_px:  отступ от края маски
-        min_ring_px:     минимум пикселей в кольце
+        blobs:           detect_particles output, (N, 4) [y, x, sigma, radius_nm]
+        outer_px:        ring width
+        inner_erode_px:  margin from the mask edge
+        min_ring_px:     minimum ring pixels
 
     Returns:
-        DataFrame с результатами для каждой частицы
+        DataFrame with one row per particle
     """
-    # Substrate mask — один раз на всё изображение
-    # Содержит ВСЕ частицы включая незадетектированные
+    # Substrate mask — computed once for the whole image. It accounts for ALL
+    # particles, including the ones detection missed.
     otsu_thresh = threshold_otsu(z_above)
     substrate_mask = z_above < otsu_thresh
     global_baseline = float(np.median(z_flat[substrate_mask]))
 
-    print(f"   Global baseline:  {global_baseline:.3f}")
-    print(f"   Otsu threshold:   {otsu_thresh:.3f}")
-    print(f"   Substrate pixels: {substrate_mask.sum()} / {substrate_mask.size}")
+    logger.debug(
+        "global baseline %.3f, Otsu threshold %.3f, substrate %d/%d px",
+        global_baseline,
+        otsu_thresh,
+        substrate_mask.sum(),
+        substrate_mask.size,
+    )
 
     results = []
 
@@ -163,10 +171,10 @@ def measure_all_baseline(
         x_i = int(round(x))
         radius_px = sigma * np.sqrt(2)
 
-        # Круговая маска по радиусу из LoG
+        # Circular mask, radius from LoG
         mask = create_circular_mask(z_flat.shape, y_i, x_i, radius_px)
 
-        # Граничные частицы — маска выходит за пределы изображения
+        # Edge particles — the mask runs past the image bounds
         if mask.sum() < 4:
             continue
 
@@ -174,7 +182,7 @@ def measure_all_baseline(
             z_flat, mask, substrate_mask, global_baseline, outer_px, inner_erode_px, min_ring_px
         )
 
-        # Отбрасываем отрицательные высоты — артефакты
+        # Discard negative heights — they are artefacts
         if metrics["height_nm"] <= 0:
             continue
 
