@@ -73,7 +73,7 @@ obvious without bisecting.
 - [x] mypy: `nanoscope` **0 errors** under the strict override; `src` 21, not the 22
       predicted — one of them was `src/types.py:63`, which left with the move and is now
       the scoped D-16 ignore in `nanoscope/core/entities/detection.py`
-- [ ] CI green — pushed; ticked when the run lands
+- [x] CI green — run 16
 - [x] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md` updated
 - [x] Commits: `M2-T02: move the shared dataclasses into nanoscope.core.entities` and
       `M2-T02: add the Modality, Polarity, PixelScale and DeviceKind value objects`

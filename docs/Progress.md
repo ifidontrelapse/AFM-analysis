@@ -77,6 +77,9 @@ measurement instead of failing.
   names, not types — which is exactly why the annotation tightening in commit 2 is safe and
   why adding a field would not have been.
 
+**CI green, run 16** — the golden is reproduced on a machine that is not the author's,
+which is the whole reason M1 built it.
+
 ### Next
 
 `M2-T03` — move `preprocess.py` into `core/science/preprocessing/`. The first move of
