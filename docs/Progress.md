@@ -7,6 +7,113 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T11…T14 · **The library stops shouting, speaks English, and installs**
+
+**Tasks:** `M2-T11` logging · `M2-T12` English-only · `M2-T13` dead code · `M2-T14`
+packaging. **Branch:** `feat/logging-english-deadcode-install`.
+**Scientific impact:** **zero numbers moved**, and for the first time that is a claim the
+golden had to be *re-baselined* to make. 115 tests, `make check` green.
+
+### M2-T11 — and the port that should not exist (ADR-0013)
+
+The 13 `print` calls are gone. Each module has `logging.getLogger(__name__)`, messages use
+lazy `%`-formatting so the template survives into the record, and no library module
+configures logging — that decision belongs to the application.
+
+**The task asked for a `LogSink` port. There isn't one, and `ADR-0013` says why.** It would
+only ever wrap `logging`, whose `Handler` is already the extension point it was going to
+provide, whose `LogRecord` is already the structured payload, and whose handlers are already
+attached by the application rather than the library. The SQLite destination
+`Architecture.md` §3.1 describes becomes a `logging.Handler` in M6 and needs no abstraction
+in `core`. `ADR-0001`'s port list is amended.
+
+That is the second port removed from a plan written before the code existed. The pattern is
+worth naming: **the ports table was designed top-down, and two of its seven entries dissolve
+on contact with what the standard library already provides or with the fact that nothing
+implements them.**
+
+`tests/unit/test_logging.py`, 41 tests. The AST sweep is per-module and is the half that
+stays true for code nobody thought to test; the rest exercise real call paths through
+`caplog`, including the assertion that a caller who configures nothing gets silence.
+
+### M2-T12 — and the first declared golden change
+
+197 Russian lines across six modules translated. `grep -rn "[а-яА-ЯёЁ]"` over
+`nanoscope/`, `src/` and `tests/` returns **nothing**.
+
+`src/visualization.py` was translated in place even though it has not moved yet: it is one
+of the five modules the task names, and "it will move later" is not a reason to leave
+Russian in library code.
+
+**The golden diff is the argument for having a golden at all — six lines, not one of them a
+number:**
+
+```
+4× degenerate_inputs.*.build_substrate_map.error_message
+   'Otsu не нашёл ни одного объекта…' -> 'Otsu found no objects…'
+sem_bright_particles.log_detection_on_raw_image.stdout_lines: 8 -> 0
+tem_dark_particles.log_detection_on_raw_image.stdout_lines: 4 -> 0
+```
+
+The `stdout_lines` pair is M2-T11 arriving: **the golden records how much a function
+prints**, so replacing `print` with a logger is visible to it. Re-baselined with
+`capture.py --write`; the re-compare is clean.
+
+**The golden also caught a bug in M2-T11 before any human did.** The first version of the
+fallback warning read `"1%% of the image width"` — `%%` is only an escape when `logging`
+actually formats, which it does not when no arguments are passed, so users would have seen
+the doubled sign.
+
+### M2-T13 — four functions, not ten
+
+Deleted: `run_full_pipeline` (a wrapper that only forwarded), `plot_pipeline_result`,
+`plot_detections_histogram`, `make_synthetic_afm` (a `pass` stub). None had a caller in
+code, tests, notebooks or the golden.
+
+**The other six are kept, and reporting four is the finding rather than a shortfall.** The
+audit's "10 unreachable functions" counted callers; six of them are load-bearing for
+reasons a caller count cannot see:
+
+| Kept | Why |
+|---|---|
+| `load_microscopy_image` | 4 tests exercise it, and the audit itself calls it structural — it is the **only** file-loading entry point for SEM and TEM |
+| `estimate_log_threshold` | **The golden records its value on every phantom.** It is the baseline the adaptive variant was adopted against; deleting it deletes the comparison M3 needs if that adoption turns out wrong |
+| `run_preprocessing` | No caller, but it is the documented preprocessing entry point in `README` and `Development.md`, and M4 wires it into a use case |
+| `afm_viewer`, `plot_detections`, `YoloDetector.last_result` | Used by the notebooks M1-T09 deliberately kept |
+
+### M2-T14 — installable, and one honest half-measure
+
+`[build-system] hatchling`, `packages = ["nanoscope"]`. `src/` is deliberately not packaged:
+shipping it would publish `import src`, the exact collision ADR-0011 renamed the package to
+avoid. Verified against the built wheel — `py.typed` included, no `src/`, 37 modules.
+
+**The `pythonpath` hack is half gone, and the remaining half is now written down rather than
+inherited.** The `"src"` entry was the real hack: it put `src/` itself on the path, so
+`import types` and `import pipeline` resolved to project modules and shadowed the standard
+library. Deleted. `"."` stays because the shims and the characterization harness still
+import `src.*`; M2-T15 removes both together.
+
+Worth knowing before M2-T15: **CI does not install the project.** `uv sync --only-group ci`
+installs the group and not the project — deliberately, since installing it would resolve
+torch and undo M1-T08's CPU-only environment — so in CI `nanoscope` also resolves through
+that `"."` entry. Confirmed by building the CI environment in a scratch venv: `nanoscope`
+absent from its `site-packages`, torch absent, suite passing.
+
+### The ignore list shrank, which was the point of dating it
+
+`nanoscope/` ruff findings with the ignores switched off: **64 → 13**. `T201` (M2-T11),
+`RUF001`/`RUF003` (M2-T12) and the whole `loaders.py` entry are deleted from
+`pyproject.toml`. What remains is one real defect signature (`RUF013`, implicit Optional)
+and three cosmetics that M3 takes when it touches the code anyway.
+
+### Next
+
+`M2-T15` — delete the `src/` shims. Every caller must move to `nanoscope` first, including
+the characterization harness and the two notebooks. Then `M2-T16` refreshes
+`PROJECT_CONTEXT.md` and M2 is done.
+
+---
+
 ## 2026-08-04 — M2-T09 · M2-T10 · **The layout is now enforced, and the rules are checked first**
 
 **Tasks:** `M2-T09` import cycles + import-graph test · `M2-T10` the capability matrix.

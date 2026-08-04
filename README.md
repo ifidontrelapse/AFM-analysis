@@ -132,7 +132,6 @@ AFM-analysis/
 | Function | Description |
 |---|---|
 | `load_afm(file_path, fmt)` | Load an AFM file. `fmt="spm"` returns `(scan_size_nm, pixel_size_nm, z)`; `fmt="npy"` returns `z`. |
-| `make_synthetic_afm(size, n_particles, seed)` | Planned — not yet implemented. |
 
 `load_afm` with `fmt="spm"` calls `_read_nanoscope_z`, which parses the Bruker Nanoscope header, extracts the Z-scale calibration (`Zsens` + `@2:Z scale`), and returns calibrated float32 heights in nanometres.
 
@@ -172,7 +171,6 @@ AFM-analysis/
 | `plot_afm(ax, z, scan_size_nm, ...)` | Static AFM height map on a matplotlib axis. |
 | `afm_viewer(z, scan_size_nm, ...)` | Interactive viewer with crosshair, hover tooltip, and two-point height profile. |
 | `plot_detections(z_above, blobs, pixel_size_nm, axes)` | LoG detection overlay (cyan circles). |
-| `plot_detections_histogram(blobs, axes)` | Radius histogram with median/mean lines. |
 
 ### `src/sam2_pipeline.py` — SAM 2 (experimental)
 
@@ -236,7 +234,7 @@ AFM-analysis/
 
 ## Known Limitations
 
-- `make_synthetic_afm()` is declared but not implemented (`pass`). Synthetic data for testing must be created manually.
+- `make_synthetic_afm()`, `plot_detections_histogram()` and `plot_pipeline_result()` were deleted in M2-T13 — a `pass` stub and two functions with no caller anywhere. Synthetic data for testing is built by `tests/characterization/phantoms.py`.
 - `load_afm(fmt="spm")` returns a 3-tuple `(scan_size_nm, pixel_size_nm, z)`, not a bare 2-D array as the docstring states.
 - `load_afm` docstring advertises `.ibw` and `.gwy` support; only `spm` and `npy` are implemented.
 - `detect_particles` normalises by `z_above.max()` — will divide by zero on an all-zero or negative-only map.

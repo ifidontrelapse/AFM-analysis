@@ -42,13 +42,16 @@ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_
 
 ### Today (library)
 
+> `run_full_pipeline` was deleted in M2-T13 — it only forwarded to `run_pipeline`.
+> The entities live in `nanoscope`; `src/` is re-export shims until M2-T15.
+
 ```python
+from nanoscope.core.entities import PipelineConfig
+from src.pipeline import run_pipeline
 from src.preprocessing_pipeline import run_preprocessing
-from src.pipeline import run_full_pipeline
-from src.types import PipelineConfig
 
 pre = run_preprocessing("data/sample.spm", fmt="spm")
-res = run_full_pipeline(pre, PipelineConfig(detector="log", mode="baseline"))
+res = run_pipeline(pre, PipelineConfig(detector="log", mode="baseline"))
 print(res.measurements.head())
 ```
 

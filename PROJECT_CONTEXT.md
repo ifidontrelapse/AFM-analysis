@@ -439,7 +439,7 @@ result = run_pipeline(data, cfg, predictor=None)
 Since M2-T10 every rejection above is raised **before a detector is constructed**, so an
 invalid combination costs nothing (audit D-14). The messages are unchanged.
 
-The convenience function `run_full_pipeline(pre, cfg, predictor=None)` is a thin wrapper around `run_pipeline` for AFM preprocessing results.
+`run_full_pipeline` was deleted in M2-T13: it only forwarded to `run_pipeline`, and nothing called it. Use `run_pipeline` directly.
 
 ## 10. Visualization and batch processing
 
@@ -448,8 +448,7 @@ File: `src/visualization.py`.
 - `plot_afm`: renders a height map with physical nm axes and optional colorbar.
 - `afm_viewer`: interactive matplotlib viewer with cursor readout and two-point height profile.
 - `plot_detections`: renders LoG circles and centres.
-- `plot_detections_histogram`: renders radius distribution with mean/median lines.
-- `plot_pipeline_result`: creates a two-panel detect figure or a three-panel segment figure with image/masks, radius histogram, and height histogram.
+- `plot_detections_histogram` and `plot_pipeline_result` were deleted in M2-T13 — no caller in code, tests or notebooks.
 - `afm_to_rgb` and `overlay_masks` live in `src/segmentation.py` and are used for mask visualization.
 
 `preprocess_batch.py` is a CLI that recursively finds files whose extensions are numeric (for example `.001`, `.002`), applies the SPM preprocessing sequence, and writes rendered `.jpg` maps while mirroring the input directory structure.
@@ -602,11 +601,11 @@ Preferred high-level preprocessing call:
 
 ```python
 from src.preprocessing_pipeline import run_preprocessing
-from src.pipeline import run_full_pipeline
+from src.pipeline import run_pipeline
 from src.types import PipelineConfig
 
 pre = run_preprocessing("data/sample.spm", fmt="spm")
-result = run_full_pipeline(pre, PipelineConfig(detector="log", mode="baseline"))
+result = run_pipeline(pre, PipelineConfig(detector="log", mode="baseline"))
 ```
 
 For `mode="segment"`, initialize a compatible `SAM2ImagePredictor` separately and pass it as `predictor`.

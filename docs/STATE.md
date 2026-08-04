@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/import-graph-and-capabilities` · **Base commit:** `4b653e6`
+**Last updated:** 2026-08-04 · **Branch:** `feat/logging-english-deadcode-install` · **Base commit:** `a42bdd5`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -20,11 +20,10 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T11` — structured logging.** Status: **selected, not started**. Replaces the 13
-`print` calls in library code (D-23) and brings the **first port to ship with its adapter**,
-`LogSink` — the pattern M2-T08 committed to. It also deletes the `T201` entry from the
-science ruff-ignore list. `docs/CURRENT_TASK.md` describes the finished M2-T09/T10 pair and
-is rewritten when M2-T11 starts.
+**`M2-T15` — delete the `src/` shims.** Status: **selected, not started**. Every caller
+moves to `nanoscope` first: the characterization harness, `tests/unit/test_afm_io.py`, and
+the two notebooks. The `pythonpath = ["."]` entry goes with them. `docs/CURRENT_TASK.md`
+describes the finished M2-T11…T14 batch and is rewritten when M2-T15 starts.
 
 ---
 
@@ -107,6 +106,20 @@ is rewritten when M2-T11 starts.
   `application/capabilities.py` and **fixed D-14**: validation now runs before any detector
   is constructed, with byte-identical messages. 12 tests carry it, because the golden never
   calls `run_pipeline`.
+
+- **M2-T11…T14** ✅ (2026-08-04) — the library stopped printing, started speaking English,
+  shed four dead functions and became installable. **Zero numbers moved**, and for the first
+  time that took a *declared* golden re-baseline: 6 changed lines, none of them numeric —
+  4 translated exception messages plus `stdout_lines` 8→0 and 4→0, because the golden
+  records how much a function prints. **It also caught a bug in M2-T11 before any human
+  did** (`"1%%"` is only an escape when `logging` formats, which it does not without args).
+  **No `LogSink` port — ADR-0013**: it would only wrap `logging`, whose `Handler` is already
+  the extension point. That is the second of seven planned ports to dissolve on contact with
+  reality. **M2-T13 deleted 4 of the audit's 10 "unreachable" functions and kept 6** —
+  `estimate_log_threshold` is recorded by the golden, `load_microscopy_image` is the only
+  SEM/TEM entry point, three are used by the notebooks. `nanoscope` is now a real wheel
+  (`py.typed` in, `src/` out) and the `pythonpath` hack is half deleted. Ruff findings inside
+  `nanoscope/` with ignores off: **64 → 13**.
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -217,10 +230,10 @@ is rewritten when M2-T11 starts.
 
 ## In progress
 
-Nothing. M2-T01…T10 are done; **M2-T11 is selected, not started**.
+Nothing. M2-T01…T14 are done; **M2-T15 is selected, not started** — two tasks left in M2.
 
-**Repository state:** `main` is at `4b653e6` and carries all of M0, all of M1 and
-M2-T01…T08. M2-T09/T10 are on `feat/import-graph-and-capabilities`. CI on `main` is green: **216 s**, of which `make test`
+**Repository state:** `main` is at `a42bdd5` and carries all of M0, all of M1 and
+M2-T01…T10. M2-T11…T14 are on `feat/logging-english-deadcode-install`. CI on `main` is green: **216 s**, of which `make test`
 is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
 green for the right reason.
 
@@ -285,7 +298,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **74, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **115, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **8 of 12** (shims left behind) | 12 | `git ls-files src` |
 | ruff findings, legacy core | **20** in `src/` + **64** declared-and-owned in `nanoscope/` (was 109 + 0) | 0 | `make lint-legacy` |
@@ -294,8 +307,8 @@ None of the remaining questions blocks M1 or M2.
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
-| `print` calls in library code | 13 | 0 | audit D-23 |
-| Non-English lines in library code | 197 | 0 | audit D-22 |
+| `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
+| Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |
 | Lint/type/test gate | **green end to end** ✅ — hooks on commit, CI on push | stays green | GitHub Actions |
 | The gate has one definition | **yes** ✅ — `make check`, and CI calls the same targets | one | `Makefile` |
 | Tracked files over 1 MB | **2** ❌ — two README figures, B-054 | 0 | `git ls-files` + `ls -l` |
