@@ -26,15 +26,30 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M3-T01` — fix `build_substrate_map(manual_radius_px=...)`.** Status: **in progress**.
-`opening_radius` is never assigned on the manual branch, so the call raises
-`UnboundLocalError` **100% of the time** (D-01, critical). The golden already records that
-exception, so the fix appears as a declared change rather than a surprise. First numerical
-change in the project.
+**`M3-T03` — YOLO input: normalise *then* cast.** Status: **selected, not started**.
+Preparation currently casts to `uint8` before normalising, so **only 12.6% of the dynamic
+range survives** (D-03, critical). Unlike M3-T01 this one is covered by the golden's
+`yolo_input_preparation` block on all 8 phantoms, so the before/after is a numeric delta
+rather than an exception disappearing.
+
+**Three M3 tasks are blocked on operator decisions** and cannot start: B2/M3-T02
+(`min_size_nm` semantics), B4/M3-T09 (opening-radius rounding), B3/M3-T10 (TEM polarity).
 
 ---
 
 ## Completed
+
+### M3 — Numerical correctness (in progress)
+
+- **M3-T01** ✅ (2026-08-04, **ADR-0014**) — **D-01 fixed**: `build_substrate_map`'s
+  manual-radius branch raised `UnboundLocalError` on **100% of calls** since it was
+  written, because the shared `return` read a variable only the other branch bound. The fix
+  is one line — `opening_radius = manual_radius_px` — and it deliberately applies **no
+  rounding and no floor**: both would pre-empt open decision B4 (M3-T09) or silently
+  override an explicit request. Delta: **50 golden differences, every one under
+  `build_substrate_map_manual`**; the automatic path is untouched. The harness now records
+  the branch's returned arrays instead of only its failure — otherwise the fix would have
+  left it less characterized than while broken. 6 tests; restoring the bug turns 5 red.
 
 ### M2 — Domain extraction ✅ (closed 2026-08-04)
 
@@ -245,7 +260,7 @@ change in the project.
 
 ## In progress
 
-**M2 is closed.** `M3-T01` is in progress on the same branch as M2-T15/T16.
+**M2 is closed and M3 has started.** M3-T01 is done; **M3-T03 is selected, not started**.
 
 **Repository state:** `main` is at `8229f06` and carries all of M0, M1 and M2-T01…T14.
 M2-T15/T16 are on `feat/delete-src-shims`. CI on `main` is green: **216 s**, of which `make test`
@@ -311,14 +326,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **119, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **125, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **20**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
-| Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
+| Open defects | **27** (was 28) — D-01 closed by M3-T01 | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

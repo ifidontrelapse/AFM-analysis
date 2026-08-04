@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M3-T01`
+**Updated:** 2026-08-04 · **Active:** `M3-T03`
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -76,7 +76,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 | ID | Task | Defect | Severity | Status |
 |---|---|---|---|---|
-| M3-T01 | Fix `build_substrate_map(manual_radius_px=...)` — `UnboundLocalError` on 100% of calls | D-01 | critical | [ ] |
+| M3-T01 | Fix `build_substrate_map(manual_radius_px=...)` — `UnboundLocalError` on 100% of calls | D-01 | critical | [x] Done 2026-08-04, **ADR-0014**. One line: `opening_radius = manual_radius_px`, the value actually passed to the opening. **No rounding, no floor** — both would pre-empt B4/M3-T09 and M3-T13. Delta: **50 golden differences, all under `build_substrate_map_manual`** (10 fields × 5 phantoms); the automatic path 100% of real callers use is untouched. The harness was extended in the same commit to record the returned arrays, or fixing the defect would have left the branch *less* characterized than while broken. 6 tests; restoring the bug turns 5 red |
 | M3-T02 | Fix `min_size_pixel` flooring to zero on 90% of real scans | D-04 | critical | [!] needs operator decision |
 | M3-T03 | Fix YOLO input: normalise **then** cast (12.6% of dynamic range currently survives) | D-03 | critical | [ ] |
 | M3-T04 | Aspect-ratio-preserving YOLO letterbox; isotropic box rescale | D-21 | medium | [ ] |

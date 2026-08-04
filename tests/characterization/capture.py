@@ -184,11 +184,28 @@ def capture_preprocessing(ph: phantoms.Phantom) -> dict:
     else:
         out["build_substrate_map"] = r
 
-    # The manual-radius branch is a known defect (D-01); record the failure.
-    out["build_substrate_map_manual"] = _record(
-        build_substrate_map, z_flat, ph.pixel_size_nm, 5, 15
-    )
-    out["build_substrate_map_manual"].pop("value", None)
+    # The manual-radius branch raised UnboundLocalError on 100% of calls until
+    # M3-T01 (D-01, ADR-0014). It returns now, so record what it returns —
+    # otherwise fixing the defect would leave this branch less characterized than
+    # it was while broken.
+    rm = _record(build_substrate_map, z_flat, ph.pixel_size_nm, 5, 15)
+    if rm["ok"]:
+        substrate_m, z_above_m, opening_radius_m, sizes_m = rm["value"]
+        out["build_substrate_map_manual"] = {
+            "ok": True,
+            "substrate": _array_digest(substrate_m),
+            "z_above": _array_digest(z_above_m),
+            "opening_radius": _num(opening_radius_m),
+            "opening_radius_type": type(opening_radius_m).__name__,
+            "sizes": {
+                "typical_radius_px": _num(sizes_m["typical_radius_px"]),
+                "n_radii_kept": len(sizes_m["radii_px"]),
+                "otsu_threshold": _num(sizes_m["otsu_threshold"]),
+            },
+            "manual_radius_px_requested": 15,
+        }
+    else:
+        out["build_substrate_map_manual"] = rm
     return out
 
 

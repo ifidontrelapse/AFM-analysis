@@ -7,6 +7,87 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M3-T01 · **D-01 fixed: the manual-radius branch runs for the first time**
+
+**Task:** `M3-T01`. **Branch:** `feat/delete-src-shims` (shared with M2's last two).
+**ADR:** **ADR-0014**. **Defect:** D-01, critical.
+**This is the first numerical change in the project**, and M3's rules apply: its own commit,
+its own ADR, its own golden update, and the quantified delta below.
+
+### The defect
+
+`build_substrate_map` has two branches. The automatic one assigns `opening_radius`; the
+manual one — taken whenever a caller passes `manual_radius_px` — computes the substrate and
+then falls into a shared `return` that reads a variable it never bound.
+
+**`UnboundLocalError`, on 100% of calls, on every input, since the branch was written.** Not
+an edge case: the parameter has never worked. The golden already recorded the exception for
+all five AFM phantoms, which is why the fix shows up as a declared change rather than a
+surprise.
+
+### The fix, and the two decisions it refuses to make
+
+One line: `opening_radius = manual_radius_px`, the value actually passed to
+`get_substrate_map`. The field is documented as "the radius finally used", and on this
+branch that is the caller's value by definition.
+
+**No rounding and no floor**, though the automatic branch applies both (`max(int(...), 5)`):
+
+- Rounding a half-integer radius is **open decision B4 / M3-T09** — `disk(4.5)` has no
+  centre pixel and shifts `z_result` by half a pixel. Choosing here would pre-empt a physics
+  decision that belongs to the operator.
+- Applying the floor would silently override an explicit request. A caller who asks for 3
+  and receives 5 has been lied to; if 3 is wrong, that is a validation error (M3-T13).
+
+ADR-0014 records both, including the cost: `opening_radius` is now `int` on one branch and
+the caller's type on the other, which is untidy and is precisely what M3-T09 resolves.
+
+### The quantified delta
+
+**50 golden differences, every one of them under `build_substrate_map_manual`** — 10 fields
+× 5 AFM phantoms. Nothing else in the file moved, which is the claim that matters: the path
+100% of real callers use is untouched.
+
+| Phantom | `opening_radius` | substrate mean / std |
+|---|---|---|
+| `afm_coarse_pixels` | 15 (int) | −1.7860 / 0.9750 |
+| `afm_dense_overlapping` | 15 (int) | −1.9941 / 0.8875 |
+| `afm_flat_monodisperse` | 15 (int) | −1.2760 / 0.6384 |
+| `afm_sparse_low_snr` | 15 (int) | −2.6203 / 0.1917 |
+| `afm_tilted_polydisperse` | 15 (int) | −2.1305 / 1.3381 |
+
+Before: `{"ok": false, "error_type": "UnboundLocalError"}` for each.
+
+**The harness was extended in the same commit.** It used to record only the failure and
+discard the value; now it records the returned arrays, the radius and its type. Without
+that, fixing the defect would have left this branch *less* characterized than it was while
+broken — the golden would have said `ok: true` and nothing else.
+
+### Verified
+
+`tests/unit/test_substrate.py`, 6 tests, and the ones that matter are not "it returns":
+
+- **a different radius produces a different substrate** — guards against the fix being
+  cosmetic, i.e. binding the variable without the radius reaching the opening;
+- **the automatic branch is untouched** — the path everyone actually uses;
+- **both branches agree when given the same radius**, to `rtol=1e-6`, which is what makes
+  them the same operation differing only in how the radius is chosen.
+
+Restoring the bug turns **5 of 6 red**.
+
+### Next
+
+`M3-T03` — YOLO input preparation normalises *after* casting to `uint8`, so only 12.6% of
+the dynamic range survives (D-03, critical). Unlike this one it is covered by the golden's
+`yolo_input_preparation` block on all 8 phantoms, so the before/after is a numeric delta
+rather than an exception disappearing.
+
+**Three M3 tasks are blocked on operator decisions** and cannot be started: `min_size_nm`
+semantics (B2/M3-T02), opening-radius rounding (B4/M3-T09), TEM detection polarity
+(B3/M3-T10). They are physics questions.
+
+---
+
 ## 2026-08-04 — M2-T15 · M2-T16 · **`src/` is gone, and M2 closes**
 
 **Tasks:** `M2-T15` delete the shims · `M2-T16` refresh `PROJECT_CONTEXT.md`.

@@ -1,9 +1,15 @@
 # CURRENT TASK
 
-**ID:** `M2-T11` · `M2-T12` · `M2-T13` · `M2-T14`
-**Title:** Logging, English-only, dead code, packaging (batched)
-**Milestone:** M2 — Domain extraction (behaviour-preserving)
-**Status:** **done 2026-08-04** — all four. Rewritten for `M2-T15` at the start of the next
+**ID:** `M2-T15` · `M2-T16` · `M3-T01`
+**Title:** Delete `src/`, refresh the map, fix D-01
+**Milestone:** M2 closed · M3 — Numerical correctness, first task
+**Status:** **done 2026-08-04** — all three, and **M2 is closed**. Rewritten for `M3-T03` at
+the start of the next session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
+
+> **M3-T01 is the first numerical change in the project.** It has its own ADR (**ADR-0014**),
+> its own golden update and a quantified delta — 50 differences, every one confined to the
+> branch that was broken. Two decisions it deliberately did *not* make are B4/M3-T09
+> (radius rounding) and M3-T13 (validation); both would have been easy to smuggle in.
 session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 > Two scope calls to review: **M2-T11 shipped no `LogSink` port** (`ADR-0013` — the
@@ -18,7 +24,7 @@ session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 > implementation and no caller, and each now has a named task that brings it with its
 > first adapter. If that call is wrong, the fix is to say so and write them; nothing else
 > in the milestone depends on the outcome.
-**Branch to use:** `feat/logging-english-deadcode-install`
+**Branch to use:** `feat/delete-src-shims`
 **Estimated size:** M
 **Risk to scientific output:** **the golden cannot see most of it.** YOLO and SAM2 are not
 in the characterization baseline — model inference is excluded from the gate by

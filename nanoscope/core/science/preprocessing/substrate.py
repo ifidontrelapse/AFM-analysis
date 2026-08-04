@@ -3,15 +3,15 @@
 Moved verbatim from `src/preprocess.py` in M2-T03. Same algorithms, same
 constants, same order; the golden is the proof. Only whitespace changed.
 
-Three known defects travel with this code and are deliberately **not** fixed here,
-because each moves a number the golden records:
+Two known defects still travel with this code and are deliberately **not** fixed
+here, because each moves a number the golden records:
 
-- `build_substrate_map` leaves `opening_radius` unbound on the manual-radius
-  branch — it is only assigned in the `else`. M3 owns it.
 - `min_size_pixel=int(min_size_nm / pixel_size_nm)` is 0 for any scan coarser than
   5 nm/px, which disables the noise filter — audit **D-04**, open decision **B2**.
-- `estimate_rough_radius` is annotated `-> int` and can return a float; its
-  `print` is a library call that M2-T11 replaces with a log sink.
+- `estimate_rough_radius` is annotated `-> int` and can return a float.
+
+D-01 — `opening_radius` unbound on the manual branch — was fixed in **M3-T01**
+(**ADR-0014**). It is the one defect here that is closed.
 """
 
 from __future__ import annotations
@@ -153,7 +153,8 @@ def build_substrate_map(
     """
     # Radius supplied by the caller
     if manual_radius_px is not None:
-        substrate = get_substrate_map(z, manual_radius_px)
+        opening_radius = manual_radius_px
+        substrate = get_substrate_map(z, opening_radius)
         z_above = z - substrate
         sizes = estimate_radius_otsu(
             z_above, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm)
