@@ -22,4 +22,10 @@ class Detection:
     radius_px: float
     radius_nm: float
     confidence: float = 1.0
-    bbox: tuple[int, int, int, int] = field(default_factory=tuple)  # x1,y1,x2,y2
+    # `type: ignore` and not a fix: `default_factory=tuple` genuinely disagrees
+    # with the annotation, and mypy saying so *is* D-16. Correcting it changes
+    # `default_detection_bbox_len`, which the golden records, so it belongs to M3
+    # with a declared numerical delta — not to a move that must shift nothing.
+    # `warn_unused_ignores = true`, so this line becomes an error the moment M3
+    # fixes the defect. It expires itself.
+    bbox: tuple[int, int, int, int] = field(default_factory=tuple)  # type: ignore[assignment]  # D-16

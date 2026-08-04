@@ -11,7 +11,7 @@ design, not an endorsement; revisit it with the import-weight work in M2-T09.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -45,7 +45,9 @@ class PipelineConfig:
 @dataclass
 class PipelineResult:
     detections: list[Detection]
-    masks: list[dict]  # empty if mode="detect"
+    # `dict[str, Any]`: a mask entry mixes ndarrays with floats under string
+    # keys (`src/segmentation.py`). Was `list[dict]` before the move.
+    masks: list[dict[str, Any]]  # empty if mode="detect"
     measurements: pd.DataFrame  # empty if mode="detect"
     pixel_size_nm: float | None  # None if nm_per_pixel was unknown
     detector_name: str

@@ -8,7 +8,7 @@ copy, not a tidy-up.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 
@@ -30,7 +30,11 @@ class PreprocessingResult:
     substrate: np.ndarray  # estimated substrate surface
     pixel_size_nm: float  # nm/pixel
     scan_size_nm: float  # full scan size in nm
-    sizes: dict  # output of estimate_radius_otsu
+    # `estimate_radius_otsu` returns floats, ints and ndarrays under string keys,
+    # so `Any` is the honest value type, not a placeholder. Was a bare `dict`
+    # before the move; `disallow_any_generics` is on for `nanoscope.*`, and an
+    # annotation is not a number — the golden records field names, not types.
+    sizes: dict[str, Any]  # output of estimate_radius_otsu
     opening_radius: int  # morphological opening radius used
 
 
