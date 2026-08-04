@@ -16,9 +16,10 @@ Exit criteria in `docs/Roadmap.md`.
 
 ## Current task
 
-**`M1-T09` — Clean notebooks**
+**`M1-T10` — Add a one-command gate**
 
-Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
+Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**. It is the last
+task in M1.
 
 ---
 
@@ -82,6 +83,13 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
   **Python 3.14**, which reworded `too many values to unpack`; 3.12 is now pinned and
   asserted. **Run 4 is green.** The underlying fragility — the golden stores CPython
   exception text — is filed as **B-058** and needs an ADR, not a quiet edit.
+- **M1-T09** ✅ (2026-08-04) — notebook outputs stripped with the configured hook:
+  **8.3 MB → 32 KB**, every one of the 45 code cells intact, and the outputs remain in git
+  history. Both notebooks moved to `notebooks/` with a README stating they are experiments,
+  that nothing may import them, and how to recover the outputs. `main.ipynb` — a tracked
+  **0-byte file that was not valid JSON** (audit §330) — deleted. Tracked working tree
+  17 MB → **7.8 MB**. **`pre-commit run --all-files` is green for the first time**; the
+  last red was a missing final newline in one archived document.
 
 ### M0 — Engineering foundation (2026-08-03)
 
@@ -107,8 +115,7 @@ Full detail in `docs/CURRENT_TASK.md`. Status: **selected, not started**.
 
 ## In progress
 
-Nothing. M1-T08 closed — CI is green on `ubuntu-latest` after four runs; M1-T09 selected
-and awaiting execution.
+Nothing. M1-T09 closed; **M1-T10 is the last task in M1**.
 
 **Two things to know about the repository state:**
 
@@ -142,8 +149,7 @@ None of these blocks M1-T01 or the rest of M1.
    locally verified, but no GitHub run exists. Operator's call
 2. **Execute `M1-T09`** — notebooks; `pre-commit run --all-files` is still red on the two
    committed ones, which is M1-T09's property, not a bug in the hooks
-3. `M1-T10` — `make check`
-4. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
+3. Answer **B1** so that M2 can start on schedule — it is now the only thing blocking it
 
 ---
 
@@ -151,7 +157,8 @@ None of these blocks M1-T01 or the rest of M1.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **77** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked files | **78** ✅ (was 2 854) | < 100 | `git ls-files \| wc -l` |
+| Tracked working tree | **7.8 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |

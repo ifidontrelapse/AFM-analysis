@@ -1,32 +1,28 @@
 # CURRENT TASK
 
-**ID:** `M1-T09`
-**Title:** Clean notebooks
-**Milestone:** M1 — Repository hygiene & quality gates
+**ID:** `M1-T10`
+**Title:** Add a one-command gate
+**Milestone:** M1 — Repository hygiene & quality gates — **last task**
 **Status:** selected — not started
-**Branch to use:** `chore/notebooks`
-**Estimated size:** S, unless B5 says delete
-**Risk to scientific output:** none — no production path may import a notebook
+**Branch to use:** `chore/make-check`
+**Estimated size:** S
+**Risk to scientific output:** none — a wrapper around commands that already exist
 **Selected:** 2026-08-04
-**Partially blocked:** **B5** — see below
 
 ---
 
 ## Why this task is next
 
-Two notebooks account for **8.7 MB** of a repository whose entire tracked source is
-2 021 lines: `afm_gold_nanoparticles.ipynb` (6.5 MB) and `preprocessing.ipynb` (2.2 MB).
-Almost all of it is embedded output — base64 PNGs of plots, committed and re-committed
-every time a cell was run.
+Everything the gate needs now exists and passes: hooks refuse bad commits (M1-T07), CI runs
+the slow half on push (M1-T08), `pytest` is green including the golden (M1-T05, M1-T06), and
+`pre-commit run --all-files` is green across the repository (M1-T09).
 
-They are also the one thing `pre-commit run --all-files` is still red on (M1-T07, M1-T08).
-That red is currently correct and expected, which is the worst state for a gate to be in:
-a check that is known to fail teaches people to skim past it.
+What is missing is one place that says what "the gate" *is*. Today it is four commands in
+`docs/Development.md` §4, a hook list in `.pre-commit-config.yaml`, and a workflow in
+`.github/workflows/ci.yml`. Three descriptions of one thing, and they can drift — the M1-T08
+near-miss was exactly that (an exclusion declared in two files, nearly three).
 
-PROJECT_RULES §7 already decides the substance: notebooks are experiments, not interfaces;
-they live in `notebooks/`, they are committed without outputs, and no production code path
-may depend on them. `nbstripout` is installed and configured (M1-T07) but has never been
-run over the existing files.
+This closes M1.
 
 ---
 
@@ -34,69 +30,56 @@ run over the existing files.
 
 **In scope**
 
-1. Strip outputs from both committed notebooks with the already-configured `nbstripout`
-2. Move them to `notebooks/` — the directory M1-T01 deleted for being empty, now earning
-   its existence
-3. Add a short `notebooks/README.md`: what these are, that they are experiments, that
-   nothing may import them, and that outputs are stripped on commit
-4. Verify no production path imports or references them (`grep`, and check
-   `PROJECT_CONTEXT.md`)
-5. Measure and record the repository-size delta — tracked size before/after
-6. Confirm `pre-commit run --all-files` is **green** afterwards, or state precisely what
-   remains and why
-7. Check whether the notebooks still execute against current `src/` — **do not fix them if
-   they do not.** Record the finding; a broken experiment notebook is M2/M3 information,
-   not this task's problem
+1. A `Makefile` at the repository root with, at minimum:
+   - `check` — the full gate, in the order CI runs it
+   - `lint`, `format`, `types`, `test`, `golden` — the pieces, individually runnable
+   - `fast` — `pytest -m "not slow"`, the inner loop
+   - `help` — the default target; a bare `make` should list what exists, not run 200 s
+2. **CI calls the Makefile targets**, so that the workflow and the local gate cannot
+   describe different things. This is the point of the task, not a nicety
+3. Each target echoes the command it runs, so `make check` teaches the underlying commands
+   rather than hiding them
+4. `make check` must fail on the first failing step, with a non-zero exit code — verified
+   by breaking something on purpose
+5. Document it in `docs/Development.md` §4, replacing the four-command block that currently
+   stands in for it, and in `PROJECT_RULES.md` §6 if the wording there needs it
 
 **Out of scope**
 
-- Deleting the notebooks (**B5** — the operator's call, not the engineer's)
-- Rewriting notebook content, updating them to a new API, or making them run
-- `frontend/` and `preprocess_batch.py`, the other two parts of B5
-- Rewriting git history to reclaim the 8.7 MB already in it (see the note below)
-
----
-
-## The B5 question this task needs answered
-
-**Stripping outputs is safe and sanctioned by PROJECT_RULES §7 — that part needs no
-decision and should proceed regardless.** But stripping is only worth doing if the
-notebooks are staying. If B5 says *delete*, this task is one `git rm` and the rest is
-wasted work; if it says *archive*, they move to `docs/archive/` instead of `notebooks/`.
-
-Proposed default if no answer arrives: **strip and move to `notebooks/`**, because it is
-reversible and loses nothing. Deleting is not reversible from a working tree, and is the
-owner's decision.
-
-Worth knowing before deciding: stripping outputs shrinks the *working tree*, not the
-repository. The 8.7 MB is already in git history and stays there until someone rewrites it
-— which is backlog item B-040, not this task.
+- `just` instead of `make` — decide in one line, do not survey. `make` is present on every
+  Linux machine, which is the stated target platform
+- Adding new checks. This task wraps what exists; a target for coverage or `pre-commit` is a
+  separate decision
+- Fixing the `src/` findings the gate reports
 
 ---
 
 ## Definition of done
 
-- [ ] Both notebooks carry no outputs and no `execution_count`
-- [ ] Both live in `notebooks/`, with a `README.md` stating they are experiments
-- [ ] Nothing in `src/`, `tests/` or `docs/` references their old paths
-- [ ] `pre-commit run --all-files` green, or the remainder named and justified
-- [ ] Tracked-size delta measured and recorded
-- [ ] `pytest` still green; golden still zero drift (it must be — nothing importable moved)
-- [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md`, `docs/Development.md` §8 updated
-- [ ] Commit: `M1-T09: strip notebook outputs and move them to notebooks/`
+- [ ] `make` with no arguments prints the target list and runs nothing slow
+- [ ] `make check` runs the full gate and passes on a clean tree
+- [ ] `make check` **fails, with a non-zero exit, on the first broken step** — proven by
+      breaking one thing, observing red, reverting
+- [ ] Every individual target works alone
+- [ ] `.github/workflows/ci.yml` invokes the Makefile targets; a green CI run proves it
+- [ ] No command is described in two places any more — or, where it must be, the duplication
+      is named and justified in a comment
+- [ ] `docs/STATE.md`, `docs/Progress.md`, `docs/TASKS.md`, `docs/Development.md` updated
+- [ ] Commit: `M1-T10: add a one-command gate`
 
 ---
 
 ## Plan
 
-1. Branch `chore/notebooks`
-2. Record the before state: tracked size, per-notebook size, output cell counts
-3. `uv run nbstripout afm_gold_nanoparticles.ipynb preprocessing.ipynb`
-4. `git mv` both into `notebooks/`; write `notebooks/README.md`
-5. `grep -rn` for the old filenames across the repo; fix any reference
-6. Run `pre-commit run --all-files` — **from a clean tree**, per the warning in
-   `Development.md` §4
-7. Run the full gate; update docs; commit; advance `CURRENT_TASK.md` to `M1-T10`
+1. Branch `chore/make-check`
+2. Write the `Makefile`; keep it under ~40 lines — if it needs more, the gate is too clever
+3. Run every target individually, then `make check` whole
+4. Break one step deliberately; confirm a red, non-zero result; revert
+5. Point CI at the targets; push; confirm the run is green **and still installs the CPU-only
+   environment** — the assertion step must survive the refactor
+6. Update the docs; commit; push
+7. **Close M1**: write the milestone summary into `docs/Progress.md` against
+   `docs/Roadmap.md`'s exit criteria, and select the first M2 task — which needs **B1**
 
 ---
 
@@ -104,20 +87,25 @@ repository. The 8.7 MB is already in git history and stays there until someone r
 
 | Risk | Mitigation |
 |---|---|
-| **Stripping destroys results the operator still needs.** The outputs are plots of real experiments; some may not be reproducible without the original `data/` files. | Check before stripping whether either notebook contains a figure that is not regenerable from committed code plus local `data/`. If so, export it to `docs/` or `images/` as a file *before* stripping, and say so. This is the one irreversible part of the task. |
-| B5 is answered "delete" after the work is done | The work is 15 minutes and the strip is reversible via git. Do not over-invest; do not write tooling around it. |
-| A notebook is silently a production dependency | `grep` for imports of the notebook names and for `%run`. PROJECT_RULES §7 forbids it, but the rule postdates the notebooks. |
-| The 8.7 MB "reclaimed" is reported as a repository saving | It is not. History is unchanged; `.git` stays 81 MB. Report the working-tree delta only, and point at B-040. |
+| **The Makefile becomes a second, subtly different gate** — the exact failure this task exists to prevent | CI must call the targets, not re-list the commands. If a target cannot be used in CI, that is a finding to record, not something to work around silently. |
+| Make's tab-vs-spaces and shell-per-line semantics produce a target that silently does not fail | Every multi-command target uses `set -e` or `&&`. The deliberate-breakage check in the DoD is what proves it; a gate that cannot fail is the recurring theme of M1-T05, T06 and T08. |
+| `make check` runs the 200 s golden and people stop using it | `make fast` exists for the inner loop, documented beside it, exactly as `pytest -m "not slow"` is today. |
+| Overbuilding — parameterised targets, `.PHONY` hygiene theatre, colour output | ~40 lines. It is a list of commands with names. |
 
 ---
 
 ## Notes for the next session
 
-After T09 only **M1-T10** (`make check`) remains, and M1 closes.
+**This is the last task in M1.** After it, write the milestone summary and check it against
+the exit criteria in `docs/Roadmap.md`.
 
-Two things are carried, neither of them a task:
+**B1 — the package name — blocks M2-T01 and every M2 task after it.** It has been open
+since M0. M2 cannot start without it, so it should be answered while M1-T10 is being done,
+not after.
 
-- **CI is green** (M1-T08), after four runs that each failed differently. Worth reading
-  the entry in `Progress.md` before trusting a "verified locally" claim again.
-- **B1, the package name**, is the only thing blocking M2 — open since M0, and every M2
-  task depends on it.
+Also carried, neither of them a task:
+
+- **`main` is pushed and matches `chore/ci`'s history** — the M1 work is on the default
+  branch as of M1-T09
+- **B-058**: the golden is pinned to CPython's minor version, not just to the numerical
+  libraries. Needs an ADR before anyone upgrades Python.

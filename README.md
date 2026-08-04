@@ -114,8 +114,7 @@ AFM-analysis/
 │   └── sam2_pipeline.py   # SAM 2 helpers (AFM→RGB conversion, mask overlay)
 ├── notebooks/
 │   ├── afm_gold_nanoparticles.ipynb  # End-to-end analysis on real data
-│   ├── preprocessing.ipynb           # Preprocessing exploration
-│   └── sam2.ipynb                    # SAM 2 segmentation experiments
+│   └── preprocessing.ipynb           # Preprocessing exploration
 ├── preprocess_batch.py    # CLI batch processor
 ├── tests/
 │   └── test_io.py

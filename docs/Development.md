@@ -157,9 +157,9 @@ sixteen M2 relocation tasks. When the code moves to `nanoscope/`, its check is s
 blocking from the first line.
 
 `pre-commit run --all-files` is **not** run in CI. Its blocking content — ruff check and
-format — already runs directly with the same configuration, and `--all-files` is red on the
-two committed notebooks, which M1-T09 owns. CI should not be the thing that forces an
-unrelated task.
+format — already runs directly with the same configuration, so running it again would only
+duplicate the same failures under a second name. (It has been green across the whole
+repository since M1-T09, so this is a design choice, not an exemption.)
 
 To measure the legacy baseline yourself, the exclusion has to be overridden explicitly:
 
@@ -295,7 +295,7 @@ docs/
   audit/                Phase 0 audit — historical, frozen
 PROJECT_CONTEXT.md      machine-readable map of the current implementation
 frontend/               React client, parked — see ADR-0007
-notebooks/, *.ipynb     experiments, not interfaces
+notebooks/              experiments, not interfaces — outputs stripped on commit
 checkpoints/ data/ dataset/   local only, never committed
 ```
 
@@ -313,3 +313,4 @@ checkpoints/ data/ dataset/   local only, never committed
 | Coarse scans | On 90% of real scans the minimum-size filter is silently disabled (D-04). |
 | TEM data | The detector keeps the bright side of the Otsu threshold; on dark-on-bright TEM it finds nothing (D-12). |
 | Upgrading scikit-image or SciPy | May legitimately move golden numbers. Re-baseline in its own commit, with the version bump, and record the delta. |
+| **Upgrading Python** | Also moves the golden, and not by changing a number. `capture.py` records exception *messages* verbatim, and CPython rewords them between minor versions — 3.14 turned `too many values to unpack (expected 2)` into `… (expected 2, got 3)`, which reads as characterization drift. CI is pinned to 3.12 and asserts it. See **B-058**. |

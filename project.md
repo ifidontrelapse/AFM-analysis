@@ -261,7 +261,9 @@ src/visualization.py
 
 | Notebook | Purpose |
 |----------|---------|
-| `afm_gold_nanoparticles.ipynb` | Main interactive notebook — end-to-end pipeline demo |
-| `preprocessing.ipynb` | Preprocessing exploration |
-| `sam2.ipynb` | SAM2 segmentation experiments |
-| `main.ipynb` | Earlier scratch / exploration |
+| `notebooks/afm_gold_nanoparticles.ipynb` | Main interactive notebook — end-to-end pipeline demo |
+| `notebooks/preprocessing.ipynb` | Preprocessing exploration |
+
+Moved into `notebooks/` and stripped of outputs in M1-T09 (8.3 MB → 32 KB). `sam2.ipynb`
+does not exist in the repository, and `main.ipynb` was a tracked 0-byte file that was not
+valid JSON — deleted in M1-T09.

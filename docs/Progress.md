@@ -7,6 +7,82 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M1 · `M1-T09` Notebooks · **8.3 MB → 32 KB, and the gate is green everywhere**
+
+**Task:** M1-T09 (complete)
+**Branch:** `chore/notebooks`
+**Scientific impact:** none. `pytest` 23 passed, golden zero drift. Nothing importable moved
+— no production path referenced a notebook, which was checked rather than assumed.
+
+### What changed
+
+| | before | after |
+|---|---:|---:|
+| `afm_gold_nanoparticles.ipynb` | 6.24 MB | **0.027 MB** |
+| `preprocessing.ipynb` | 2.07 MB | **0.005 MB** |
+| tracked working tree | 17 MB | **7.8 MB** |
+
+All 45 code cells survive intact — what left was 12 embedded PNGs and their base64 padding.
+Both notebooks now live in `notebooks/` beside a README that states what they are, that
+nothing may import them, and how to get the outputs back.
+
+Stripping was done with the **already-configured hook**, not a separate tool: `nbstripout`
+is not a project CLI, it lives inside pre-commit's isolated environment, so
+`pre-commit run nbstripout --files …` runs exactly the code that will run on every future
+commit. One mechanism, not two.
+
+### `main.ipynb` deleted
+
+A tracked **0-byte file that was not valid JSON** (audit §330). It had been deleted in the
+working tree since before this session and was never committed as such; the deletion is now
+recorded. Nothing referenced it.
+
+### The gate is green across the whole repository for the first time
+
+`pre-commit run --all-files` was red from the day the hooks were added (M1-T07), and that
+red was *correct* — which is the worst state for a gate to be in, because a check known to
+fail teaches people to skim past it. It now passes end to end.
+
+The last obstacle was not the notebooks. It was a missing final newline in
+`docs/archive/plan-frontend-react-client.md`, which I had twice reverted as "archived
+material should not be touched". One byte. Reverting it kept the whole gate red, which was
+the wrong trade — `docs/audit/` is the frozen directory, `docs/archive/` is not.
+
+### Nothing was destroyed
+
+The one irreversible-looking step was stripping plots of real experiments that may not be
+reproducible without `data/` — 628 local scans that are not in the repository. Checked
+first: **both notebooks were committed with their outputs**, so every image is still in git
+history and the README carries the command to retrieve it. No export to `images/` was
+needed, and none was made — that would have re-added megabytes to fix a problem git had
+already solved.
+
+### Stale references fixed
+
+`README.md` already documented the notebooks as living in `notebooks/`, so the move made it
+*less* wrong, not more. Removed its line for `sam2.ipynb`, which does not exist.
+`project.md` listed four notebooks of which two exist; corrected. `docs/audit/` and
+ADR-0009 mention the old paths and were **not** touched — they are historical records of
+what was true then.
+
+### Not done, deliberately
+
+The notebooks were not executed, so whether they still run against today's `src/` is
+unverified — and per the task, unverified is the correct outcome: they predate the
+`AFMRawData` change (`e8caf25`, **D-02**) that silently broke `preprocess_batch.py` the same
+way. That is M2/M3 information, recorded in `notebooks/README.md`, not this task's problem.
+
+The 8.3 MB is still in git history; `.git` is unchanged. Working-tree size is what moved.
+History rewriting remains **B-040**.
+
+### Next
+
+`M1-T10` — a one-command gate (`make check`). It is the last task in M1.
+
+**B1, the package name, is the only thing blocking M2.**
+
+---
+
 ## 2026-08-04 — M1 · `M1-T08` CI · **green, after four runs taught a lesson**
 
 **Task:** M1-T08 (complete)
