@@ -64,6 +64,8 @@ it — the test is whether the declaration has an expiry date, and these do.
   three that travel with it — the unbound `opening_radius`, D-04's `int(5 / 9.77) == 0`,
   and the `-> int` that returns a float — beside the code instead of only in a document.
 
+**CI green, run 17.**
+
 ### Next
 
 `M2-T04` — `afm_io.py` splits: pure parsing into `core/science/io/`, and an `ImageLoader`
