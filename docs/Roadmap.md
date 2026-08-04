@@ -86,8 +86,15 @@ strings; retire dead code.
 
 **Exit criteria**
 - [ ] `python tests/characterization/capture.py` reports **zero drift** after every move
-- [ ] Import-graph test passes: `core` imports nothing from `gui`/`application`/`infrastructure`
-- [ ] `import nanoscope.core.entities` loads no torch, no matplotlib, no Qt (< 100 modules)
+- [x] Import-graph test passes: `core` imports nothing from `gui`/`application`/`infrastructure`
+      — static, over the AST, and proven to fail on a real violation (M2-T09)
+- [x] `import nanoscope.core.entities` loads no torch, no matplotlib, no Qt — **asserted
+      by name** in `tests/unit/test_import_graph.py`, plus no ultralytics, sam2,
+      patched_yolo_infer, cv2 or pandas.
+      **The "< 100 modules" half of this criterion was wrong and is replaced with 250**
+      (M2-T09): numpy alone is 141 modules and the domain is explicitly allowed to use it
+      (`Architecture.md` §3), so no module holding an `np.ndarray` annotation can ever
+      reach 100. Measured after the fix: **185**, down from 626.
 - [ ] All ports defined in `core/ports/`, all current behaviour reachable through them
 - [ ] Zero `print` calls and zero non-English strings in library code
 - [ ] `src/` shim deleted; `pytest.ini` path hack deleted

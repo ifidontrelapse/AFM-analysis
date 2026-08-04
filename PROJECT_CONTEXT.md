@@ -417,6 +417,12 @@ result = run_pipeline(data, cfg, predictor=None)
 
 ### Execution matrix
 
+> **This table documents `nanoscope/application/capabilities.py`; it does not define the
+> rules.** Before M2-T10 the same matrix existed here, as `if` statements in
+> `src/pipeline.py`, and hardcoded in the React client — where the audit found it had
+> already drifted (D-19). One copy executes; this one is for reading. A test asserts the
+> row count matches, which is the most a document can be held to.
+
 | Input | Detector | Mode | Behavior |
 |---|---|---|---|
 | AFM | LoG | `detect` | preprocess is assumed complete; return detections only |
@@ -429,6 +435,9 @@ result = run_pipeline(data, cfg, predictor=None)
 | SEM/TEM | any | `baseline` | rejected with `ValueError` |
 
 `mode="segment"` always requires a non-`None` predictor. The pipeline does not construct a predictor or load a checkpoint itself.
+
+Since M2-T10 every rejection above is raised **before a detector is constructed**, so an
+invalid combination costs nothing (audit D-14). The messages are unchanged.
 
 The convenience function `run_full_pipeline(pre, cfg, predictor=None)` is a thin wrapper around `run_pipeline` for AFM preprocessing results.
 

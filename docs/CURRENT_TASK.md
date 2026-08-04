@@ -1,9 +1,10 @@
 # CURRENT TASK
 
-**ID:** `M2-T07` · `M2-T08`
-**Title:** Move model-backed code to infrastructure
+**ID:** `M2-T09` · `M2-T10`
+**Title:** Break the import cycles; one owned capability matrix
 **Milestone:** M2 — Domain extraction (behaviour-preserving)
-**Status:** **done 2026-08-04** — both. Rewritten for `M2-T09` at the start of the next
+**Status:** **done 2026-08-04** — both. Rewritten for `M2-T11` at the start of the next
+session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 > **M2-T08 was narrowed:** one port, not seven. The reasoning is in
@@ -11,7 +12,7 @@ session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 > implementation and no caller, and each now has a named task that brings it with its
 > first adapter. If that call is wrong, the fix is to say so and write them; nothing else
 > in the milestone depends on the outcome.
-**Branch to use:** `feat/infrastructure-models`
+**Branch to use:** `feat/import-graph-and-capabilities`
 **Estimated size:** M
 **Risk to scientific output:** **the golden cannot see most of it.** YOLO and SAM2 are not
 in the characterization baseline — model inference is excluded from the gate by

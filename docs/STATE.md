@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/infrastructure-models-and-ports` · **Base commit:** `277882d`
+**Last updated:** 2026-08-04 · **Branch:** `feat/import-graph-and-capabilities` · **Base commit:** `4b653e6`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -20,11 +20,11 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M2-T09` — break the five import cycles and add the import-graph test.** Status:
-**selected, not started**. The layout is now right; this is the task that makes a machine
-refuse to let anyone break it. `src/__init__.py` → `pipeline` → `src.types` is still a
-cycle, and `import src.types` still loads 1179 modules. `docs/CURRENT_TASK.md` describes
-the finished M2-T07/T08 pair and is rewritten when M2-T09 starts.
+**`M2-T11` — structured logging.** Status: **selected, not started**. Replaces the 13
+`print` calls in library code (D-23) and brings the **first port to ship with its adapter**,
+`LogSink` — the pattern M2-T08 committed to. It also deletes the `T201` entry from the
+science ruff-ignore list. `docs/CURRENT_TASK.md` describes the finished M2-T09/T10 pair and
+is rewritten when M2-T11 starts.
 
 ---
 
@@ -93,6 +93,20 @@ the finished M2-T07/T08 pair and is rewritten when M2-T09 starts.
   `LogDetector` and `YoloDetector` from opposite layers; the other six have no
   implementation and no caller, so they ship with their first adapter, and
   `core/ports/__init__.py` carries the table naming the task for each.
+
+- **M2-T09 / M2-T10** ✅ (2026-08-04) — the layout became enforceable and the rules became
+  executable. **All five import cycles (D-18) had one cause**: `src/__init__.py` re-exported
+  the pipeline, and Python runs a package `__init__` first, so importing the "dependency
+  root" loaded SAM2 and matplotlib. Nothing ever used `from src import X` — emptying one
+  file fixed all five. `import src.types` **1198 → 187 modules, 0.77 s → 0.07 s**;
+  `nanoscope.core.entities` **626 → 185**, pandas moved behind `TYPE_CHECKING`.
+  `test_import_graph.py` checks direction statically over the AST and weight dynamically in
+  a subprocess; both proven to fail. **The M2 exit criterion "< 100 modules" was
+  unachievable** — numpy alone is 141 — and is corrected in `Roadmap.md` to a named
+  heavy-import assertion plus a 250 bound. M2-T10 put the capability matrix in
+  `application/capabilities.py` and **fixed D-14**: validation now runs before any detector
+  is constructed, with byte-identical messages. 12 tests carry it, because the golden never
+  calls `run_pipeline`.
 
 ### M1 — Repository hygiene ✅ (closed 2026-08-04)
 
@@ -203,10 +217,10 @@ the finished M2-T07/T08 pair and is rewritten when M2-T09 starts.
 
 ## In progress
 
-Nothing. M2-T01…T08 are done; **M2-T09 is selected, not started**.
+Nothing. M2-T01…T10 are done; **M2-T11 is selected, not started**.
 
-**Repository state:** `main` is at `277882d` and carries all of M0, all of M1 and
-M2-T01…T06. M2-T07/T08 are on `feat/infrastructure-models-and-ports`. CI on `main` is green: **216 s**, of which `make test`
+**Repository state:** `main` is at `4b653e6` and carries all of M0, all of M1 and
+M2-T01…T08. M2-T09/T10 are on `feat/import-graph-and-capabilities`. CI on `main` is green: **216 s**, of which `make test`
 is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
 green for the right reason.
 
@@ -271,7 +285,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **34, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **74, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **8 of 12** (shims left behind) | 12 | `git ls-files src` |
 | ruff findings, legacy core | **20** in `src/` + **64** declared-and-owned in `nanoscope/` (was 109 + 0) | 0 | `make lint-legacy` |
@@ -279,7 +293,7 @@ None of the remaining questions blocks M1 or M2.
 | mypy errors | 21, all in `src/`; **`nanoscope` is 0 and strict** ✅ | 0 | `make types` |
 | Characterization phantoms | 8 | 8 | `tests/characterization/` |
 | Open defects | 28 (24 audit + 3 mypy + 1 found by the M1-T06 tests) | 0 critical | audit §2, M3-T17…T20 |
-| Import cycles | 5 — **M2-T09 is next and owns this** | 0 | audit D-18 |
+| Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | 13 | 0 | audit D-23 |
 | Non-English lines in library code | 197 | 0 | audit D-22 |
 | Lint/type/test gate | **green end to end** ✅ — hooks on commit, CI on push | stays green | GitHub Actions |

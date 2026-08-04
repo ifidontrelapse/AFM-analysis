@@ -7,6 +7,83 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-04 — M2-T09 · M2-T10 · **The layout is now enforced, and the rules are checked first**
+
+**Tasks:** `M2-T09` import cycles + import-graph test · `M2-T10` the capability matrix.
+**Branch:** `feat/import-graph-and-capabilities`.
+**Scientific impact:** none for M2-T09. **M2-T10 changes behaviour on purpose** — invalid
+requests now fail before inference instead of after — and the golden cannot see it, because
+it never calls `run_pipeline`. `make check` green, 74 passed, golden zero drift.
+
+### M2-T09 — five cycles, one cause
+
+All five had the same root: `src/__init__.py` re-exported `run_pipeline`, the detectors and
+the entities, and Python runs a package's `__init__` before any submodule. So
+`import src.types` — the module `PROJECT_CONTEXT.md` called "the dependency root" — pulled
+in the pipeline, SAM2 and matplotlib before it could hand you a dataclass.
+
+Nothing in the repository or the notebooks ever wrote `from src import X`. Every caller
+already imported the submodule. **Emptying one file broke all five cycles and cost no
+caller anything.**
+
+| | before | after |
+|---|---|---|
+| `import src.types` | 1198 modules, 0.77 s | **187 modules, 0.07 s** |
+| `import nanoscope.core.entities` | 626 modules, matplotlib+pandas | **185 modules, neither** |
+
+The second half came from putting `import pandas` behind `TYPE_CHECKING` in
+`core/entities/pipeline.py`. `from __future__ import annotations` means `"pd.DataFrame"` is
+never evaluated, so the run-time import bought nothing but ~380 modules — and
+`dataclasses.fields(...).type` is that same string either way.
+
+**`tests/unit/test_import_graph.py` checks two things, two ways, on purpose.** Direction is
+static, over the AST, so a forbidden edge is caught in a module no test executes. Weight is
+dynamic, in a subprocess, because pytest has already polluted `sys.modules` and because a
+function-local `import torch` is fine while a module-level one is not.
+
+Both halves were proven to fail — one infrastructure import added to a core module turns 3
+tests red. There is also a guard against the glob matching nothing (a parametrised test
+over an empty list passes vacuously) and an explicit test that the weight check can detect
+matplotlib.
+
+### M2-T10 — the matrix, and the word "before"
+
+The rules lived in three places: `if` statements through `src/pipeline.py`, a table in
+`PROJECT_CONTEXT.md`, and — until ADR-0012 deleted it — the React client, where the audit
+found they had **already drifted** (D-19). `nanoscope/application/capabilities.py` is now
+the copy that runs; the prose table documents it instead of restating it.
+
+The half that matters is *when*. Validation used to sit after detection, so AFM + YOLO +
+baseline ran a complete YOLO pass and then raised — minutes of GPU work for a request that
+was invalid before any compute started (D-14). `validate_request` is the first thing
+`run_pipeline` does now, and **every rejection message is byte-identical** to the one it
+raised before, in the same most-specific-first order.
+
+12 tests carry this change alone. The important ones monkeypatch both detector classes to
+raise on construction, then assert the `ValueError` still arrives — they fail the moment
+validation drifts back behind inference. Verified by commenting out the call: 2 red.
+
+### A criterion that could not be met as written
+
+M2's exit criteria say `import nanoscope.core.entities` should load **"< 100 modules"**. It
+loads 185, and it cannot do better: **numpy alone is 141 modules**, and the domain is
+explicitly allowed to use numpy (`Architecture.md` §3, "pure Python + NumPy"). Any module
+holding an `np.ndarray` annotation pays that.
+
+The number predates measuring it. What it was protecting is real — *don't let the domain
+get expensive* — and that is now asserted directly, by name: no torch, ultralytics, sam2,
+`patched_yolo_infer`, matplotlib, PySide6, cv2 or pandas. The module count stays as a
+secondary bound at 250, to catch a new dependency hiding under numpy's noise floor.
+`docs/Roadmap.md` records the change rather than the criterion being quietly reinterpreted.
+
+### Next
+
+`M2-T11` — structured logging, replacing 13 `print` calls in library code, and the first
+port to ship with its adapter (`LogSink`). Then `M2-T12` (English-only library code) —
+between them they delete most of the ruff ignore list the science subtree carries.
+
+---
+
 ## 2026-08-04 — M2-T07 · M2-T08 · **The dependency rule stops being a diagram**
 
 **Tasks:** `M2-T07` model-backed code to infrastructure · `M2-T08` the ports.
