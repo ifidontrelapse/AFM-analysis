@@ -28,10 +28,10 @@ jobs:
       UV_NO_SYNC: "1"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
@@ -75,7 +75,26 @@ jobs:
       # which must prove it moved no number, on a machine that is not the
       # author's.
       - name: Tests and characterization golden
-        run: uv run pytest -q
+        run: |
+          set -o pipefail
+          uv run pytest -q 2>&1 | tee pytest.log
+
+      # A red job that says only "exit code 1" teaches people to stop reading CI,
+      # and the job log needs admin rights to fetch. Annotations and the run
+      # summary do not, so the failure goes where anyone can see it — including
+      # whoever is looking at the pull request rather than the Actions tab.
+      - name: Report the failure where it can be read
+        if: failure() && hashFiles('pytest.log') != ''
+        run: |
+          {
+            echo '## pytest failed'
+            echo '```'
+            tail -60 pytest.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          grep -E "^(FAILED|ERROR|E  )" pytest.log | head -20 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
 
       # ── reported, not blocking: the legacy core ──────────────────────────────
       # The posture from M1-T04 and M1-T07: `src/` is checked and never silenced,
