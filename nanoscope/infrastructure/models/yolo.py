@@ -24,6 +24,7 @@ import numpy as np
 
 from nanoscope.core.entities import Detection
 from nanoscope.core.science.detection import BaseDetector
+from nanoscope.core.values import Polarity
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class YoloDetector(BaseDetector):
         # shared
         conf: float = 0.5,
         iou: float = 0.7,
+        polarity: Polarity = Polarity.BRIGHT_ON_DARK,
     ):
         self.model_path = model_path
         self.use_tiling = use_tiling
@@ -71,6 +73,7 @@ class YoloDetector(BaseDetector):
         self.nms_threshold = nms_threshold
         self.conf = conf
         self.iou = iou
+        self.polarity = polarity
         self._last_result = None  # CombineDetections or ultralytics Results
 
     def _letterbox(self, original_shape: tuple[int, int]) -> tuple[float, int, int]:
@@ -101,6 +104,9 @@ class YoloDetector(BaseDetector):
           square turned a circular particle into an ellipse on any non-square
           scan. The padding goes on *after* the normalisation, so the border
           does not take part in the min-max stretch.
+
+        The inversion is conditional on polarity (ADR-0023): the model wants dark
+        particles, and a TEM image already has them.
         """
         import cv2
 
@@ -108,7 +114,11 @@ class YoloDetector(BaseDetector):
         h, w = z_above.shape
         img = cv2.resize(z_above, (round(w * scale), round(h * scale)))
         img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        img = cv2.bitwise_not(img)
+        if self.polarity is Polarity.BRIGHT_ON_DARK:
+            # The weights were trained on inverted AFM height maps, so the model
+            # looks for *dark* particles. Inverting a TEM image, where they are
+            # already dark, hands it the background (D-12, ADR-0023).
+            img = cv2.bitwise_not(img)
         # 255 is what a minimum height looks like after the inversion, so the
         # border reads as more substrate rather than as an edge (ADR-0016).
         img = cv2.copyMakeBorder(

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from nanoscope.core.entities.detection import Detection
+from nanoscope.core.values import Polarity
 
 if TYPE_CHECKING:
     # Annotation-only. `from __future__ import annotations` means the string
@@ -31,6 +32,11 @@ if TYPE_CHECKING:
 class PipelineConfig:
     detector: Literal["log", "yolo"] = "log"
     mode: Literal["detect", "baseline", "segment"] = "segment"
+
+    # None means "whatever this modality conventionally produces" —
+    # `default_polarity(modality)`, resolved in `run_pipeline` (ADR-0023 / B3).
+    # Set it explicitly for a sample that breaks the convention.
+    polarity: Polarity | None = None
 
     # LogDetector params
     log_overlap: float = 0.3

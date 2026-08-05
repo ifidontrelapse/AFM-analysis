@@ -7,6 +7,69 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T10 · **D-12 fixed: TEM finds 22 of 22 instead of 0 (B3)**
+
+**Task:** `M3-T10`. **Branch:** `sci/detection-polarity`. **ADR:** **ADR-0023**.
+**Defect:** D-12, high. **Decision:** B3 — configured, with a per-modality default.
+
+### The defect
+
+`LogDetector` Otsu-thresholded and kept the **bright** side; `blob_log` looks for bright blobs;
+`YoloDetector._prepare_image` inverted unconditionally because the weights expect dark particles.
+TEM images by absorption, so its particles are **dark on bright** — and both detectors were
+therefore working on the background. Measured on the audit's phantom: **0 of 22**.
+
+The audit named the cause exactly: *"There is no polarity concept anywhere in the codebase, and
+no test covers it."* The vocabulary has existed since M2-T02 — `Polarity`, written for this task
+and adopted by nothing, with a note telling M2-T13 not to delete it. It has now paid for itself.
+
+### The delta — 19 values changed, 12 keys added
+
+| what | before | after |
+|---|---|---|
+| `tem_dark_particles` · `log_detection_on_raw_image` | **0** blobs | **22** blobs (22 true) |
+| `tem_dark_particles` · prepared YOLO input, mean grey | 43.3 | **211.7** (= 255 − 43.3) |
+| `contracts.config_fields` | 12 fields | 13, `polarity` inserted |
+| `sem_bright_particles` and all five AFM phantoms | — | **unchanged** |
+
+### Configured, not detected
+
+An auto-detector would be a heuristic whose failure mode is D-12's own: **zero particles, no
+error**. The operator would be back to not knowing whether the sample is empty or the guess was
+wrong. A wrong default is visible in the configuration and overridden in one line;
+`PipelineConfig.polarity=None` means "this modality's convention", resolved once in
+`run_pipeline`.
+
+**One inversion, at the detector's entrance** — `z_above.max() - z_above`, so everything
+downstream keeps the single convention it was written for. `max - z` and not `-z` because the LoG
+path normalises by the maximum and needs it positive (ADR-0018); it is also its own inverse,
+which one test uses: dark-on-bright detection on an inverted image returns the same centres as
+bright-on-dark on the original.
+
+**Both detectors in one commit.** The YOLO half is the same defect mirrored — `_prepare_image`
+now inverts only a bright-on-dark image, so the network sees dark particles either way. ADR-0010
+separates *defects*, and this is one; splitting it would have left `run_pipeline` resolving a
+polarity that one of its two detectors ignored.
+
+### Not claimed
+
+That YOLO detects better on TEM. Inference is outside the gate — what the golden shows is that
+the **input** is now right. It can hardly be worse than handing the model the background, but
+M3-T15 owns that question.
+
+### Tests
+
+14 tests (3 parametrised), including the one that keeps D-12 from returning quietly: with the
+wrong polarity the detector's blobs must not sit on the particles. On the 22-particle phantom
+that reads as 0 found; on a four-cap toy image it finds the *gaps between* them, which is the
+same failure at a smaller size — so the assertion is about **where** the detections are.
+
+### Next
+
+**B2 → M3-T02**, the critical one. Then **B6 → M3-T16** and **B-040** last.
+
+---
+
 ## 2026-08-05 — B-058 · **The golden compares the messages we wrote, and only those**
 
 **Branch:** `sci/golden-exception-text`. **ADR:** **ADR-0022**. **Backlog:** B-058, which

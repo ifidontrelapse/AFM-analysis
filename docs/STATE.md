@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/golden-exception-text` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/detection-polarity` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -75,6 +75,21 @@ plus **B-058** (an ADR for the golden storing CPython exception text) and **B-04
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T10** ✅ (2026-08-05, **ADR-0023**, decision **B3**) — **D-12 fixed: TEM finds 22 of 22
+  where it found 0.** Both detectors kept the bright side unconditionally — the LoG one by
+  thresholding and by `blob_log` itself, the YOLO one by inverting every image because the weights
+  expect dark particles — and TEM images by absorption, so both were working on the background.
+  B3 answered **configured, with a per-modality default**: an auto-detector's failure mode is
+  D-12's own (zero particles, no error), and the operator could not tell a bad guess from an empty
+  sample. `Polarity`, written in M2-T02 for this task and adopted by nothing since, is now a
+  `PipelineConfig` field whose `None` resolves to the modality's convention in `run_pipeline`.
+  **One inversion at the entrance**, `max - z`: its own inverse, and positive-maximum-safe per
+  ADR-0018. Both detectors in one commit, because it is one defect mirrored. Delta: **19 values
+  changed, 12 keys added** — `tem_dark_particles` 0 → 22 blobs, its prepared YOLO input 43.3 →
+  211.7 mean grey, `config_fields` 12 → 13; **SEM and all five AFM phantoms byte-identical**.
+  **Not claimed:** better YOLO detections — inference is outside the gate, so what is shown is
+  that the input is right. 14 tests.
 
 - **B-058** ✅ (2026-08-05, **ADR-0022**) — the golden compared exception messages exactly, and
   most of them are CPython's or a library's. 3.14 reworded `too many values to unpack` and the
@@ -490,14 +505,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **185, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **199, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **15**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **21** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **20** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

@@ -370,22 +370,24 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
     """
     import cv2
 
+    from nanoscope.core.values import Polarity, default_polarity
     from nanoscope.infrastructure.models import YoloDetector
 
     det = YoloDetector.__new__(YoloDetector)
     det.yolo_size = 640
+    # `__new__` skips `__init__`, so the polarity has to be set by hand — and it
+    # is now what decides whether `_prepare_image` inverts (ADR-0023).
+    det.polarity = default_polarity(ph.name.split("_")[0])
     r = _record(det._prepare_image, ph.image)
     if not r["ok"]:
         return r
     current = r["value"]
-    correct = cv2.cvtColor(
-        cv2.bitwise_not(
-            cv2.normalize(cv2.resize(ph.image, (640, 640)), None, 0, 255, cv2.NORM_MINMAX).astype(
-                np.uint8
-            )
-        ),
-        cv2.COLOR_GRAY2RGB,
-    )
+    normalised = cv2.normalize(
+        cv2.resize(ph.image, (640, 640)), None, 0, 255, cv2.NORM_MINMAX
+    ).astype(np.uint8)
+    if det.polarity is Polarity.BRIGHT_ON_DARK:
+        normalised = cv2.bitwise_not(normalised)
+    correct = cv2.cvtColor(normalised, cv2.COLOR_GRAY2RGB)
     out = {
         "ok": True,
         "current": _array_digest(current[:, :, 0]),
@@ -569,10 +571,16 @@ def build_all() -> dict:
 
 def _log_on_raw(ph: phantoms.Phantom) -> np.ndarray:
     """Reproduce exactly what run_pipeline does for SEM/TEM: hand the raw image
-    to LogDetector with sizes=None."""
+    to LogDetector with sizes=None — and, since M3-T10, with the polarity the
+    modality implies (ADR-0023). Without that argument this reproduction would
+    stop reproducing the pipeline the moment D-12 was fixed."""
     from nanoscope.core.science.detection import LogDetector
+    from nanoscope.core.values import default_polarity
 
-    d = LogDetector(overlap=0.3, percentile=20.0, threshold=None)
+    modality = ph.name.split("_")[0]
+    d = LogDetector(
+        overlap=0.3, percentile=20.0, threshold=None, polarity=default_polarity(modality)
+    )
     d.detect(ph.image, ph.pixel_size_nm, sizes=None)
     return d.last_blobs
 

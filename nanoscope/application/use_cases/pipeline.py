@@ -26,6 +26,7 @@ from nanoscope.core.entities import (
 )
 from nanoscope.core.science.detection import LogDetector
 from nanoscope.core.science.measurement import measure_all_baseline
+from nanoscope.core.values import default_polarity
 from nanoscope.infrastructure.models import (
     YoloDetector,
     run_sam2_from_blobs,
@@ -75,12 +76,17 @@ def run_pipeline(
     # baseline ran a full YOLO pass and then raised.
     validate_request(modality, cfg.detector, cfg.mode, has_predictor=predictor is not None)
 
+    # Which way the particles read. Configured, not detected: an explicit
+    # `cfg.polarity` wins, otherwise the modality's convention (ADR-0023 / B3).
+    polarity = cfg.polarity or default_polarity(modality)
+
     # ── Detection ────────────────────────────────────────────────────────────
     if cfg.detector == "log":
         detector = LogDetector(
             overlap=cfg.log_overlap,
             percentile=cfg.log_percentile,
             threshold=cfg.log_threshold,
+            polarity=polarity,
         )
         detections = detector.detect(image, nm_per_pixel, sizes=sizes)
         blobs = detector.last_blobs
@@ -90,6 +96,7 @@ def run_pipeline(
             model_path=cfg.yolo_model_path,
             use_tiling=cfg.yolo_use_tiling,
             conf=cfg.yolo_conf,
+            polarity=polarity,
         )
         detections = detector.detect(image, nm_per_pixel)
         blobs = None

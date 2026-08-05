@@ -18,6 +18,7 @@ from skimage.filters import threshold_otsu
 
 from nanoscope.core.entities import Detection
 from nanoscope.core.science.detection.base import BaseDetector
+from nanoscope.core.values import Polarity
 
 # Module-level logger, the stdlib way (M2-T11). No handler is configured here:
 # a library that configures logging steals the decision from the application.
@@ -289,10 +290,14 @@ class LogDetector(BaseDetector):
         overlap: float = 0.3,
         threshold: float | None = None,
         percentile: float = 20.0,
+        polarity: Polarity = Polarity.BRIGHT_ON_DARK,
     ):
         self.overlap = overlap
         self.threshold = threshold
         self.percentile = percentile
+        # Bright-on-dark is what this detector has always assumed; naming the
+        # assumption is what lets TEM work at all (D-12, ADR-0023).
+        self.polarity = polarity
         self._last_blobs: np.ndarray = np.empty((0, 4))
 
     def detect(
@@ -308,7 +313,18 @@ class LogDetector(BaseDetector):
                            every `radius_nm` comes back None (D-07, ADR-0019)
             sizes:         dict from estimate_radius_otsu (needed for sigma range).
                            If None, estimated automatically via Otsu.
+
+        A `DARK_ON_BRIGHT` detector inverts the image first; `sizes`, if given,
+        is assumed to describe the particles either way, since a radius does not
+        change sign.
         """
+        if self.polarity is Polarity.DARK_ON_BRIGHT:
+            # One inversion, at the entrance, so everything downstream keeps the
+            # single convention it was written for: particles are the high side.
+            # `max - z` rather than `-z`, because the LoG path normalises by the
+            # maximum and needs it positive (ADR-0018).
+            z_above = z_above.max() - z_above
+
         if sizes is None:
             from skimage.measure import label, regionprops
 
