@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-04 · **Branch:** `feat/delete-src-shims` · **Base commit:** `8229f06`
+**Last updated:** 2026-08-05 · **Branch:** `sci/yolo-normalise-then-cast` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,11 +26,19 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M3-T03` — YOLO input: normalise *then* cast.** Status: **selected, not started**.
-Preparation currently casts to `uint8` before normalising, so **only 12.6% of the dynamic
-range survives** (D-03, critical). Unlike M3-T01 this one is covered by the golden's
-`yolo_input_preparation` block on all 8 phantoms, so the before/after is a numeric delta
-rather than an exception disappearing.
+**`M3-T04` — aspect-ratio-preserving YOLO letterbox (D-21).** Status: **selected, not
+started**. `_prepare_image` resizes any scan to a square, and `_scale_boxes` undoes it with
+two different factors, so on a non-square scan every returned box is stretched. Same three
+lines M3-T03 just touched, which is why it is next — and a separate commit and ADR, because
+it is a separate defect (ADR-0010).
+
+**`M3-T03` done 2026-08-05 (ADR-0015)** — D-03 fixed: the cast to `uint8` now happens
+*after* the normalisation. **67 golden differences, all under `yolo_input_preparation`**;
+grey levels reaching the network went from 8–208 to 239–256. The retention spread is
+**3.1%–81.2%**, and the cleaner the scan the worse the loss: the quiet 5 nm phantom kept 8
+levels of 256 and came out **anti-correlated** (−0.499) with a correctly prepared image.
+**This does not mean detections improved** — the weights were trained on images the old path
+produced; see the ADR's Consequences.
 
 **Three M3 tasks are blocked on operator decisions** and cannot start: B2/M3-T02
 (`min_size_nm` semantics), B4/M3-T09 (opening-radius rounding), B3/M3-T10 (TEM polarity).
@@ -40,6 +48,20 @@ rather than an exception disappearing.
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T03** ✅ (2026-08-05, **ADR-0015**) — **D-03 fixed**: `_prepare_image` cast the float
+  height map to `uint8` *before* normalising, keeping only whichever integers 0…255 fell
+  inside the map's range and wrapping the rest, then stretching the survivors so the result
+  looked correctly exposed. Delta: **67 golden differences, all under
+  `yolo_input_preparation`** across all 7 phantoms; unique grey levels **8–208 → 239–256**,
+  retention **3.1%–81.2% → 100%**. The spread is the finding — **the cleaner the scan, the
+  worse the loss** — and on the quiet 5 nm phantom the old image is **anti-correlated**
+  (−0.499) with the correct one, so this was never merely a resolution defect. The cast
+  truncates rather than rounds, matching the harness's own reference, which drops
+  `mean_abs_diff_vs_normalize_first` to **0.0** and turns the field Phase 0 added to size
+  the defect into a permanent guard. 6 tests; restoring the order turns 5 red.
+  **Not claimed: better detections.** The weights were trained on images the old path
+  produced, and inference is outside the gate (§6) — M3-T15 and M7 own that question.
 
 - **M3-T01** ✅ (2026-08-04, **ADR-0014**) — **D-01 fixed**: `build_substrate_map`'s
   manual-radius branch raised `UnboundLocalError` on **100% of calls** since it was
@@ -260,22 +282,23 @@ rather than an exception disappearing.
 
 ## In progress
 
-**M2 is closed and M3 has started.** M3-T01 is done; **M3-T03 is selected, not started**.
+**M2 is closed and M3 has started.** M3-T01 and M3-T03 are done; **M3-T04 is selected, not
+started**. Two of the four critical defects are closed; the other two (D-04, D-12) are the
+ones waiting on operator decisions B2 and B3.
 
-**Repository state:** `main` is at `8229f06` and carries all of M0, M1 and M2-T01…T14.
-M2-T15/T16 are on `feat/delete-src-shims`. CI on `main` is green: **216 s**, of which `make test`
-is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the green is
-green for the right reason.
+**Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
+M3-T03 is on `sci/yolo-normalise-then-cast`. CI on `main` is green: **216 s**, of which
+`make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
+green is green for the right reason.
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
-rather than path-hacked. That is the shape every remaining
-M2 move leaves behind, until M2-T15 deletes them wholesale.
+rather than path-hacked.
 
 **Legacy in transit is declared, not hidden.** `nanoscope.core.science.*` runs at mypy's
 default strictness and carries six named ruff ignores; every entry names the task that
 deletes it (M2-T11, M2-T12, M3). The rest of `nanoscope` stays strict and 0.
 
-Locally, `make check` is green end to end: format, lint, then 23 tests including the
+Locally, `make check` is green end to end: format, lint, then the full suite including the
 golden, exit 0.
 
 ---
@@ -305,15 +328,20 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Execute `M2-T02`** — entities and value objects out of `types.py`. Rewrite
-   `docs/CURRENT_TASK.md` for it. First moved code, first real use of the golden as a gate
-2. `make types` joins `make check` as blocking once enough of `nanoscope/` is real — the
-   one deviation recorded against M1's exit criteria. `nanoscope` is at 0 mypy errors and
-   strict today, so the only thing keeping `types` out of `check` is `src/`
-3. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
+1. **Execute `M3-T04`** — the aspect-ratio half of the YOLO input path (D-21). Rewrite
+   `docs/CURRENT_TASK.md` for it. It moves the same golden block M3-T03 just moved, so run
+   it on its own branch and read the delta against the new baseline, not the old one
+2. **The two remaining critical defects need operator answers, not engineering.** B2 (D-04)
+   and B3 (D-12) have been open since M0; every session that passes without them is a
+   session M3 cannot finish. Everything else in M3 is unblocked and can be worked in
+   severity order: T06, T11, T12, T17, T20 are the `high` ones
+3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
+   exit criteria. `src/` is gone, so the only thing left is the 20 errors that arrived
+   inside the moved science; they belong to M3 and M2-T12
+4. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
    text, so a new interpreter reads as characterization drift
-4. **B-054** (two README figures over 1 MB) is the one M1 exit criterion left open;
-   it belongs to the README rewrite in M9-T01, not to M2
+5. **B-054** (two README figures over 1 MB) is the one M1 exit criterion left open;
+   it belongs to the README rewrite in M9-T01
 
 ---
 
@@ -321,19 +349,19 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **104** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **105** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
-| Library LOC | 2 021 | — | `wc -l src/**/*.py` |
-| Meaningful tests | **125, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
+| Meaningful tests | **131, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
-| mypy errors | **20**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
-| Characterization phantoms | 8 | 8 | `tests/characterization/` |
-| Open defects | **27** (was 28) — D-01 closed by M3-T01 | 0 critical | audit §2, M3-T17…T20 |
+| mypy errors | **19**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
+| Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
+| Open defects | **26** (was 28) — D-01 (M3-T01), D-03 (M3-T03) | 0 critical | audit §2, M3-T17…T20 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

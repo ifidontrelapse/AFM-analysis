@@ -339,7 +339,7 @@ There is also `estimate_log_threshold`, which estimates `3 * substrate_noise_std
 
 File: `nanoscope/infrastructure/models/yolo.py`.
 
-`YoloDetector` prepares an input image by resizing to `640 x 640` by default, normalizing to `[0, 255]`, inverting it, and converting grayscale to RGB.
+`YoloDetector` prepares an input image by resizing to `640 x 640` by default, normalizing to `[0, 255]` **in floating point**, casting to `uint8`, inverting it, and converting grayscale to RGB. The order of the middle two steps is load-bearing and fixed by ADR-0015 (M3-T03): the code cast before normalizing until 2026-08-05, which truncated a height map in nanometres to the integers inside its range. The resize is still anisotropic — it does not preserve aspect ratio, which is D-21 / M3-T04, still open.
 
 Backends:
 

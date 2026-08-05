@@ -300,7 +300,14 @@ def capture_baseline_measurement(ph: phantoms.Phantom) -> dict:
 
 
 def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
-    """Image preparation only — no weights, no inference, CPU-safe."""
+    """Image preparation only — no weights, no inference, CPU-safe.
+
+    `correct` below is the normalise-then-cast reference this block was written
+    to measure the distance from (D-03). M3-T03 made `_prepare_image` equal to
+    it, so the two derived numbers are now an invariant rather than a defect
+    size: `mean_abs_diff_vs_normalize_first` is 0.0 and the two level counts
+    agree. Reordering the cast moves both, on all 7 phantoms.
+    """
     import cv2
 
     from nanoscope.infrastructure.models import YoloDetector

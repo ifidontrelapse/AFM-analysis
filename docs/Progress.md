@@ -7,6 +7,90 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T03 · **D-03 fixed: YOLO finally sees the data**
+
+**Task:** `M3-T03`. **Branch:** `sci/yolo-normalise-then-cast`.
+**ADR:** **ADR-0015**. **Defect:** D-03, critical.
+Second numerical change of the project, and the first one the golden can measure as a
+*number* rather than as an exception disappearing.
+
+### The defect
+
+`_prepare_image` cast the float height map to `uint8` and normalised afterwards:
+
+```python
+img = cv2.resize(z_above, (640, 640)).astype(np.uint8)   # keeps the integers in range,
+img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)  # wraps the rest; too late
+```
+
+A 0–18 nm scan therefore reached the network as 19 grey levels, because those are the
+integers between 0 and 18. Normalising afterwards stretched the survivors back across
+0–255, so the corrupted image looked correctly exposed.
+
+### The delta
+
+**67 golden differences, every one under `yolo_input_preparation`, on all 7 phantoms.**
+Nothing else in the baseline moved — no preprocessing, no LoG detection, no measurement.
+
+| phantom | range (nm) | levels before | after | corr(before, after) |
+|---|---|---:|---:|---:|
+| `afm_flat_monodisperse` | −0.5 … 18.1 | 19 | 256 | 0.997 |
+| `afm_tilted_polydisperse` | −1.8 … 45.6 | 47 | 255 | 0.914 |
+| `afm_dense_overlapping` | −0.6 … 19.0 | 19 | 256 | 0.997 |
+| `afm_sparse_low_snr` | −4.3 … 5.0 | **8** | 239 | **−0.499** |
+| `afm_coarse_pixels` | −0.6 … 20.0 | 21 | 256 | 0.997 |
+| `sem_bright_particles` | 14.5 … 230.6 | 208 | 255 | 1.000 |
+| `tem_dark_particles` | 23.7 … 234.3 | 200 | 254 | 1.000 |
+
+The audit's headline was 12.6% retention on one realistic map. Across the phantoms the
+range is **3.1%–81.2%**, and the shape of that spread is the finding: **the cleaner the
+sample, the worse the corruption.** A quiet 5 nm scan — a *good* measurement — kept 8 levels
+of 256 and its negative heights wrapped to near-white, which is why its correlation with the
+correctly prepared image is **negative**. The SEM/TEM phantoms, which are already images
+spanning most of 0–255, barely moved. So the defect was invisible exactly where the code was
+most likely to be eyeballed.
+
+### What the fix is, and one thing it deliberately is not
+
+Three lines: normalise in float, then `.astype(np.uint8)`, then invert. `bitwise_not` needs
+an integer array, which is what pinned the cast too early in the first place.
+
+The cast **truncates rather than rounds**, matching the reference implementation the
+characterization harness has compared against since the baseline was recorded. That choice
+is worth one sentence because of what it buys: `mean_abs_diff_vs_normalize_first`, the field
+the harness added in Phase 0 purely to *size* this defect, now reads **0.0** on every
+phantom. The defect's own measuring stick is now a regression guard. `cv2.CV_8U` rounding
+would be ≤1/256 more faithful and would have left that number at ~0.5 forever.
+
+**It is not bundled with D-21** (`M3-T04`), the aspect-ratio distortion two lines above —
+same function, different defect, ADR-0010.
+
+### What this does not claim
+
+**Detections are now computed from the data. They are not thereby "better".** The weights in
+`checkpoints/best12x.pt` were trained on images prepared by the old path; if the training set
+came through this same function, the model learned to read 8-to-47-level posterised inputs,
+and correct inputs are a distribution shift. The gate cannot say either way — inference is
+outside it by PROJECT_RULES §6. Answering it needs M3-T15 (evaluation harness) and possibly
+M7 (retraining). Any stored YOLO result predating this commit is not comparable to one after
+it.
+
+### Tests
+
+`tests/unit/test_yolo_input.py` — 6 tests, written against the defect rather than the
+implementation: full dynamic range, a sub-unit range (0–0.8 nm collapsed to one value
+before), monotonicity, no wraparound past 255 nm, invariance under `z → a·z + b`, and the
+constant-map degenerate case. **Restoring the old order turns 5 of 6 red**; the sixth is the
+constant map, which is genuinely unaffected.
+
+### Next
+
+**M3-T04 / D-21** — the other defect in these three lines: `cv2.resize` squashes a
+non-square scan to 640×640, and `_scale_boxes` stretches the boxes back with two different
+factors. Same file, same context, but its own commit and its own ADR.
+
+---
+
 ## 2026-08-04 — M3-T01 · **D-01 fixed: the manual-radius branch runs for the first time**
 
 **Task:** `M3-T01`. **Branch:** `feat/delete-src-shims` (shared with M2's last two).

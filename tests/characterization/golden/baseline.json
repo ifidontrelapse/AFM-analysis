@@ -768,26 +768,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 246.44611572265626,
+        "mean": 238.5358203125,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
-          242.0,
-          255.0,
-          255.0,
-          255.0,
-          255.0
+          229.0,
+          246.0,
+          248.0,
+          249.0,
+          249.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 32.04163531032171,
-        "sum": 100944329.0
+        "std": 32.410083263988234,
+        "sum": 97704272.0
       },
-      "current_unique_levels": 21,
-      "mean_abs_diff_vs_normalize_first": 7.91038330078125,
+      "current_unique_levels": 256,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 256,
       "ok": true
     }
@@ -1550,26 +1550,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 235.02861083984374,
+        "mean": 227.73128173828124,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
-          170.0,
-          241.0,
-          255.0,
-          255.0,
-          255.0
+          166.0,
+          232.0,
+          247.0,
+          249.0,
+          250.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 44.609113826664526,
-        "sum": 96267719.0
+        "std": 43.219095996533035,
+        "sum": 93278733.0
       },
-      "current_unique_levels": 19,
-      "mean_abs_diff_vs_normalize_first": 7.4875634765625,
+      "current_unique_levels": 256,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 256,
       "ok": true
     }
@@ -2332,26 +2332,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 243.89748779296875,
+        "mean": 236.875380859375,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
-          227.0,
-          255.0,
-          255.0,
-          255.0,
-          255.0
+          215.0,
+          247.0,
+          249.0,
+          250.0,
+          250.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 36.44570463397492,
-        "sum": 99900411.0
+        "std": 37.20935521582714,
+        "sum": 97024156.0
       },
-      "current_unique_levels": 19,
-      "mean_abs_diff_vs_normalize_first": 7.02211181640625,
+      "current_unique_levels": 256,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 256,
       "ok": true
     }
@@ -2750,26 +2750,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 239.227373046875,
+        "mean": 145.29134033203124,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
-          254.0,
-          255.0,
-          255.0,
-          255.0,
-          255.0
+          119.0,
+          132.0,
+          146.0,
+          159.0,
+          172.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 61.26249482514306,
-        "sum": 97987532.0
+        "std": 21.242191263110975,
+        "sum": 59511333.0
       },
-      "current_unique_levels": 8,
-      "mean_abs_diff_vs_normalize_first": 116.94343994140625,
+      "current_unique_levels": 239,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 239,
       "ok": true
     }
@@ -3532,26 +3532,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 243.37328125,
+        "mean": 180.63306640625,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
-          236.0,
-          240.0,
-          244.0,
-          248.0,
-          251.0
+          142.0,
+          161.0,
+          183.0,
+          205.0,
+          220.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 6.757318946933462,
-        "sum": 99685696.0
+        "std": 33.99880890852965,
+        "sum": 73987304.0
       },
-      "current_unique_levels": 47,
-      "mean_abs_diff_vs_normalize_first": 62.79708984375,
+      "current_unique_levels": 255,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 255,
       "ok": true
     }
@@ -4178,26 +4178,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 215.6332275390625,
+        "mean": 215.84144287109376,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
-          221.0,
-          225.0,
+          220.0,
+          226.0,
           229.0,
           233.0,
-          235.0
+          236.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 51.43898349388111,
-        "sum": 88323370.0
+        "std": 51.43481253201259,
+        "sum": 88408655.0
       },
-      "current_unique_levels": 208,
-      "mean_abs_diff_vs_normalize_first": 0.34030517578125,
+      "current_unique_levels": 255,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 255,
       "ok": true
     }
@@ -4264,26 +4264,26 @@
       "current": {
         "dtype": "uint8",
         "max": 255.0,
-        "mean": 42.62898193359375,
+        "mean": 43.32958740234375,
         "min": 0.0,
         "n_nonfinite": 0,
         "percentiles_10_25_50_75_90": [
           23.0,
-          26.0,
-          29.0,
-          33.0,
-          38.0
+          27.0,
+          30.0,
+          34.0,
+          40.0
         ],
         "shape": [
           640,
           640
         ],
         "size": 409600,
-        "std": 50.24513307615468,
-        "sum": 17460831.0
+        "std": 50.10711263773148,
+        "sum": 17747799.0
       },
-      "current_unique_levels": 200,
-      "mean_abs_diff_vs_normalize_first": 0.711396484375,
+      "current_unique_levels": 254,
+      "mean_abs_diff_vs_normalize_first": 0.0,
       "normalize_first_unique_levels": 254,
       "ok": true
     }

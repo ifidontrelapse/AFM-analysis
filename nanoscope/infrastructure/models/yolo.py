@@ -66,11 +66,18 @@ class YoloDetector(BaseDetector):
         self._last_result = None  # CombineDetections or ultralytics Results
 
     def _prepare_image(self, z_above: np.ndarray) -> np.ndarray:
-        """AFM height-map → uint8 RGB (yolo_size × yolo_size)."""
+        """AFM height-map → uint8 RGB (yolo_size × yolo_size).
+
+        The min-max normalisation happens **while the data is still floating
+        point**, and only then is it cast to `uint8`. Casting first truncates a
+        height map in nanometres to whichever integers 0…255 fall inside its
+        range, and wraps anything above 255 — see ADR-0015 and audit D-03. The
+        order is the whole content of this function; do not reorder it.
+        """
         import cv2
 
-        img = cv2.resize(z_above, (self.yolo_size, self.yolo_size)).astype(np.uint8)
-        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+        img = cv2.resize(z_above, (self.yolo_size, self.yolo_size))
+        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         img = cv2.bitwise_not(img)
         return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 

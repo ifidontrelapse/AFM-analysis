@@ -20,6 +20,9 @@ Use `TEMPLATE.md` for new records.
 | [0010](ADR-0010-isolated-numerical-changes.md) | One defect, one commit, one ADR, one golden update | Accepted | 2026-08-03 |
 | [0011](ADR-0011-package-name-and-layout.md) | Package name and import layout — `nanoscope` | Accepted | 2026-08-03 |
 | [0012](ADR-0012-delete-the-parked-client-and-batch-script.md) | Delete the parked React client and the broken batch script | Accepted | 2026-08-04 |
+| [0013](ADR-0013-stdlib-logging-instead-of-a-logsink-port.md) | Standard-library `logging` instead of a `LogSink` port | Accepted | 2026-08-04 |
+| [0014](ADR-0014-manual-opening-radius-is-the-radius-used.md) | `build_substrate_map` reports the opening radius it was given | Accepted | 2026-08-04 |
+| [0015](ADR-0015-yolo-input-is-normalised-before-it-is-cast.md) | YOLO input is normalised before it is cast to `uint8` | Accepted | 2026-08-05 |
 
 ## When to write one
 

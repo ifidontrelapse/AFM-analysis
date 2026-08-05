@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-04 · **Active:** `M3-T03`
+**Updated:** 2026-08-05 · **Active:** `M3-T04` (next; `M3-T03` closed 2026-08-05)
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -78,7 +78,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 |---|---|---|---|---|
 | M3-T01 | Fix `build_substrate_map(manual_radius_px=...)` — `UnboundLocalError` on 100% of calls | D-01 | critical | [x] Done 2026-08-04, **ADR-0014**. One line: `opening_radius = manual_radius_px`, the value actually passed to the opening. **No rounding, no floor** — both would pre-empt B4/M3-T09 and M3-T13. Delta: **50 golden differences, all under `build_substrate_map_manual`** (10 fields × 5 phantoms); the automatic path 100% of real callers use is untouched. The harness was extended in the same commit to record the returned arrays, or fixing the defect would have left the branch *less* characterized than while broken. 6 tests; restoring the bug turns 5 red |
 | M3-T02 | Fix `min_size_pixel` flooring to zero on 90% of real scans | D-04 | critical | [!] needs operator decision |
-| M3-T03 | Fix YOLO input: normalise **then** cast (12.6% of dynamic range currently survives) | D-03 | critical | [ ] |
+| M3-T03 | Fix YOLO input: normalise **then** cast (12.6% of dynamic range currently survives) | D-03 | critical | [x] Done 2026-08-05, **ADR-0015**. The cast moved after the normalisation; `min_size`-style semantics untouched. Delta: **67 golden differences, all under `yolo_input_preparation`**, on all 7 phantoms. Grey levels reaching the network: 8–208 → 239–256. The harness's D-03 measuring stick, `mean_abs_diff_vs_normalize_first`, now reads **0.0** everywhere and becomes a permanent guard. 6 tests; restoring the order turns 5 red. **Not claimed: better detections** — the weights were trained on images the old path produced (see the ADR) |
 | M3-T04 | Aspect-ratio-preserving YOLO letterbox; isotropic box rescale | D-21 | medium | [ ] |
 | M3-T05 | Propagate YOLO confidence into `Detection` | D-09 | medium | [ ] |
 | M3-T06 | Otsu sizing: raise on empty-after-filter; report post-filter `n_objects` | D-05, D-06 | high | [ ] |
