@@ -1,10 +1,10 @@
 # CURRENT TASK
 
-**ID:** `M3-T11`
-**Title:** Unknown pixel scale (`None`) must not crash either detector
-**Milestone:** M3 — Numerical correctness, sixth task
-**Defect:** **D-07** (high) · **ADR:** **ADR-0019**
-**Branch:** `sci/unknown-scale` (stacked on `sci/log-zero-max`)
+**ID:** `M3-T09`
+**Title:** Opening radii are integers, rounded up
+**Milestone:** M3 — Numerical correctness, seventh task
+**Defect:** **D-10** (medium) · **Decision:** **B4** · **ADR:** **ADR-0020**
+**Branch:** `sci/opening-radius-ceil` (stacked on `sci/unknown-scale`)
 **Status:** **done 2026-08-05.** Rewritten for the next task at the start of the next
 session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -12,10 +12,10 @@ session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ## Why this task was next
 
-The highest-severity unblocked defect left, and the one with a reachable user-facing route: any
-SEM or TEM image without scale metadata went straight to a `TypeError`. It is also the
-precondition for **M3-T20** — that task stops the npy loader inventing a scale of `1.0`, which
-would push `None` into a path that, until this commit, crashed on it.
+The operator answered B2, B3, B4, B6 and B7 in one sitting, unblocking five tasks. B4 is the
+smallest of them and touches the file the next two also touch, so it goes first: its delta is
+attributable on its own, and M3-T02 (B2) then measures against a substrate that already rounds
+consistently.
 
 ---
 
@@ -23,71 +23,70 @@ would push `None` into a path that, until this commit, crashed on it.
 
 **In scope**
 
-1. `detect_particles`, `LogDetector.detect`, `YoloDetector.detect` and both conversion helpers:
-   accept `pixel_size_nm: float | None`
-2. `Detection.radius_nm: float | None`, and the `NaN` → `None` mapping at the entity boundary
-3. `Detector` port and `BaseDetector` signatures, so the contract says it too
-4. `run_pipeline`'s `nm_per_pixel` annotated `float | None` — the mypy error that *was* this
-   defect
-5. The harness: `detect_particles_no_scale` and `boxes_to_detections_{scaled,no_scale}`
-6. **ADR-0019**, including why this `NaN` is not the `NaN` ADR-0018 removed
+1. `_integer_radius` — one `ceil`, in `get_substrate_map`, which every caller passes through
+2. `estimate_rough_radius` returns the `int` it has always been annotated to return, on both exits
+3. `build_substrate_map` reports the integer it used, on both branches
+4. **ADR-0020**, including why "round to the nearest odd" is unnecessary
 
-**Out of scope** — all four listed with reasons in ADR-0019 §"What is deliberately not in this
-commit"
+**Out of scope**
 
-- **D-20 / M3-T20** — `load_afm(fmt="npy")` fabricating `pixel_size_nm or 1.0`
-- `build_substrate_map` and the preprocessing chain, which divide by the scale. Unreachable with
-  `None` until M3-T20 lands
-- `plot_detections`, called only from the notebooks, always with an AFM scan
-- `run_sam2_from_blobs`'s `if nm_per_pixel else None`, which also swallows an explicit `0.0`
+- **M3-T02 / B2** — `min_size_pixel` flooring to zero. Next task, and it moves the same numbers
+  again; ADR-0010 keeps the two deltas separate
+- The duplicated `radii_nm` assignment. Still deliberately untouched: this file's commits are
+  numerical
 
 ---
 
 ## Definition of done
 
-- [x] Both detectors accept `pixel_size_nm=None` and return detections
-- [x] `radius_nm is None`, never `0.0`, never `radius_px`
-- [x] Pixel-space output bit-identical with and without a scale
-- [x] The SEM route through `run_pipeline` completes
-- [x] `make check` green — 159 tests
-- [x] Delta quantified: **168 golden keys added, 0 changed**; mypy **19 → 18**
-- [x] ADR-0019; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M3-T11: an unknown pixel scale is a state, not a crash`
+- [x] Every radius reaching `disk()` is an integer
+- [x] Rounding is up, at one site, and the reported radius equals the used radius
+- [x] `make check` green — 170 tests
+- [x] Delta quantified: **696 golden values, 0 keys added**; mypy **18 → 15**
+- [x] ADR-0020; `STATE.md`, `Progress.md`, `TASKS.md`, ADR index
+- [x] Commit: `M3-T09: opening radii are integers, rounded up (B4)`
 
 ---
 
 ## The delta
 
-| what | before | after |
-|---|---|---|
-| `detect_particles_no_scale` · 5 AFM phantoms | `TypeError` | 24 blobs, `radius_nm` all NaN, **0** detections carrying a radius |
-| `boxes_to_detections_{scaled,no_scale}` · 7 phantoms | not recorded | `[5.0, 9.5]` vs `[null, null]`, identical `radius_px` |
-| mypy errors | 19 | **18** |
+| phantom | opening radius | blobs (true) | mean height nm |
+|---|---|---|---|
+| `afm_flat_monodisperse` | 17 → **19** | 24 → 24 (24) | 16.1202 → 16.1194 |
+| `afm_coarse_pixels` | 9 → **11** | 14 → 14 (14) | 17.8636 → 17.8664 |
+| `afm_dense_overlapping` | 14 → **16** | 59 → 59 (70) | 13.3297 → **13.3791** |
+| `afm_tilted_polydisperse` | 17 → **18** | 30 → 30 (30) | 16.1175 → 16.1030 |
+| `afm_sparse_low_snr` | 7 → **8** | 0 → 0 (6) | — |
 
-No recorded number moves: every phantom has a scale, so the working path is byte-identical.
+No particle count moves. The largest height change is **0.049 nm (0.37 %)**.
 
 ---
 
 ## What it turned up
 
-**mypy had been reporting this defect since M1-T04 and nobody read it that way.**
-`pipeline.py:62 — Incompatible types in assignment (expression has type "float | None", variable
-has type "float")` is D-07, stated at the assignment instead of at the crash. It sat in the
-19-error baseline among genuinely legacy noise. The lesson is not "fix the baseline" — it is that
-a non-zero tolerated baseline hides the entries that are defects, and M2-T12's job of driving it
-to zero is worth more than it looks.
+**The 696 changed values are propagation, not magnitude.** A reader who sees the biggest golden
+delta in M3 and concludes D-10 was the biggest defect in M3 would be wrong: the radius feeds the
+substrate, the substrate feeds `z_above`, and every measurement is taken against it. The defect
+itself is worth 0.05 nm. It was worth fixing because it was silent and systematic.
+
+**Three of mypy's errors were this defect, stated statically, since M1-T04.** Second task in a
+row where that is true (M3-T11 found `pipeline.py:62` the same way). A tolerated non-zero mypy
+baseline is not neutral — it hides the entries that are defects.
 
 ---
 
 ## Notes for the next session
 
-**`M3-T20` is next**, and it is the other half of this one: the npy loader's
-`pixel_size_nm or 1.0` and `scan_size_nm or float(z.shape[0])` fabricate a physical scale from a
-row count. `None` is now survivable in the detectors, but **not yet in `build_substrate_map`**,
-which divides by the scale — so M3-T20 must carry that guard or state why it does not.
+Four more operator answers are waiting to be executed, in this order:
 
-**M3-T12** (D-08, empty measurements return a zero-column DataFrame) and **M3-T17** (the SPM
-parser's no-`Scan Size` fallback) are the other unblocked `high` ones. T17 and T20 are the same
-file.
+1. **B7 → M3-T21** — `use_tiling=False` becomes the default; the tiled backend has never tiled
+2. **B-058** — an ADR for the golden storing CPython exception text, before any Python upgrade
+3. **B3 → M3-T10** — explicit polarity per modality; `Polarity` already exists in `core/values`,
+   adopted by nothing since M2-T02
+4. **B2 → M3-T02** — the critical one: filter in nanometres, `int()` deleted
+5. **B6 → M3-T16** — header-only SPM fixtures
+6. **B-040** — purge `node_modules` and the weights from git history. **Last**, because it
+   rewrites every SHA above
 
-**Four decisions still block five tasks: B2, B3, B4, B7.**
+**B-054** (two README figures over 1 MB) is closed by operator decision: the README is rewritten
+in M9-T01 and the figures go with it.

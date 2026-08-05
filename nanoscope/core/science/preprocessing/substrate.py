@@ -11,12 +11,13 @@ here, because each moves a number the golden records:
   Note what that means for the filter below: on most real scans it currently
   removes nothing, so the empty-after-filter error is reachable mainly through an
   explicit `min_size_nm`.
-- `estimate_rough_radius` is annotated `-> int` and can return a float.
 - `radii_nm` is assigned twice in a row, identically (audit §Duplication). Left
   alone on purpose: this file's commits are numerical, and ADR-0010 keeps tidying
   out of them.
 
-Closed here: **D-01** (M3-T01, ADR-0014) and **D-05 / D-06** (M3-T06, ADR-0017).
+Closed here: **D-01** (M3-T01, ADR-0014), **D-05 / D-06** (M3-T06, ADR-0017) and
+**D-10** (M3-T09, ADR-0020) — every radius reaching `disk()` is now an integer,
+rounded up, and `estimate_rough_radius` no longer lies about its return type.
 """
 
 from __future__ import annotations
@@ -31,7 +32,18 @@ from skimage.morphology import disk, opening as morph_opening
 logger = logging.getLogger(__name__)
 
 
-def get_substrate_map(z: np.ndarray, radius_px: int) -> np.ndarray:
+def _integer_radius(radius_px: float) -> int:
+    """The integer radius `disk()` can centre, rounded **up** (ADR-0020 / D-10).
+
+    `disk(8.5)` is an 18x18 element with no centre pixel, so the opening is
+    biased by half a pixel. Any integer gives `2r+1`, which is always odd and
+    always centred — so the decision is only which way to round, and rounding up
+    is the one that never leaves a particle inside the substrate.
+    """
+    return int(np.ceil(radius_px))
+
+
+def get_substrate_map(z: np.ndarray, radius_px: float) -> np.ndarray:
     """
     Estimate the substrate surface with the particles removed.
 
@@ -42,11 +54,12 @@ def get_substrate_map(z: np.ndarray, radius_px: int) -> np.ndarray:
 
     Args:
         z: sample topography
-        radius_px: radius in pixels for the morphological opening
+        radius_px: radius in pixels for the morphological opening; rounded up to
+            an integer, because `disk()` centres nothing else (ADR-0020)
     Returns:
         substrate topography
     """
-    return morph_opening(z, disk(radius_px)).astype(np.float32)
+    return morph_opening(z, disk(_integer_radius(radius_px))).astype(np.float32)
 
 
 def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pixel: float) -> dict:
@@ -139,7 +152,7 @@ def estimate_rough_radius(
             "no objects found for radius estimation — the image is probably too "
             "flat or too noisy; falling back to 1% of the image width"
         )
-        return max(int(z.shape[1] * 0.01), min_size_pixel)
+        return _integer_radius(max(z.shape[1] * 0.01, min_size_pixel))
 
     # Median area -> equivalent radius
     median_area = np.median([p.area for p in props])
@@ -148,7 +161,7 @@ def estimate_rough_radius(
     # Scale up so the disk is safely larger than a particle
     rough_radius = max(radius_px * scale, min_size_pixel)
 
-    return rough_radius
+    return _integer_radius(rough_radius)
 
 
 def build_substrate_map(
@@ -173,7 +186,11 @@ def build_substrate_map(
     """
     # Radius supplied by the caller
     if manual_radius_px is not None:
-        opening_radius = manual_radius_px
+        # Rounded up, and *reported* rounded up: ADR-0014 made this branch return
+        # the radius it actually uses, and since ADR-0020 the radius it uses is
+        # an integer. Returning the caller's 8.5 while opening with 9 would put
+        # the lie back, one field further along.
+        opening_radius = _integer_radius(manual_radius_px)
         substrate = get_substrate_map(z, opening_radius)
         z_above = z - substrate
         sizes = estimate_radius_otsu(
@@ -193,7 +210,7 @@ def build_substrate_map(
         sizes = estimate_radius_otsu(
             z_above_rough, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm)
         )
-        opening_radius = max(int(sizes["typical_radius_px"] * 2.5), 5)
+        opening_radius = max(_integer_radius(sizes["typical_radius_px"] * 2.5), 5)
 
         # Final topography with the substrate subtracted
         substrate = get_substrate_map(z, opening_radius)

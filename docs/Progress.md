@@ -7,6 +7,63 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T09 · **D-10 fixed: opening radii are integers, rounded up (B4)**
+
+**Task:** `M3-T09`. **Branch:** `sci/opening-radius-ceil`. **ADR:** **ADR-0020**.
+**Defect:** D-10, medium. **Decision:** B4, answered by the operator — round up.
+
+### The defect
+
+`disk(8.5)` is an 18x18 element: an even side, no centre pixel, and a morphological opening
+biased by half a pixel. Three sites fed `disk()` a float and each did something different — one
+floored, one passed the caller's value through untouched (ADR-0014 left it that way on purpose,
+pending this decision), and one was annotated `-> int` while returning a float.
+
+Two facts narrowed the choice past the audit's table: **any integer radius is already centred**
+(`disk(r)` is `2r+1` on a side), so "round to the nearest odd" solves nothing extra; and the
+three sites disagreeing *is* the defect.
+
+### The delta — 696 golden values, 0 keys added or removed
+
+| phantom | opening radius | blobs (true) | mean height nm |
+|---|---|---|---|
+| `afm_flat_monodisperse` | 17 → **19** | 24 → 24 (24) | 16.1202 → 16.1194 |
+| `afm_coarse_pixels` | 9 → **11** | 14 → 14 (14) | 17.8636 → 17.8664 |
+| `afm_dense_overlapping` | 14 → **16** | 59 → 59 (70) | 13.3297 → **13.3791** |
+| `afm_tilted_polydisperse` | 17 → **18** | 30 → 30 (30) | 16.1175 → 16.1030 |
+| `afm_sparse_low_snr` | 7 → **8** | 0 → 0 (6) | — |
+
+**No particle count moves. The largest height change is 0.049 nm — 0.37 %, on the phantom whose
+particles touch.** That is the size of D-10 on data, and saying it plainly matters: this was
+worth fixing because it was silent and systematic, not because it was large. The 696 changed
+values are the *propagation* — radius → substrate → `z_above` → detection → every measurement —
+not the defect's magnitude.
+
+**Why +2 and not +1 on three phantoms.** The radius is estimated twice: the rough radius is
+rounded up, which changes the rough substrate, which changes the Otsu radii the final radius
+comes from. Same two-stage estimate as always, now with one rounding rule at both stages.
+
+### One line, not three
+
+The guard sits in `get_substrate_map` — the funnel every caller passes through — so one `ceil`
+fixes all three sites and the fourth caller cannot forget it. `build_substrate_map` also rounds
+the value it *reports*: ADR-0014 made the manual branch return the radius it actually uses, and
+opening with 9 while reporting 8.5 would reinstate that lie one field along.
+
+**mypy 18 → 15.** Three of the removed errors are this defect's static shadow — the return-type
+lie and the `float` passed where an `int` was declared — sitting in the baseline since M1-T04.
+
+### Tests
+
+11 tests (6 parametrised). Restoring the floor turns 4 red; the centring property stays green,
+because floor also yields an integer — it is the *direction* the other four pin down.
+
+### Next
+
+**B7 → M3-T21**, then **B-058**, **B3 → M3-T10**, **B2 → M3-T02**.
+
+---
+
 ## 2026-08-05 — M3-T11 · **D-07 fixed: an unknown pixel scale is a state, not a crash**
 
 **Task:** `M3-T11`. **Branch:** `sci/unknown-scale`. **ADR:** **ADR-0019**.

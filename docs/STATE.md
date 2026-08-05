@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/unknown-scale` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/opening-radius-ceil` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -73,6 +73,19 @@ and now **B7/M3-T21** (what tiling should mean at 512 px).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T09** ✅ (2026-08-05, **ADR-0020**, decision **B4**) — **D-10 fixed**. `disk(8.5)` is an
+  18x18 element with no centre pixel, so the opening was biased by half a pixel; three sites fed
+  it a float and each did something different. The operator answered B4 **round up**, and the
+  `ceil` lives in `get_substrate_map` — the funnel all three pass through — so one line fixes
+  them all. Up rather than down because a radius smaller than a particle recovers a "substrate"
+  containing the particle's own top, while an over-large disk only over-smooths, which the method
+  already tolerates. `build_substrate_map` reports the integer it used, keeping ADR-0014's
+  principle. Delta: **696 golden values move, 0 keys added** — radius +1 or +2 on all five AFM
+  phantoms, **no particle count changes**, largest height move **0.049 nm (0.37 %)** on
+  `afm_dense_overlapping`. The 696 are propagation, not magnitude. **mypy 18 → 15**, and the
+  three that went were this defect's static shadow, in the baseline since M1-T04. 11 tests;
+  restoring the floor turns 4 red.
 
 - **M3-T11** ✅ (2026-08-05, **ADR-0019**) — **D-07 fixed**. `MicroscopyData.nm_per_pixel` is
   `float | None`, `run_pipeline` passes it to the detector unread, and both detectors multiplied
@@ -451,14 +464,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **159, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **170, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
-| mypy errors | **18**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
+| mypy errors | **15**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **22** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **21** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

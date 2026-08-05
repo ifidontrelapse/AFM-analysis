@@ -27,6 +27,7 @@ Use `TEMPLATE.md` for new records.
 | [0017](ADR-0017-otsu-sizing-fails-loudly-and-counts-what-it-kept.md) | Otsu sizing fails loudly, and counts what it kept | Accepted | 2026-08-05 |
 | [0018](ADR-0018-log-normalisation-requires-a-positive-maximum.md) | LoG normalisation requires a positive maximum | Accepted | 2026-08-05 |
 | [0019](ADR-0019-unknown-pixel-scale-is-a-state-not-a-crash.md) | An unknown pixel scale is a state, not a crash | Accepted | 2026-08-05 |
+| [0020](ADR-0020-opening-radii-are-integers-rounded-up.md) | Opening radii are integers, rounded up (B4) | Accepted | 2026-08-05 |
 
 ## When to write one
 
