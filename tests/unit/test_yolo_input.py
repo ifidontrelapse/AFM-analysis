@@ -1,12 +1,12 @@
-"""`YoloDetector._prepare_image` — normalise first, cast second (D-03, ADR-0015).
+"""`YoloDetector`'s input geometry and grey levels: D-03/ADR-0015 and D-21/ADR-0016.
 
 Preparation is the only part of the YOLO path inside the gate: inference needs
 weights and a GPU, and PROJECT_RULES §6 keeps it out. So everything that can be
 asserted about the detector's input is asserted here.
 
-Each test states a property of the *mapping* height → grey level. Under the old
-cast-then-normalise order every one of them fails, which is the point: they are
-written against the defect, not against the implementation.
+Each test states a property of the *mapping* — height → grey level for D-03,
+scan pixel → model pixel for D-21. They are written against the defects rather
+than against the implementation: restoring either old behaviour turns them red.
 """
 
 from __future__ import annotations
@@ -82,8 +82,61 @@ class TestScaleInvariance:
         assert np.abs(_grey(det, 10.0 * z + 100.0).astype(int) - base.astype(int)).max() <= 1
 
 
+def _disk(shape: tuple[int, int], centre: tuple[float, float], radius: float) -> np.ndarray:
+    """A flat map with one circular bump — round in *scan* pixels."""
+    ys, xs = np.mgrid[0 : shape[0], 0 : shape[1]]
+    return ((ys - centre[0]) ** 2 + (xs - centre[1]) ** 2 <= radius**2).astype(np.float64)
+
+
+class TestLetterbox:
+    """D-21: the scan used to be squashed into a square and the boxes stretched
+    back with two different factors."""
+
+    def test_a_circle_on_a_non_square_scan_stays_a_circle(self, det: YoloDetector) -> None:
+        """The defect in one assertion. On a 2:1 scan the old code made every
+        particle an ellipse of aspect 2, and `radius_px = min(w, h) / 2` then
+        reported its smaller half-axis as the radius."""
+        grey = _grey(det, _disk((64, 128), (32, 64), 16))
+        dark = np.argwhere(grey < 128)  # the bump, inverted to dark
+        height = np.ptp(dark[:, 0]) + 1
+        width = np.ptp(dark[:, 1]) + 1
+        assert abs(width - height) <= 1
+
+    def test_the_border_is_substrate_not_an_edge(self, det: YoloDetector) -> None:
+        """A 2:1 scan leaves a quarter of the square as padding above and below.
+        It is filled with 255 — what a minimum height looks like after the
+        inversion — so it reads as more substrate."""
+        grey = _grey(det, _disk((32, 64), (16, 32), 8))
+        _scale, pad_x, pad_y = det._letterbox((32, 64))
+        assert (pad_x, pad_y) == (0, 16)
+        assert (grey[:pad_y] == 255).all() and (grey[-pad_y:] == 255).all()
+
+    def test_a_box_round_trips_through_the_letterbox(self, det: YoloDetector) -> None:
+        """`_scale_boxes` must be the exact inverse of the forward map, or the
+        detector reports particles where there are none."""
+        shape = (37, 91)  # deliberately awkward: neither square nor even
+        scale, pad_x, pad_y = det._letterbox(shape)
+        boxes = np.array([[0.0, 0.0, 91.0, 37.0], [10.0, 3.0, 22.0, 15.0]])
+        forward = boxes * scale + np.array([pad_x, pad_y, pad_x, pad_y])
+        assert np.allclose(det._scale_boxes(forward, shape), boxes)
+
+    def test_a_square_scan_is_not_padded_at_all(self, det: YoloDetector) -> None:
+        """The 7 golden phantoms are square, so this is the case the
+        characterization baseline covers — it must not move."""
+        assert det._letterbox((64, 64)) == (1.0, 0, 0)
+        assert (_grey(det, _ramp(64, 0.0, 20.0)) != 255).any()
+
+
 class TestDegenerate:
     def test_a_constant_map_is_uniform_and_does_not_raise(self, det: YoloDetector) -> None:
         """max == min, so there is no range to stretch. Unchanged by this fix,
         recorded because §6 requires degenerate inputs to have a stated answer."""
         assert np.unique(_grey(det, np.full((64, 64), 3.7))).size == 1
+
+    def test_an_extremely_elongated_scan_still_produces_the_model_square(
+        self, det: YoloDetector
+    ) -> None:
+        """A 4:64 strip scales to 4 rows of content and 60 rows of border."""
+        grey = _grey(det, _ramp(64, 0.0, 5.0)[:4])
+        assert grey.shape == (64, 64)
+        assert (grey[:30] == 255).all()

@@ -11,8 +11,9 @@ a `try: import torch`; the point is that the domain can be tested without a GPU
 stack, and a swallowed ImportError hides the day that stops being true.
 
 Only `_prepare_image` is covered by the characterization golden, recorded as
-`yolo_input_preparation` for all 8 phantoms. Inference itself is outside the gate
-by PROJECT_RULES §6 — it is not reproducible enough to be a baseline.
+`yolo_input_preparation` for the 7 phantoms that carry it. Inference itself is
+outside the gate by PROJECT_RULES §6 — it is not reproducible enough to be a
+baseline.
 """
 
 from __future__ import annotations
@@ -65,34 +66,64 @@ class YoloDetector(BaseDetector):
         self.iou = iou
         self._last_result = None  # CombineDetections or ultralytics Results
 
+    def _letterbox(self, original_shape: tuple[int, int]) -> tuple[float, int, int]:
+        """Geometry of the map from `original_shape` into the model square.
+
+        Returns `(scale, pad_x, pad_y)`: one scale for both axes, and the border
+        that centres the scaled image in a `yolo_size` square. `_prepare_image`
+        applies this map and `_scale_boxes` inverts it; they share the function
+        so that they cannot disagree about it (ADR-0016).
+        """
+        h, w = original_shape
+        scale = self.yolo_size / max(h, w)
+        return (
+            scale,
+            (self.yolo_size - round(w * scale)) // 2,
+            (self.yolo_size - round(h * scale)) // 2,
+        )
+
     def _prepare_image(self, z_above: np.ndarray) -> np.ndarray:
         """AFM height-map → uint8 RGB (yolo_size × yolo_size).
 
-        The min-max normalisation happens **while the data is still floating
-        point**, and only then is it cast to `uint8`. Casting first truncates a
-        height map in nanometres to whichever integers 0…255 fall inside its
-        range, and wraps anything above 255 — see ADR-0015 and audit D-03. The
-        order is the whole content of this function; do not reorder it.
+        Two orderings in here are load-bearing, and both were defects:
+
+        - **Normalise, then cast** (ADR-0015 / D-03). Casting a height map in
+          nanometres to `uint8` first keeps only the integers inside its range
+          and wraps the rest.
+        - **Scale isotropically, then pad** (ADR-0016 / D-21). Resizing to a
+          square turned a circular particle into an ellipse on any non-square
+          scan. The padding goes on *after* the normalisation, so the border
+          does not take part in the min-max stretch.
         """
         import cv2
 
-        img = cv2.resize(z_above, (self.yolo_size, self.yolo_size))
+        scale, pad_x, pad_y = self._letterbox(z_above.shape)
+        h, w = z_above.shape
+        img = cv2.resize(z_above, (round(w * scale), round(h * scale)))
         img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         img = cv2.bitwise_not(img)
+        # 255 is what a minimum height looks like after the inversion, so the
+        # border reads as more substrate rather than as an edge (ADR-0016).
+        img = cv2.copyMakeBorder(
+            img,
+            pad_y,
+            self.yolo_size - img.shape[0] - pad_y,
+            pad_x,
+            self.yolo_size - img.shape[1] - pad_x,
+            cv2.BORDER_CONSTANT,
+            value=255,
+        )
         return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
     def _scale_boxes(self, boxes: np.ndarray, original_shape: tuple) -> np.ndarray:
-        """Scale boxes from yolo_size space back to original image coordinates."""
-        h, w = original_shape
-        scale = np.array(
-            [
-                w / self.yolo_size,
-                h / self.yolo_size,
-                w / self.yolo_size,
-                h / self.yolo_size,
-            ]
-        )
-        return boxes * scale
+        """Map boxes from model space back to original image coordinates.
+
+        The exact inverse of `_prepare_image`'s letterbox: undo the border, then
+        the one scale factor. One factor for both axes is the point — the old
+        two-factor version stretched every box by the scan's aspect ratio.
+        """
+        scale, pad_x, pad_y = self._letterbox(original_shape)
+        return (boxes - np.array([pad_x, pad_y, pad_x, pad_y])) / scale
 
     def _detect_tiled(
         self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float

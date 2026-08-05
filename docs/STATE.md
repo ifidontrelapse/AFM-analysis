@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/yolo-normalise-then-cast` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/yolo-letterbox` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,11 +26,16 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M3-T04` — aspect-ratio-preserving YOLO letterbox (D-21).** Status: **selected, not
-started**. `_prepare_image` resizes any scan to a square, and `_scale_boxes` undoes it with
-two different factors, so on a non-square scan every returned box is stretched. Same three
-lines M3-T03 just touched, which is why it is next — and a separate commit and ADR, because
-it is a separate defect (ADR-0010).
+**`M3-T06` — Otsu sizing: raise on empty-after-filter, report post-filter `n_objects`
+(D-05, D-06).** Status: **selected, not started**. The alternative, if the YOLO path is to be
+finished while it is fresh, is **M3-T21** — the single-crop tiling found during M3-T04.
+
+**`M3-T04` done 2026-08-05 (ADR-0016)** — D-21 fixed: the scan is scaled isotropically and
+padded to the model square instead of squashed into it, and `_scale_boxes` inverts exactly
+that. **0 golden differences, 7 keys added**: a square scan is byte-identical, and every
+phantom is square — which is why the harness gained `non_square_half_height` in the same
+commit. Reading for it turned up **M3-T21**: `use_tiling=True`, the default, produces exactly
+one crop, so the tiled backend has never tiled.
 
 **`M3-T03` done 2026-08-05 (ADR-0015)** — D-03 fixed: the cast to `uint8` now happens
 *after* the normalisation. **67 golden differences, all under `yolo_input_preparation`**;
@@ -48,6 +53,17 @@ produced; see the ADR's Consequences.
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T04** ✅ (2026-08-05, **ADR-0016**) — **D-21 fixed**: `_prepare_image` squashed every
+  scan into a 640 × 640 square and `_scale_boxes` stretched the boxes back per axis. The two
+  agreed, so boxes landed correctly — the defect is that **on a 2:1 scan the model saw
+  ellipses**, and `radius_px = min(w, h) / 2` reported the smaller half-axis as a radius. Now
+  one isotropic scale, a border of 255 (what the lowest point looks like after the inversion,
+  so it reads as substrate rather than as an edge), applied *after* the normalisation, and one
+  helper shared by the forward and inverse maps so they cannot drift. Delta: **0 golden
+  differences, 7 keys added** — square scans are byte-identical and every phantom is square,
+  so the harness gained `non_square_half_height` to characterize the path at all. 5 geometry
+  tests; restoring the squash turns 4 red. **Found while reading, filed not fixed: M3-T21.**
 
 - **M3-T03** ✅ (2026-08-05, **ADR-0015**) — **D-03 fixed**: `_prepare_image` cast the float
   height map to `uint8` *before* normalising, keeping only whichever integers 0…255 fell
@@ -282,12 +298,15 @@ produced; see the ADR's Consequences.
 
 ## In progress
 
-**M2 is closed and M3 has started.** M3-T01 and M3-T03 are done; **M3-T04 is selected, not
-started**. Two of the four critical defects are closed; the other two (D-04, D-12) are the
-ones waiting on operator decisions B2 and B3.
+**M2 is closed and M3 has started.** M3-T01, M3-T03 and M3-T04 are done. Two of the four
+critical defects are closed; the other two (D-04, D-12) wait on operator decisions B2 and B3.
+**The YOLO input path is now correct in both respects** — the data survives preparation and
+the sample keeps its shape — and neither claim extends to detection quality, which nothing in
+the gate can measure.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-M3-T03 is on `sci/yolo-normalise-then-cast`. CI on `main` is green: **216 s**, of which
+M3-T03 is on `sci/yolo-normalise-then-cast` (pushed); M3-T04 is on `sci/yolo-letterbox`,
+branched off it, so the two land in order. CI on `main` is green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
 
@@ -328,9 +347,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Execute `M3-T04`** — the aspect-ratio half of the YOLO input path (D-21). Rewrite
-   `docs/CURRENT_TASK.md` for it. It moves the same golden block M3-T03 just moved, so run
-   it on its own branch and read the delta against the new baseline, not the old one
+1. **Execute `M3-T06`** (Otsu sizing, D-05/D-06) or **`M3-T21`** (the single-crop tiling
+   found in M3-T04). Rewrite `docs/CURRENT_TASK.md` for whichever is chosen. M3-T21 is the
+   one that finishes the YOLO path while the context is fresh, and it is rated high
 2. **The two remaining critical defects need operator answers, not engineering.** B2 (D-04)
    and B3 (D-12) have been open since M0; every session that passes without them is a
    session M3 cannot finish. Everything else in M3 is unblocked and can be worked in
@@ -354,14 +373,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **131, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **136, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **19**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **26** (was 28) — D-01 (M3-T01), D-03 (M3-T03) | 0 critical | audit §2, M3-T17…T20 |
+| Open defects | **26** (was 28) — D-01, D-03, D-21 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

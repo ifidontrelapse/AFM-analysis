@@ -23,6 +23,7 @@ Use `TEMPLATE.md` for new records.
 | [0013](ADR-0013-stdlib-logging-instead-of-a-logsink-port.md) | Standard-library `logging` instead of a `LogSink` port | Accepted | 2026-08-04 |
 | [0014](ADR-0014-manual-opening-radius-is-the-radius-used.md) | `build_substrate_map` reports the opening radius it was given | Accepted | 2026-08-04 |
 | [0015](ADR-0015-yolo-input-is-normalised-before-it-is-cast.md) | YOLO input is normalised before it is cast to `uint8` | Accepted | 2026-08-05 |
+| [0016](ADR-0016-letterbox-the-yolo-input.md) | The YOLO input is letterboxed, not squashed | Accepted | 2026-08-05 |
 
 ## When to write one
 

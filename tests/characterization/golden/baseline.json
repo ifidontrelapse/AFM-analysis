@@ -788,6 +788,32 @@
       },
       "current_unique_levels": 256,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 248.77006591796874,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            246.0,
+            248.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 18.446046322906888,
+          "sum": 101896219.0
+        },
+        "ok": true,
+        "unique_levels": 253
+      },
       "normalize_first_unique_levels": 256,
       "ok": true
     }
@@ -1570,6 +1596,32 @@
       },
       "current_unique_levels": 256,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 242.83859619140625,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            228.0,
+            248.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 31.44291766629117,
+          "sum": 99466689.0
+        },
+        "ok": true,
+        "unique_levels": 256
+      },
       "normalize_first_unique_levels": 256,
       "ok": true
     }
@@ -2352,6 +2404,32 @@
       },
       "current_unique_levels": 256,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 245.8859375,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            244.0,
+            249.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 27.859683248084387,
+          "sum": 100714880.0
+        },
+        "ok": true,
+        "unique_levels": 256
+      },
       "normalize_first_unique_levels": 256,
       "ok": true
     }
@@ -2770,6 +2848,32 @@
       },
       "current_unique_levels": 239,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 202.19158203125,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            132.0,
+            150.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 55.05075020454412,
+          "sum": 82817672.0
+        },
+        "ok": true,
+        "unique_levels": 233
+      },
       "normalize_first_unique_levels": 239,
       "ok": true
     }
@@ -3552,6 +3656,32 @@
       },
       "current_unique_levels": 255,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 222.16912353515625,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            166.0,
+            194.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 40.56786557183006,
+          "sum": 91000473.0
+        },
+        "ok": true,
+        "unique_levels": 256
+      },
       "normalize_first_unique_levels": 255,
       "ok": true
     }
@@ -4198,6 +4328,32 @@
       },
       "current_unique_levels": 255,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 235.76833251953124,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            225.0,
+            230.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 40.37401955082268,
+          "sum": 96570709.0
+        },
+        "ok": true,
+        "unique_levels": 253
+      },
       "normalize_first_unique_levels": 255,
       "ok": true
     }
@@ -4284,6 +4440,32 @@
       },
       "current_unique_levels": 254,
       "mean_abs_diff_vs_normalize_first": 0.0,
+      "non_square_half_height": {
+        "fully_255_rows": 320,
+        "grey": {
+          "dtype": "uint8",
+          "max": 255.0,
+          "mean": 150.38389404296876,
+          "min": 0.0,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            26.0,
+            30.0,
+            255.0,
+            255.0,
+            255.0
+          ],
+          "shape": [
+            640,
+            640
+          ],
+          "size": 409600,
+          "std": 111.37137287545914,
+          "sum": 61597243.0
+        },
+        "ok": true,
+        "unique_levels": 252
+      },
       "normalize_first_unique_levels": 254,
       "ok": true
     }

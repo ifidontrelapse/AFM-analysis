@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-05 · **Active:** `M3-T04` (next; `M3-T03` closed 2026-08-05)
+**Updated:** 2026-08-05 · **Active:** `M3-T06` (next; `M3-T03`, `M3-T04` closed 2026-08-05)
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -79,7 +79,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M3-T01 | Fix `build_substrate_map(manual_radius_px=...)` — `UnboundLocalError` on 100% of calls | D-01 | critical | [x] Done 2026-08-04, **ADR-0014**. One line: `opening_radius = manual_radius_px`, the value actually passed to the opening. **No rounding, no floor** — both would pre-empt B4/M3-T09 and M3-T13. Delta: **50 golden differences, all under `build_substrate_map_manual`** (10 fields × 5 phantoms); the automatic path 100% of real callers use is untouched. The harness was extended in the same commit to record the returned arrays, or fixing the defect would have left the branch *less* characterized than while broken. 6 tests; restoring the bug turns 5 red |
 | M3-T02 | Fix `min_size_pixel` flooring to zero on 90% of real scans | D-04 | critical | [!] needs operator decision |
 | M3-T03 | Fix YOLO input: normalise **then** cast (12.6% of dynamic range currently survives) | D-03 | critical | [x] Done 2026-08-05, **ADR-0015**. The cast moved after the normalisation; `min_size`-style semantics untouched. Delta: **67 golden differences, all under `yolo_input_preparation`**, on all 7 phantoms. Grey levels reaching the network: 8–208 → 239–256. The harness's D-03 measuring stick, `mean_abs_diff_vs_normalize_first`, now reads **0.0** everywhere and becomes a permanent guard. 6 tests; restoring the order turns 5 red. **Not claimed: better detections** — the weights were trained on images the old path produced (see the ADR) |
-| M3-T04 | Aspect-ratio-preserving YOLO letterbox; isotropic box rescale | D-21 | medium | [ ] |
+| M3-T04 | Aspect-ratio-preserving YOLO letterbox; isotropic box rescale | D-21 | medium | [x] Done 2026-08-05, **ADR-0016**. Isotropic scale to fit, pad to the square with 255 (substrate after inversion, applied *after* the normalisation), and one shared geometry helper so the forward and inverse maps cannot drift. Delta: **0 golden differences, 7 keys added** — a square scan is byte-identical, and every phantom is square, which is why the harness gained `non_square_half_height`. 5 geometry tests; restoring the squash turns 4 red. Found while reading: **M3-T21** |
 | M3-T05 | Propagate YOLO confidence into `Detection` | D-09 | medium | [ ] |
 | M3-T06 | Otsu sizing: raise on empty-after-filter; report post-filter `n_objects` | D-05, D-06 | high | [ ] |
 | M3-T07 | Guard LoG normalisation against a zero maximum | D-11 | medium | [ ] |
@@ -96,6 +96,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M3-T18 | `YoloDetector._last_result` is initialised to `None`, so its type is `None`; `.filtered_boxes` is accessed unguarded (`yolo_detector.py:50,87,99`) | **new**, mypy | medium | [ ] |
 | M3-T19 | `estimate_log_threshold_adaptive` rebinds `responses` from `list[float]` to ndarray before calling `.min()`/`.max()` (`log_detector.py:111,116`) | **new**, mypy | low | [ ] |
 | M3-T20 | `load_afm(fmt="npy")` fabricates a physical scale: `pixel_size_nm or 1.0` and `scan_size_nm or float(z.shape[0])` (`afm_io.py:132-133`). Unknown scale must be `None` — the invariant D-07 states. Two consequences: every downstream `_nm` becomes a pixel count wearing nanometre units, and `or` also swallows an explicit `0.0`. Row count is used as a length in nm, which is not even dimensionally a size | **new**, found by the M1-T06 tests | high | [ ] |
+| M3-T21 | `use_tiling=True` — the default backend — produces **exactly one crop**. `_prepare_image` hands `MakeCropsDetectThem` a 640x640 image and the crop shape is also 640x640, so `get_crops_xy` computes `int((640-640) / (640*0.75)) + 1 = 1` step on each axis. The sliding window covers the whole image in a single tile: the tiled backend does the same work as the direct one, more slowly, and small particles are never seen at native resolution — which is the only reason tiling exists. Real tiling needs an input of at least `shape * (2 - overlap/100)` = 1120 px, and a 512x512 scan cannot reach it. Fix is a decision between a smaller crop shape and feeding the scan at native resolution (which then needs D-21's letterbox to survive the library's own resize) | **new**, found while reading for M3-T04 | high | [ ] |
 
 ---
 

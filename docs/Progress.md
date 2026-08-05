@@ -7,6 +7,70 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T04 · **D-21 fixed: the scan is letterboxed, not squashed**
+
+**Task:** `M3-T04`. **Branch:** `sci/yolo-letterbox` (off `sci/yolo-normalise-then-cast`).
+**ADR:** **ADR-0016**. **Defect:** D-21, medium. Same three lines as M3-T03, the other half
+of "the detector is fed correctly" — and a separate commit, because it is a separate defect.
+
+### The defect
+
+`_prepare_image` resized every scan to `640 × 640`, and `_scale_boxes` undid it with two
+factors. The two agreed, so boxes came back where they belonged — the defect is not
+misplaced detections, it is that **on a non-square scan the model never saw the sample**. At
+2:1 a circular particle is an ellipse of aspect 2, and `radius_px = min(w, h) / 2` then
+reports its smaller half-axis as the radius, in nanometres, to the measurement table.
+
+### The delta
+
+**0 golden differences. 7 keys added.** A square scan gives `scale = 640/side` and zero
+padding — the old arithmetic exactly — so the 7 existing `yolo_input_preparation` blocks are
+byte-identical, which the regenerated baseline proves rather than assumes.
+
+That is also the problem: **every phantom is square (256 × 256, one 128 × 128), so the
+harness could not see this fix at all.** It gains `non_square_half_height` in the same
+commit — the top half of each phantom, prepared — on the same reasoning as M3-T01's harness
+change: a fix that leaves its own path uncharacterized is not finished. A 128 × 256 half now
+records 320 fully-255 border rows and 252–256 grey levels; under the old code it recorded a
+2:1 squash and no border at all.
+
+### Three things the reading turned up
+
+1. **Deleting the resize would not have fixed it.** Both backends return boxes in the
+   coordinates of the image handed to them, so `_scale_boxes` is only the inverse of our own
+   resize — tempting to delete both. But `MakeCropsDetectThem` resizes whatever it receives
+   to a multiple of the crop size with a plain `cv2.resize`. The squash would have moved
+   into a dependency, where no ADR of ours governs it.
+2. **The padding value is a scientific choice, not a convention.** ultralytics pads with 114
+   grey. In an inverted height map that means "a particle of middling height", so it would
+   draw a large one around the sample. 255 is what the *lowest* point looks like after the
+   inversion, so the border reads as more substrate. It is applied after the normalisation —
+   padding first would let the border join the min-max stretch and shift every grey level,
+   which is D-03 again in a different disguise.
+3. **`use_tiling=True`, the default, produces exactly one crop.** With a 640 × 640 input and
+   a 640 × 640 crop shape, `get_crops_xy` computes `int((640-640)/(640*0.75)) + 1 = 1` step
+   per axis. The sliding window covers the whole image in a single tile: the tiled backend
+   does the direct backend's work, more slowly, and small particles are never seen at native
+   resolution — the only reason tiling exists. Real tiling needs ≥ 1120 px of input and a
+   512 × 512 scan cannot reach it. **Filed as M3-T21, not fixed here** (ADR-0010): it changes
+   what inference *does*, not what it is *fed*.
+
+### Tests
+
+5 geometry tests beside the 6 from M3-T03: a circle on a 2:1 scan stays a circle, the border
+is exactly 255, an awkward 37 × 91 shape round-trips through forward-then-inverse, a square
+scan is not padded, a 4:64 strip still yields the model square. **Restoring the squash turns
+4 of the 5 red.** The fifth — the square-scan invariant — passes either way by design; it is
+what guarantees the golden does not move.
+
+### Next
+
+**M3-T06 / D-05, D-06** (Otsu sizing) is the next unblocked defect, or **M3-T21** if the
+YOLO path is to be finished while it is fresh. The two remaining criticals, D-04 and D-12,
+still need operator answers (B2, B3).
+
+---
+
 ## 2026-08-05 — M3-T03 · **D-03 fixed: YOLO finally sees the data**
 
 **Task:** `M3-T03`. **Branch:** `sci/yolo-normalise-then-cast`.

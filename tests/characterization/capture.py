@@ -307,6 +307,12 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
     it, so the two derived numbers are now an invariant rather than a defect
     size: `mean_abs_diff_vs_normalize_first` is 0.0 and the two level counts
     agree. Reordering the cast moves both, on all 7 phantoms.
+
+    Every phantom is square, so the letterbox of M3-T04 (D-21) leaves all of the
+    above byte-identical — which is exactly why `non_square_half_height` exists.
+    It prepares the top half of the same image, the cheapest way to characterize
+    the aspect-ratio path without inventing a phantom; the old code squashed it
+    2:1, the letterbox pads it instead.
     """
     import cv2
 
@@ -326,7 +332,7 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
         ),
         cv2.COLOR_GRAY2RGB,
     )
-    return {
+    out = {
         "ok": True,
         "current": _array_digest(current[:, :, 0]),
         "current_unique_levels": int(np.unique(current[:, :, 0]).size),
@@ -335,6 +341,20 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
             np.abs(current[:, :, 0].astype(int) - correct[:, :, 0].astype(int)).mean()
         ),
     }
+
+    r = _record(det._prepare_image, ph.image[: ph.image.shape[0] // 2])
+    if r["ok"]:
+        grey = r["value"][:, :, 0]
+        rows_of_border = int((grey == 255).all(axis=1).sum())
+        out["non_square_half_height"] = {
+            "ok": True,
+            "grey": _array_digest(grey),
+            "unique_levels": int(np.unique(grey).size),
+            "fully_255_rows": rows_of_border,
+        }
+    else:
+        out["non_square_half_height"] = r
+    return out
 
 
 def capture_degenerate() -> dict:
