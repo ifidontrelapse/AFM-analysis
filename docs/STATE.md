@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/tiling-default` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/golden-exception-text` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -75,6 +75,17 @@ plus **B-058** (an ADR for the golden storing CPython exception text) and **B-04
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **B-058** ✅ (2026-08-05, **ADR-0022**) — the golden compared exception messages exactly, and
+  most of them are CPython's or a library's. 3.14 reworded `too many values to unpack` and the
+  first real CI run called it characterization drift (M1-T08). Now the **type** and the **raising
+  function** are always compared and the **message** only when we wrote it — the frame must be
+  inside `nanoscope` *and* the raising line must be an explicit `raise`, because either alone
+  misclassifies: `h, w = z.shape` in our file is CPython's wording, and skimage raises explicitly
+  too. **15 keys renamed to `error_message_unchecked`** (skipped by `compare`, still recorded),
+  **7 remain compared, all `estimate_radius_otsu`'s** — the ones PROJECT_RULES §3 governs. 0
+  values changed. **A Python upgrade no longer reads as drift**, which `STATE.md` listed as the
+  precondition for touching the interpreter. 6 tests.
 
 - **M3-T21** ✅ (2026-08-05, **ADR-0021**, decision **B7**) — the tiled YOLO backend **has never
   tiled**: `_prepare_image` emits one 640 px square and the crop shape is 640, so `get_crops_xy`
@@ -463,8 +474,8 @@ None of the remaining questions blocks M1 or M2.
 3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
    exit criteria. `src/` is gone, so the only thing left is the 20 errors that arrived
    inside the moved science; they belong to M3 and M2-T12
-4. Before any Python upgrade, deal with **B-058** — the golden compares CPython exception
-   text, so a new interpreter reads as characterization drift
+4. **B-058 is done (ADR-0022)** — a Python upgrade no longer reads as drift, so the 3.12 pin in
+   CI is now a choice rather than a constraint
 5. **B-054** (two README figures over 1 MB) is the one M1 exit criterion left open;
    it belongs to the README rewrite in M9-T01
 
@@ -479,7 +490,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **179, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **185, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

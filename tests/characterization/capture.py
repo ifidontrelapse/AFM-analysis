@@ -41,6 +41,9 @@ GOLDEN_DIR = Path(__file__).parent / "golden"
 RTOL = 1e-6
 ATOL = 1e-9
 
+#: Keys ending in this suffix are recorded and never compared (ADR-0022).
+UNCHECKED = "_unchecked"
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -114,21 +117,43 @@ def _quiet():
         yield buf
 
 
+def _we_wrote_this_message(frame: traceback.FrameSummary) -> bool:
+    """Did *this project* author the exception text (ADR-0022 / B-058)?
+
+    Two signals, and both are needed. The frame must be inside `nanoscope`, or
+    the wording belongs to numpy, scipy or scikit-image — `Only 2-D and 3-D
+    images supported.` is skimage's sentence, not ours. And the raising line
+    must be an explicit `raise`, or the wording belongs to CPython: `h, w =
+    z.shape` in our own file produces *its* "too many values to unpack", which
+    3.14 reworded and CI reported as characterization drift (M1-T08).
+    """
+    return "nanoscope" in Path(frame.filename).parts and "raise " in (frame.line or "")
+
+
 def _record(fn, *args, **kwargs) -> dict:
     """Run fn, capturing either its digest-able result or the exception it
     raises. Recording the *error* is as important as recording the value:
     several inputs are supposed to fail, and how they fail is part of the
-    contract we are about to change."""
+    contract we are about to change.
+
+    The exception *type* and the function it came out of are always compared.
+    The *message* is compared only when we wrote it; a message written by CPython
+    or by a library is recorded under `..._unchecked`, which `compare` skips —
+    it is evidence for a reader, not a promise about somebody else's wording
+    (ADR-0022).
+    """
     try:
         with np.errstate(all="ignore"), _quiet() as buf:
             value = fn(*args, **kwargs)
         return {"ok": True, "value": value, "stdout_lines": len(buf.getvalue().splitlines())}
     except Exception as exc:
+        frame = traceback.extract_tb(exc.__traceback__)[-1]
+        key = "error_message" if _we_wrote_this_message(frame) else "error_message" + UNCHECKED
         return {
             "ok": False,
             "error_type": type(exc).__name__,
-            "error_message": str(exc)[:300],
-            "raised_in": traceback.extract_tb(exc.__traceback__)[-1].name,
+            key: str(exc)[:300],
+            "raised_in": frame.name,
         }
 
 
@@ -555,6 +580,8 @@ def _log_on_raw(ph: phantoms.Phantom) -> np.ndarray:
 def compare(new: Any, old: Any, path: str, diffs: list[str]) -> None:
     if isinstance(old, dict) and isinstance(new, dict):
         for k in sorted(set(old) | set(new)):
+            if k.endswith(UNCHECKED):
+                continue  # recorded for the reader, never a promise (ADR-0022)
             if k not in old:
                 diffs.append(f"{path}.{k}: ADDED")
             elif k not in new:

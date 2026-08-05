@@ -29,6 +29,7 @@ Use `TEMPLATE.md` for new records.
 | [0019](ADR-0019-unknown-pixel-scale-is-a-state-not-a-crash.md) | An unknown pixel scale is a state, not a crash | Accepted | 2026-08-05 |
 | [0020](ADR-0020-opening-radii-are-integers-rounded-up.md) | Opening radii are integers, rounded up (B4) | Accepted | 2026-08-05 |
 | [0021](ADR-0021-the-tiled-backend-is-not-the-default.md) | The tiled YOLO backend is not the default (B7) | Accepted | 2026-08-05 |
+| [0022](ADR-0022-the-golden-compares-messages-we-wrote.md) | The golden compares the messages we wrote, and only those | Accepted | 2026-08-05 |
 
 ## When to write one
 

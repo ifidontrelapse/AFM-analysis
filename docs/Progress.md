@@ -7,6 +7,61 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — B-058 · **The golden compares the messages we wrote, and only those**
+
+**Branch:** `sci/golden-exception-text`. **ADR:** **ADR-0022**. **Backlog:** B-058, which
+specified that this needed an ADR rather than a quiet edit.
+
+### The fragility
+
+`capture.py` compared recorded exception messages exactly, and most of those sentences were never
+ours: `too many values to unpack (expected 2)` is CPython's, `Only 2-D and 3-D images supported.`
+is scikit-image's. CPython 3.14 reworded the first, the first real CI run resolved 3.14, and the
+gate went red as **characterization drift with no scientific change behind it** (M1-T08). CI was
+pinned to 3.12; the fragility stayed.
+
+### The rule
+
+The exception **type** and the **function it came out of** are always compared. The **message**
+is compared only when this project wrote it:
+
+```python
+"nanoscope" in Path(frame.filename).parts and "raise " in (frame.line or "")
+```
+
+**Both signals, because either alone is wrong.** Filename alone claims `h, w = z.shape` in our
+own `flatten_plane` — the M1-T08 case exactly, our file, CPython's wording. `raise` alone claims
+`raise TypeError('Only 2-D and 3-D images supported.')`, which is skimage's sentence in skimage's
+file.
+
+### The delta — 15 keys renamed, 0 values changed
+
+`error_message` → `error_message_unchecked` on 15 recordings; `compare` skips any key ending in
+`_unchecked`. **7 messages remain compared, all of them `estimate_radius_otsu`'s** — the ones
+PROJECT_RULES §3 governs, which must name the parameter and its value, and whose wording M3-T06
+changed on purpose.
+
+Nothing is dropped: the text is still recorded and still regenerated, because a reader diagnosing
+a failure needs it. The harness simply stops promising that somebody else's wording is stable.
+
+### What it unblocks
+
+**A Python upgrade no longer reads as drift** — `STATE.md` listed that as the precondition for
+touching the interpreter version at all. The contract also got *sharper* rather than looser: what
+failed and where is still compared exactly.
+
+### Tests
+
+6 tests: our own `raise` is ours, a CPython message in our own file is not, a library's explicit
+`raise` is not — so neither signal is redundant — and `compare` ignores a reworded `_unchecked`
+value, reports a reworded one of ours, and still reports a changed `error_type` either way.
+
+### Next
+
+**B3 → M3-T10** (polarity), **B2 → M3-T02** (the critical one), **B6 → M3-T16**, then **B-040**.
+
+---
+
 ## 2026-08-05 — M3-T21 · **The tiled backend is not the default (B7)**
 
 **Task:** `M3-T21`. **Branch:** `sci/tiling-default`. **ADR:** **ADR-0021**.

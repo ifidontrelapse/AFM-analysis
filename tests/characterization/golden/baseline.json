@@ -4227,19 +4227,19 @@
     },
     "empty": {
       "build_substrate_map": {
-        "error_message": "zero-size array to reduction operation maximum which has no identity",
+        "error_message_unchecked": "zero-size array to reduction operation maximum which has no identity",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "_amax"
       },
       "detect_particles": {
-        "error_message": "zero-size array to reduction operation maximum which has no identity",
+        "error_message_unchecked": "zero-size array to reduction operation maximum which has no identity",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "_amax"
       },
       "estimate_log_threshold_adaptive": {
-        "error_message": "zero-size array to reduction operation maximum which has no identity",
+        "error_message_unchecked": "zero-size array to reduction operation maximum which has no identity",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "_amax"
@@ -4409,7 +4409,7 @@
     },
     "one_dimensional": {
       "build_substrate_map": {
-        "error_message": "Only 2-D and 3-D images supported.",
+        "error_message_unchecked": "Only 2-D and 3-D images supported.",
         "error_type": "TypeError",
         "ok": false,
         "raised_in": "regionprops"
@@ -4426,19 +4426,19 @@
         }
       },
       "estimate_log_threshold_adaptive": {
-        "error_message": "not enough values to unpack (expected 3, got 2)",
+        "error_message_unchecked": "not enough values to unpack (expected 3, got 2)",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_log_threshold_adaptive"
       },
       "flatten_lines": {
-        "error_message": "tuple index out of range",
+        "error_message_unchecked": "tuple index out of range",
         "error_type": "IndexError",
         "ok": false,
         "raised_in": "flatten_lines"
       },
       "flatten_plane": {
-        "error_message": "not enough values to unpack (expected 2, got 1)",
+        "error_message_unchecked": "not enough values to unpack (expected 2, got 1)",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "flatten_plane"
@@ -4467,7 +4467,7 @@
         "result": 0.05
       },
       "flatten_lines": {
-        "error_message": "SVD did not converge in Linear Least Squares",
+        "error_message_unchecked": "SVD did not converge in Linear Least Squares",
         "error_type": "LinAlgError",
         "ok": false,
         "raised_in": "_raise_linalgerror_lstsq"
@@ -4502,7 +4502,7 @@
     },
     "three_dimensional": {
       "build_substrate_map": {
-        "error_message": "footprint.ndim (2) must match len(axes) (3)",
+        "error_message_unchecked": "footprint.ndim (2) must match len(axes) (3)",
         "error_type": "RuntimeError",
         "ok": false,
         "raised_in": "_min_or_max_filter"
@@ -4523,13 +4523,13 @@
         "result": 0.05
       },
       "flatten_lines": {
-        "error_message": "operands could not be broadcast together with shapes (8,) (3,) ",
+        "error_message_unchecked": "operands could not be broadcast together with shapes (8,) (3,) ",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "polyval"
       },
       "flatten_plane": {
-        "error_message": "too many values to unpack (expected 2)",
+        "error_message_unchecked": "too many values to unpack (expected 2)",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "flatten_plane"
@@ -4537,7 +4537,7 @@
     },
     "with_inf": {
       "build_substrate_map": {
-        "error_message": "autodetected range of [0.0, inf] is not finite",
+        "error_message_unchecked": "autodetected range of [0.0, inf] is not finite",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "_get_outer_edges"
@@ -4582,7 +4582,7 @@
         }
       },
       "flatten_plane": {
-        "error_message": "array must not contain infs or NaNs",
+        "error_message_unchecked": "array must not contain infs or NaNs",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "asarray_chkfinite"
@@ -4590,7 +4590,7 @@
     },
     "with_nan": {
       "build_substrate_map": {
-        "error_message": "autodetected range of [nan, nan] is not finite",
+        "error_message_unchecked": "autodetected range of [nan, nan] is not finite",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "_get_outer_edges"
@@ -4635,7 +4635,7 @@
         }
       },
       "flatten_plane": {
-        "error_message": "array must not contain infs or NaNs",
+        "error_message_unchecked": "array must not contain infs or NaNs",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "asarray_chkfinite"
