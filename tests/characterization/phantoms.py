@@ -338,6 +338,19 @@ def degenerate_inputs() -> dict[str, NDArray[np.float32]]:
         "constant_zero": np.zeros((64, 64), dtype=np.float32),
         "constant_nonzero": np.full((64, 64), 7.5, dtype=np.float32),
         "all_negative": np.full((64, 64), -5.0, dtype=np.float32),
+        # Negative *with* structure, added by M3-T07 (D-11). `all_negative`
+        # above is constant, so dividing by its maximum leaves a constant image
+        # and hides what that division does: it flips the topography, and the
+        # substrate ends up brighter than the peaks.
+        "negative_with_structure": (
+            _gaussian_caps(
+                (64, 64),
+                np.array([[16.0, 16.0], [16.0, 48.0], [48.0, 16.0], [48.0, 48.0]]),
+                np.full(4, 6.0),
+                np.full(4, 6.0),
+            )
+            - 10.0
+        ).astype(np.float32),
         "with_nan": np.where(
             np.arange(64 * 64).reshape(64, 64) == 100,
             np.nan,

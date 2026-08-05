@@ -333,6 +333,8 @@ Algorithm:
 4. Normalize by `z_above.max()` and call `skimage.feature.blob_log` with 15 sigma values and the configured overlap.
 5. Convert sigma to physical radius and remove circles crossing the image boundary.
 
+Since M3-T07 (ADR-0018) both normalisation sites require a **positive** maximum. If `z_above.max()` is zero, negative or `nan`, `detect_particles` logs the real reason and returns an empty `(0, 4)` array, and `estimate_log_threshold_adaptive` returns `DEFAULT_THRESHOLD` (0.05) — no `nan` image is ever constructed, and the adaptive threshold is always inside the `(0, 1]` interval it is compared against. Note the guard is written `not z_max > 0` so that a `nan` maximum is caught too.
+
 There is also `estimate_log_threshold`, which estimates `3 * substrate_noise_std / z_max`, but `detect_particles` uses `estimate_log_threshold_adaptive` when the threshold is `None`.
 
 ### 7.2 YOLO detector

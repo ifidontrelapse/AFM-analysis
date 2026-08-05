@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/otsu-sizing` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/log-zero-max` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,10 +26,20 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M3-T07` — guard the LoG normalisation against a zero maximum (D-11).** Status:
-**selected, not started**. The other candidate, **M3-T21**, is now **blocked on decision B7**:
-its fix is not "make tiling work", it is "decide what tiling should mean on a 512 px scan",
-and that is a physics-and-cost trade-off, not an engineering one.
+**None selected.** The next task is one of **M3-T11**, **M3-T12**, **M3-T17**, **M3-T20** — the
+`high` unblocked defects left in M3. **M3-T21** stays **blocked on decision B7**: its fix is not
+"make tiling work", it is "decide what tiling should mean on a 512 px scan", and that is a
+physics-and-cost trade-off, not an engineering one.
+
+**`M3-T07` done 2026-08-05 (ADR-0018)** — D-11 fixed: `z_above / z_above.max()` at two sites
+never checked its divisor. A flat map made every pixel `nan` and the code blamed the threshold;
+a negative map flipped the topography and produced an adaptive threshold of **2.4997** against a
+`[0, 1]`-normalised response. Both sites now stop on a non-positive or `nan` maximum —
+`DEFAULT_THRESHOLD = 0.05` from the estimator, an empty `(0, 4)` from `detect_particles`.
+**65 golden keys added, 0 changed**: the working path is byte-identical, and the wrong number
+had never been recorded at all, because the harness wrote every scalar down as the string
+`"non-array"` and its only negative degenerate input was *constant*. Fixing that is the larger
+half of the commit.
 
 **`M3-T06` done 2026-08-05 (ADR-0017)** — D-05/D-06 fixed: the empty-after-filter case raised
 nothing and returned `nan`; it now raises with the parameter, its value and the largest object
@@ -62,6 +72,25 @@ and now **B7/M3-T21** (what tiling should mean at 512 px).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T07** ✅ (2026-08-05, **ADR-0018**) — **D-11 fixed**. The LoG path normalises with
+  `z_above / z_above.max()` in two places and checked the divisor in neither. `max() == 0` gives
+  a wholly `nan` image, `blob_log` finds nothing, and the operator is told to *lower the
+  threshold* — a knob that cannot help. `max() < 0` **inverts the topography**, so the substrate
+  outshines the peaks; measured on caps at −10 nm the adaptive threshold came out **2.4997**,
+  compared against responses that live in `[0, 1]`. The guard is `not z_max > 0`, **not**
+  `z_max <= 0`, because the two differ exactly on `nan` and `nan` is the case that spreads.
+  **Zero particles is the answer, not an error** — the opposite call from ADR-0017 one commit
+  earlier, because there the *caller* asked the impossible and here the *data* is simply flat,
+  which is a legitimate scan region. Delta: **65 golden keys added, 0 changed** — every phantom
+  goes through `build_substrate_map`, which guarantees `z_above >= 0`, so nothing on the working
+  path moves. The negative case is reachable only via `LogDetector.detect` on raw SEM/TEM, which
+  is **D-12**, still on B3. **The harness could not see this defect at all** and two changes in
+  the same commit fixed that: `negative_with_structure` (the old `all_negative` is *constant*, so
+  the flip has nothing to flip) and recording scalars instead of the string `"non-array"` — that
+  line is why 2.4997 sat unrecorded since Phase 0. 11 tests; restoring the raw division turns 3
+  red, and the two that stay green do so by construction: a `nan` image also yields no blobs,
+  which is precisely how the defect survived.
 
 - **M3-T06** ✅ (2026-08-05, **ADR-0017**) — **D-05 and D-06 fixed**, one commit because they
   are the same eight lines. The size filter could remove every object, and then `np.median([])`
@@ -323,17 +352,19 @@ and now **B7/M3-T21** (what tiling should mean at 512 px).
 
 ## In progress
 
-**M2 is closed and M3 has started.** M3-T01, T03, T04 and T06 are done — four defects
+**M2 is closed and M3 has started.** M3-T01, T03, T04, T06 and T07 are done — five defects
 closed in two sessions. Two of the four
 critical defects are closed; the other two (D-04, D-12) wait on operator decisions B2 and B3.
 **The YOLO input path is now correct in both respects** — the data survives preparation and
 the sample keeps its shape — and neither claim extends to detection quality, which nothing in
-the gate can measure.
+the gate can measure. **The LoG path no longer constructs a `nan` image**, and its adaptive
+threshold now always lands in the interval it is compared against.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Three branches stack in order and are pushed: `sci/yolo-normalise-then-cast` (M3-T03) →
-`sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06). Each is green locally; CI has not
-been read from this session. CI on `main` is green: **216 s**, of which
+Four branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+`sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07).
+The first three are pushed; `sci/log-zero-max` is committed locally and not yet pushed. Each is
+green locally; CI has not been read from this session. CI on `main` is green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
 
@@ -375,12 +406,14 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Execute `M3-T07`** (D-11, LoG normalisation against a zero maximum). Rewrite
-   `docs/CURRENT_TASK.md` for it. M3-T21 is the other candidate but is blocked on **B7**
+1. **Push `sci/log-zero-max` and read CI**, then pick the next task from the unblocked `high`
+   defects: **M3-T11** (D-07), **M3-T12** (D-08), **M3-T17** or **M3-T20** — the last two are
+   the same file and worth reading together. Rewrite `docs/CURRENT_TASK.md` for it. M3-T21
+   remains blocked on **B7**
 2. **The two remaining critical defects need operator answers, not engineering.** B2 (D-04)
    and B3 (D-12) have been open since M0; every session that passes without them is a
    session M3 cannot finish. Everything else in M3 is unblocked and can be worked in
-   severity order: T06, T11, T12, T17, T20 are the `high` ones
+   severity order: T11, T12, T17, T20 are the `high` ones left
 3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
    exit criteria. `src/` is gone, so the only thing left is the 20 errors that arrived
    inside the moved science; they belong to M3 and M2-T12
@@ -400,14 +433,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **140, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **151, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **19**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **24** (was 28) — D-01, D-03, D-21, D-05, D-06 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **23** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

@@ -23,6 +23,12 @@ from nanoscope.core.science.detection.base import BaseDetector
 # a library that configures logging steals the decision from the application.
 logger = logging.getLogger(__name__)
 
+#: Threshold used when one cannot be derived from the image — a flat map, or a
+#: map with no positive signal above the substrate. The value is the one this
+#: module has always used in that situation; ADR-0018 only gave it a name and a
+#: third call site.
+DEFAULT_THRESHOLD = 0.05
+
 
 def estimate_log_params(sizes: dict) -> dict:
     """
@@ -70,7 +76,7 @@ def estimate_log_threshold(z_above: np.ndarray) -> float:
     noise_std = float(substrate_px.std())
     z_max = float(z_above.max())
 
-    threshold = 3.0 * noise_std / z_max if z_max > 0 else 0.05
+    threshold = 3.0 * noise_std / z_max if z_max > 0 else DEFAULT_THRESHOLD
 
     return threshold
 
@@ -95,8 +101,21 @@ def estimate_log_threshold_adaptive(
 
     Returns:
         adaptive threshold for blob_log
+
+    A map with no positive signal cannot be normalised into [0, 1], so the
+    conservative default is returned instead of a threshold derived from a
+    division by zero (ADR-0018 / D-11).
     """
-    z_norm = z_above / z_above.max()
+    z_max = float(z_above.max())
+    if not z_max > 0:
+        logger.warning(
+            "no positive signal above the substrate (max = %.3g); using the default threshold %.2f",
+            z_max,
+            DEFAULT_THRESHOLD,
+        )
+        return DEFAULT_THRESHOLD
+
+    z_norm = z_above / z_max
 
     # Find every blob at a minimal threshold
     raw = blob_log(
@@ -109,7 +128,7 @@ def estimate_log_threshold_adaptive(
     )
 
     if len(raw) == 0:
-        return 0.05
+        return DEFAULT_THRESHOLD
 
     # Peak response in the neighbourhood of each blob centre
     responses = []
@@ -165,11 +184,25 @@ def detect_particles(
         blobs: np.ndarray shape (N, 4) — [y, x, sigma_px, radius_nm]
     """
     params = estimate_log_params(sizes)
+
+    # The sizes dict is validated first, above: a caller passing nonsense should
+    # hear about that rather than about the image.
+    z_max = float(z_above.max())
+    if not z_max > 0:
+        # No positive signal above the substrate, so no particles above it —
+        # zero is the honest answer, not a NaN image that blob_log silently
+        # finds nothing in (ADR-0018 / D-11). `not z_max > 0` also catches a NaN
+        # maximum, which the old division propagated into every pixel.
+        logger.warning(
+            "no positive signal above the substrate (max = %.3g); no particles to find", z_max
+        )
+        return np.empty((0, 4))
+
     if threshold is None:
         threshold = estimate_log_threshold_adaptive(z_above, params, percentile)
 
     # LoG runs on an image normalised to [0, 1]
-    z_norm = z_above / z_above.max()
+    z_norm = z_above / z_max
 
     raw_blobs = blob_log(
         z_norm,

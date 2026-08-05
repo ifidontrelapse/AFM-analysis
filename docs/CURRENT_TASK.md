@@ -1,26 +1,22 @@
 # CURRENT TASK
 
-**ID:** `M3-T06`
-**Title:** Otsu sizing — raise on empty-after-filter, report post-filter `n_objects`
-**Milestone:** M3 — Numerical correctness, fourth task
-**Defects:** **D-05** (high) · **D-06** (medium) · **ADR:** **ADR-0017**
-**Branch:** `sci/otsu-sizing` (stacked on `sci/yolo-letterbox`)
+**ID:** `M3-T07`
+**Title:** Guard the LoG normalisation against a non-positive maximum
+**Milestone:** M3 — Numerical correctness, fifth task
+**Defect:** **D-11** (medium) · **ADR:** **ADR-0018**
+**Branch:** `sci/log-zero-max` (stacked on `sci/otsu-sizing`)
 **Status:** **done 2026-08-05.** Rewritten for the next task at the start of the next
 session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
-
-> **Two defects, one commit.** They are the same eight lines of `estimate_radius_otsu` — the
-> filter and what is reported about it — and separating them would mean touching those lines
-> twice for one intent. ADR-0010 forbids bundling a numerical fix with a *refactor*, not
-> fixing two halves of one broken step.
 
 ---
 
 ## Why this task was next
 
-D-05 is the highest-severity unblocked defect left, and it is the one that produces the
-project's worst kind of failure: a `nan` created in one function and reported, as a different
-error, in another. Everything else in M3 is either blocked on an operator decision (D-04,
-D-12, and now the tiling question) or lower severity.
+The three `high` defects above it are either blocked on an operator decision (D-12 on B3,
+M3-T21 on B7) or untouched by this session's reading. D-11 sits in the file M3-T06 had just
+walked into: the `nan` it produced was the same *kind* of failure — a number created in one
+function, reported as something else in another — and the fix was already written, once, in a
+sibling function of the same module.
 
 ---
 
@@ -28,30 +24,35 @@ D-12, and now the tiling question) or lower severity.
 
 **In scope**
 
-1. `estimate_radius_otsu`: raise when the size filter empties the set
-2. The same function: `n_objects` counts survivors
-3. The harness records D-05's own reproduction, so the golden holds the error
-4. **ADR-0017**, including why the message carries the largest object measured
+1. `estimate_log_threshold_adaptive`: return the default threshold on a non-positive maximum
+2. `detect_particles`: return an empty `(0, 4)` on a non-positive maximum, after `sizes` is
+   validated
+3. `DEFAULT_THRESHOLD = 0.05` named once instead of written three times
+4. The harness: a `negative_with_structure` degenerate input, and scalars recorded as numbers
+   instead of the string `"non-array"` — without both, the fix is invisible in the golden
+5. **ADR-0018**, including why this returns where ADR-0017 raises
 
 **Out of scope**
 
-- **D-04 / B2** — `min_size_pixel` flooring to zero, the reason the new error is mostly
-  unreachable today. Open operator decision
-- **M3-T13** — the typed error taxonomy that will re-home this `ValueError`
-- The duplicated `radii_nm` assignment two lines below. Left alone on purpose: this file's
-  commits are numerical, and tidying is not this commit's intent
+- **D-12 / B3** — detection polarity, the reason a negative map reaches the detector at all.
+  Open operator decision
+- **M3-T19** — `responses` rebinding from `list[float]` to ndarray in the same function. A
+  typing defect, not a numerical one; ADR-0010 forbids the bundle
+- Changing the normalisation itself (`ptp`, `abs`, clipping). Each moves every recorded
+  detection and needs its own ADR — the table in ADR-0018 says why none was taken
 
 ---
 
 ## Definition of done
 
-- [x] Empty-after-filter raises, naming the parameter, its value and the largest object
-- [x] `n_objects == len(radii_px)`, always
-- [x] The golden records the error instead of recording nothing
-- [x] `make check` green — 140 tests
-- [x] Delta quantified: **8 golden differences**
-- [x] ADR-0017; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M3-T06: fail loudly when the size filter empties the set`
+- [x] Both division sites stop on a zero, negative or `nan` maximum
+- [x] `detect_particles` returns zero particles rather than raising, and says why in the log
+- [x] The adaptive threshold is always in `(0, 1]`
+- [x] The harness records the number that was wrong
+- [x] `make check` green — 151 tests
+- [x] Delta quantified: **65 golden keys added, 0 changed**
+- [x] ADR-0018; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M3-T07: require a positive maximum before normalising`
 
 ---
 
@@ -59,34 +60,37 @@ D-12, and now the tiling question) or lower severity.
 
 | what | before | after |
 |---|---|---|
-| `afm_sparse_low_snr` · `n_objects_reported` | **1023** | **75** |
-| `degenerate_inputs.extreme_aspect` · error | `cannot convert float NaN to integer`, in `build_substrate_map` | the sizing's own message, in `estimate_radius_otsu` |
-| `estimate_radius_otsu_all_filtered` | — | added, 5 phantoms |
+| `negative_with_structure` · `estimate_log_threshold_adaptive` | **2.4997**, unrecorded | **0.05** |
+| `estimate_log_threshold_adaptive` | recorded nowhere | recorded on all 11 degenerate inputs |
+| `negative_with_structure` | — | added |
 
-Four of five AFM phantoms did not move, and that is D-04's doing: `min_size_pixel` floors to
-0 on coarse scans, so the filter removes nothing and both counts already agreed. This fix
-starts mattering on real data the day **B2** is answered.
+**Zero numbers changed.** `build_substrate_map` guarantees `z_above >= 0`, so every phantom and
+every scan through the normal path has a positive maximum and comes out byte-identical. The
+negative case reaches the detector only through `LogDetector.detect` on a raw SEM/TEM image,
+which is D-12.
 
 ---
 
 ## What it turned up
 
-**An M3-T01 test had been passing because of the defect.**
-`test_a_different_radius_produces_a_different_substrate` uses four 4.7 px particles and
-passed `min_size_nm=5` at 1 nm/px — the filter removed all four, the sizing returned `nan`,
-and the test never looked at `sizes`. It now passes `min_size_nm=1` and says why. A `nan` in
-a field nobody reads is exactly how D-05 stayed invisible.
+**The harness had been recording the wrong thing since Phase 0.** `capture_degenerate` wrote
+every non-array result down as the literal string `"non-array"`, so a threshold of 2.4997 —
+outside the interval it is compared against — was captured, discarded, and stored as prose. And
+the only negative degenerate input was a *constant* −5, which survives the division looking
+like a constant. Ten inputs recorded D-11 and none of them could show it.
+
+That is the third task in M3 whose harness change is larger than its code change (M3-T01,
+M3-T04, now this one). The pattern is worth naming: **a golden that cannot fail on a defect is
+not evidence the defect is absent.**
 
 ---
 
 ## Notes for the next session
 
-**`M3-T07`** (D-11, LoG normalisation against a zero maximum) is the next unblocked task.
+The unblocked `high` defects left in M3 are **M3-T11** (D-07, unknown pixel scale crashes both
+detectors), **M3-T12** (D-08, empty measurements return an unstable schema), **M3-T17** (the
+SPM parser's no-`Scan Size` fallback crashes) and **M3-T20** (`load_afm(fmt="npy")` fabricates
+a physical scale). T17 and T20 are the same file and arguably the same defect — read them
+together before splitting them into two commits.
 
-**`M3-T21` is now blocked on B7.** The single-crop tiling cannot be fixed by engineering
-alone: making it tile means either upsampling the scan to ≥ 1120 px (the model then sees
-interpolated pixels), using crops smaller than 640 (the model upscales each instead), or
-accepting that tiling is pointless at 512 px and dropping the backend. That is a cost-versus-
-resolution trade-off about real samples.
-
-**Four decisions now block five tasks: B2, B3, B4, B7.** M3 cannot close without them.
+**Four decisions still block five tasks: B2, B3, B4, B7.** M3 cannot close without them.

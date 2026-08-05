@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-05 · **Active:** `M3-T21` or `M3-T07` (next; `M3-T03`, `M3-T04`, `M3-T06` closed 2026-08-05)
+**Updated:** 2026-08-05 · **Active:** next is one of `M3-T11` / `M3-T12` / `M3-T17` / `M3-T20` (`M3-T03`, `M3-T04`, `M3-T06`, `M3-T07` closed 2026-08-05)
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -82,7 +82,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M3-T04 | Aspect-ratio-preserving YOLO letterbox; isotropic box rescale | D-21 | medium | [x] Done 2026-08-05, **ADR-0016**. Isotropic scale to fit, pad to the square with 255 (substrate after inversion, applied *after* the normalisation), and one shared geometry helper so the forward and inverse maps cannot drift. Delta: **0 golden differences, 7 keys added** — a square scan is byte-identical, and every phantom is square, which is why the harness gained `non_square_half_height`. 5 geometry tests; restoring the squash turns 4 red. Found while reading: **M3-T21** |
 | M3-T05 | Propagate YOLO confidence into `Detection` | D-09 | medium | [ ] |
 | M3-T06 | Otsu sizing: raise on empty-after-filter; report post-filter `n_objects` | D-05, D-06 | high | [x] Done 2026-08-05, **ADR-0017**. The empty-after-filter case raised nothing and returned `nan`; it now raises and names the parameter, its value and the largest object measured. `n_objects` counts survivors. Delta: **8 golden differences** — `n_objects_reported` **1023 -> 75** on `afm_sparse_low_snr` (13.6x over-count), the `extreme_aspect` degenerate input now fails as `estimate_radius_otsu` instead of as `cannot convert float NaN to integer` in `build_substrate_map`, and 5 keys added for D-05's own reproduction. 4 tests; restoring the old behaviour turns 3 red. **It also broke an M3-T01 test that had been passing on the `nan`** |
-| M3-T07 | Guard LoG normalisation against a zero maximum | D-11 | medium | [ ] |
+| M3-T07 | Guard LoG normalisation against a zero maximum | D-11 | medium | [x] Done 2026-08-05, **ADR-0018**. Both `z_above / z_above.max()` sites now stop on a non-positive or `nan` maximum: the threshold estimator returns the named `DEFAULT_THRESHOLD = 0.05`, `detect_particles` returns an empty `(0, 4)` — zero particles is an answer, not an error (the opposite call from ADR-0017, and the ADR says why). Delta: **65 golden keys added, 0 changed** — the working path is byte-identical, and the number that was wrong (an adaptive threshold of **2.4997** on a negative map, outside the `[0, 1]` it is compared against) had **never been recorded**. Two harness fixes in the same commit made it visible: a `negative_with_structure` degenerate input, and scalars recorded instead of the string `"non-array"`. 11 tests; restoring the raw division turns 3 red |
 | M3-T08 | `flatten_lines` must promote dtype like `flatten_plane` does | D-13 | medium | [ ] |
 | M3-T09 | Define and apply the opening-radius rounding rule (half-integer radii break `disk()` centring) | D-10 | medium | [!] needs operator decision |
 | M3-T10 | Detection polarity: TEM currently returns 0 of 22 particles | D-12 | high | [!] needs operator decision |

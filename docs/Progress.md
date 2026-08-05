@@ -7,6 +7,90 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T07 · **D-11 fixed: the LoG normalisation requires a positive maximum**
+
+**Task:** `M3-T07`. **Branch:** `sci/log-zero-max`. **ADR:** **ADR-0018**.
+**Defect:** D-11, medium.
+
+### The defect
+
+`z_norm = z_above / z_above.max()`, at two call sites — `estimate_log_threshold_adaptive` and
+`detect_particles`. Neither checked the divisor:
+
+- **`max() == 0`** — a flat map. `0/0` makes every pixel `nan`, `blob_log` finds nothing, and
+  `detect_particles` logs *"no particles found; try lowering the threshold"*. The operator is
+  sent to tune a knob that cannot help.
+- **`max() < 0`** — a map negative everywhere. Dividing by a negative number **flips the
+  topography**: the substrate ends up brighter than the peaks. Measured, on caps sitting at
+  −10 nm with peaks at −4 nm: the adaptive threshold came out **2.4997**, a number compared
+  against a `[0, 1]`-normalised response, so nothing could ever exceed it.
+
+A third site, `estimate_log_threshold`, has carried the guard since it was written. The module
+already knew the answer in one of three places.
+
+### The delta — 65 golden keys added, 0 changed
+
+| what | before | after |
+|---|---|---|
+| `negative_with_structure` · `estimate_log_threshold_adaptive` | **2.4997** (never recorded) | **0.05** |
+| `estimate_log_threshold_adaptive` | not recorded at all | recorded for all 11 degenerate inputs |
+| `negative_with_structure` | — | added |
+
+**Nothing changed, and that is the finding.** No number moved because the harness had never
+recorded the one that was wrong. `build_substrate_map` guarantees `z_above >= 0`, so every
+phantom and every scan through the normal path has a positive maximum and is byte-identical.
+The negative case is reachable only through `LogDetector.detect` on a raw SEM/TEM image —
+which is **D-12**, still waiting on **B3**.
+
+### Why the harness could not see it, and the two changes that fixed that
+
+D-11 was recorded on ten degenerate inputs and **invisible in every one**: `detect_particles`
+returned an empty `(0, 4)` array before and after, because a `nan` image and a correctly
+refused image both yield no blobs. So:
+
+1. **`negative_with_structure` was added.** The existing `all_negative` is a *constant* −5, and
+   dividing a constant by its own maximum gives a constant — the flip has nothing to flip.
+   Structure is what makes the inversion observable.
+2. **Scalars are recorded instead of being written down as the string `"non-array"`.** That one
+   line in `capture.py` is why a threshold of 2.4997 sat in the harness's output, unrecorded,
+   since Phase 0.
+
+M3-T01's principle a third time: a fix that leaves its own path uncharacterized is not
+finished. The harness change is the larger half of this commit.
+
+### `not z_max > 0`, not `z_max <= 0`
+
+They differ on `nan`, and `nan` is the case that matters — `nan <= 0` is `False`, so the
+arithmetic comparison lets a `nan` maximum through and the division spreads it across every
+pixel. The awkward negation is the point, and it is commented as such.
+
+### Zero particles is an answer, not an error
+
+The opposite call from ADR-0017 four days of commits ago, and the difference is who is wrong.
+There the *caller* asked for a filter no object could pass. Here the *data* has no signal above
+the substrate, and "no particles above the substrate" is true and useful about a legitimate
+input — an empty region of a scan. Raising would force every caller to tell "flat" from
+"broken" inside a `try`.
+
+`DEFAULT_THRESHOLD = 0.05` is now named rather than written three times. The value does not
+change.
+
+### Tests
+
+11 tests (5 parametrised); restoring the raw division turns **3** red. The other two guard
+cases — a `nan` maximum, and `sizes` still being validated before the image — pass either way,
+by construction: a `nan` image also produces no blobs, which is exactly why this defect
+survived Phase 0.
+
+### Next
+
+**M3-T11**, **M3-T12**, **M3-T17** or **M3-T20** — the `high` unblocked defects left. M3-T21 is
+still blocked on **B7**, and B2/B3/B4 remain open. **M3-T19** (low, mypy) lives in the function
+this task guarded and was deliberately not folded in: it is a typing defect, not a numerical
+one, and ADR-0010 forbids the bundle.
+
+---
+
 ## 2026-08-05 — M3-T06 · **D-05 / D-06 fixed: the sizing stops lying about how many**
 
 **Task:** `M3-T06`. **Branch:** `sci/otsu-sizing`. **ADR:** **ADR-0017**.

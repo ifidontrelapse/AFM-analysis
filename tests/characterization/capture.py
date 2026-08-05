@@ -368,7 +368,10 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
 
 
 def capture_degenerate() -> dict:
-    from nanoscope.core.science.detection.log import detect_particles
+    from nanoscope.core.science.detection.log import (
+        detect_particles,
+        estimate_log_threshold_adaptive,
+    )
     from nanoscope.core.science.preprocessing import (
         build_substrate_map,
         flatten_lines,
@@ -387,13 +390,27 @@ def capture_degenerate() -> dict:
                 detect_particles,
                 (arr, 1.0, {"radii_px": np.array([2.0, 4.0])}, 0.3, 0.1, 20.0),
             ),
+            # D-11 lives here, not in detect_particles: dividing by a
+            # non-positive maximum produced a threshold outside [0, 1] — 2.4997
+            # on `negative_with_structure` — while detect_particles returned an
+            # empty array either way and so looked innocent (ADR-0018).
+            (
+                "estimate_log_threshold_adaptive",
+                estimate_log_threshold_adaptive,
+                (arr, {"min_sigma": 1.0, "max_sigma": 8.0}, 20.0),
+            ),
         ]:
             r = _record(fn, *args)
-            entry[label] = (
-                {"ok": True, "result": _array_digest(r["value"])}
-                if r["ok"] and isinstance(r["value"], np.ndarray)
-                else ({"ok": True, "result": "non-array"} if r["ok"] else r)
-            )
+            if not r["ok"]:
+                entry[label] = r
+            elif isinstance(r["value"], np.ndarray):
+                entry[label] = {"ok": True, "result": _array_digest(r["value"])}
+            elif isinstance(r["value"], (int, float, np.number)):
+                # Scalars used to be recorded as the string "non-array", which
+                # is how a threshold of 2.4997 stayed invisible (D-11).
+                entry[label] = {"ok": True, "result": _num(r["value"])}
+            else:
+                entry[label] = {"ok": True, "result": "non-array"}
         out[name] = entry
     return out
 

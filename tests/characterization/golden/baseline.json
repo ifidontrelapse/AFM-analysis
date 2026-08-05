@@ -3764,6 +3764,10 @@
           "size": 0
         }
       },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
+      },
       "flatten_lines": {
         "ok": true,
         "result": {
@@ -3830,6 +3834,10 @@
           ],
           "size": 0
         }
+      },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
       },
       "flatten_lines": {
         "ok": true,
@@ -3898,6 +3906,10 @@
           "size": 0
         }
       },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
+      },
       "flatten_lines": {
         "ok": true,
         "result": {
@@ -3960,6 +3972,12 @@
         "ok": false,
         "raised_in": "_amax"
       },
+      "estimate_log_threshold_adaptive": {
+        "error_message": "zero-size array to reduction operation maximum which has no identity",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_amax"
+      },
       "flatten_lines": {
         "ok": true,
         "result": {
@@ -4000,6 +4018,10 @@
           ],
           "size": 0
         }
+      },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.17689671516418456
       },
       "flatten_lines": {
         "ok": true,
@@ -4050,6 +4072,75 @@
         }
       }
     },
+    "negative_with_structure": {
+      "build_substrate_map": {
+        "ok": true,
+        "result": "non-array"
+      },
+      "detect_particles": {
+        "ok": true,
+        "result": {
+          "dtype": "float64",
+          "shape": [
+            0,
+            4
+          ],
+          "size": 0
+        }
+      },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
+      },
+      "flatten_lines": {
+        "ok": true,
+        "result": {
+          "dtype": "float32",
+          "max": 4.162741661071777,
+          "mean": 3.72177844099042e-10,
+          "min": -1.9612752199172974,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            -1.1709434986114502,
+            -0.36223772913217545,
+            -0.004218267276883125,
+            0.043210375122725964,
+            1.0862479209899902
+          ],
+          "shape": [
+            64,
+            64
+          ],
+          "size": 4096,
+          "std": 0.9917567874440321,
+          "sum": 1.524440449429676e-06
+        }
+      },
+      "flatten_plane": {
+        "ok": true,
+        "result": {
+          "dtype": "float64",
+          "max": 5.437716804814249,
+          "mean": 3.95516952522712e-15,
+          "min": -0.6433150142789366,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            -0.602721690869588,
+            -0.581864465136019,
+            -0.5410160296801294,
+            -0.13110258880552417,
+            1.50695085029251
+          ],
+          "shape": [
+            64,
+            64
+          ],
+          "size": 4096,
+          "std": 1.191515199485102,
+          "sum": 1.6200374375330284e-11
+        }
+      }
+    },
     "one_dimensional": {
       "build_substrate_map": {
         "error_message": "Only 2-D and 3-D images supported.",
@@ -4067,6 +4158,12 @@
           ],
           "size": 0
         }
+      },
+      "estimate_log_threshold_adaptive": {
+        "error_message": "not enough values to unpack (expected 3, got 2)",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "estimate_log_threshold_adaptive"
       },
       "flatten_lines": {
         "error_message": "tuple index out of range",
@@ -4098,6 +4195,10 @@
           ],
           "size": 0
         }
+      },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
       },
       "flatten_lines": {
         "error_message": "SVD did not converge in Linear Least Squares",
@@ -4151,6 +4252,10 @@
           "size": 0
         }
       },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
+      },
       "flatten_lines": {
         "error_message": "operands could not be broadcast together with shapes (8,) (3,) ",
         "error_type": "ValueError",
@@ -4181,6 +4286,10 @@
           ],
           "size": 0
         }
+      },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
       },
       "flatten_lines": {
         "ok": true,
@@ -4230,6 +4339,10 @@
           ],
           "size": 0
         }
+      },
+      "estimate_log_threshold_adaptive": {
+        "ok": true,
+        "result": 0.05
       },
       "flatten_lines": {
         "ok": true,
