@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/log-zero-max` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/unknown-scale` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,8 +26,9 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** The next task is one of **M3-T11**, **M3-T12**, **M3-T17**, **M3-T20** — the
-`high` unblocked defects left in M3. **M3-T21** stays **blocked on decision B7**: its fix is not
+**None selected.** The next task is **M3-T20** — it is the other half of D-07: this session made
+`None` survivable, and M3-T20 stops the npy loader inventing `1.0` in its place. **M3-T12** and
+**M3-T17** are the other unblocked `high` ones. **M3-T21** stays **blocked on decision B7**: its fix is not
 "make tiling work", it is "decide what tiling should mean on a 512 px scan", and that is a
 physics-and-cost trade-off, not an engineering one.
 
@@ -72,6 +73,22 @@ and now **B7/M3-T21** (what tiling should mean at 512 px).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T11** ✅ (2026-08-05, **ADR-0019**) — **D-07 fixed**. `MicroscopyData.nm_per_pixel` is
+  `float | None`, `run_pipeline` passes it to the detector unread, and both detectors multiplied
+  by it: `TypeError: unsupported operand type(s) for *: 'float' and 'NoneType'`. An SEM or TEM
+  image without scale metadata had exactly one outcome, and it was an exception. Now `None`
+  propagates and the physical value becomes **absent**, which is the invariant D-07 states and
+  the one `measure_geometry_from_mask` has kept since M2-T06. `Detection.radius_nm` is
+  `float | None`; the blob array's nm column is `NaN`, because one ndarray column is one dtype,
+  and `_blobs_to_detections` converts it at the entity boundary. **That NaN is not the NaN
+  ADR-0018 removed one commit earlier** — this one is a marker in a reporting column, read by one
+  line and never computed with; that one came out of arithmetic and reached a threshold
+  comparison. Delta: **168 golden keys added, 0 changed** — every phantom has a scale, so nothing
+  recorded moves. **mypy 19 → 18, and the error that went was the defect**: `pipeline.py:62` had
+  been reporting D-07 at the assignment rather than at the crash since M1-T04. 8 tests;
+  substituting `pixel_size_nm or 1.0` — the tempting wrong fix, and what the npy loader does
+  today — turns 4 red.
 
 - **M3-T07** ✅ (2026-08-05, **ADR-0018**) — **D-11 fixed**. The LoG path normalises with
   `z_above / z_above.max()` in two places and checked the divisor in neither. `max() == 0` gives
@@ -352,7 +369,7 @@ and now **B7/M3-T21** (what tiling should mean at 512 px).
 
 ## In progress
 
-**M2 is closed and M3 has started.** M3-T01, T03, T04, T06 and T07 are done — five defects
+**M2 is closed and M3 has started.** M3-T01, T03, T04, T06, T07 and T11 are done — six defects
 closed in two sessions. Two of the four
 critical defects are closed; the other two (D-04, D-12) wait on operator decisions B2 and B3.
 **The YOLO input path is now correct in both respects** — the data survives preparation and
@@ -361,9 +378,10 @@ the gate can measure. **The LoG path no longer constructs a `nan` image**, and i
 threshold now always lands in the interval it is compared against.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Four branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
-`sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07).
-The first three are pushed; `sci/log-zero-max` is committed locally and not yet pushed. Each is
+Five branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+`sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
+`sci/unknown-scale` (M3-T11). The first three are pushed; the last two are committed locally
+and not yet pushed. Each is
 green locally; CI has not been read from this session. CI on `main` is green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
@@ -406,14 +424,14 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Push `sci/log-zero-max` and read CI**, then pick the next task from the unblocked `high`
-   defects: **M3-T11** (D-07), **M3-T12** (D-08), **M3-T17** or **M3-T20** — the last two are
-   the same file and worth reading together. Rewrite `docs/CURRENT_TASK.md` for it. M3-T21
+1. **Push the two unpushed branches and read CI**, then execute **M3-T20** — the other half of
+   D-07, now that `None` is survivable. **M3-T12**, **M3-T17** are the other unblocked `high`
+   ones, and T17/T20 are the same file, worth reading together. Rewrite `docs/CURRENT_TASK.md` for it. M3-T21
    remains blocked on **B7**
 2. **The two remaining critical defects need operator answers, not engineering.** B2 (D-04)
    and B3 (D-12) have been open since M0; every session that passes without them is a
    session M3 cannot finish. Everything else in M3 is unblocked and can be worked in
-   severity order: T11, T12, T17, T20 are the `high` ones left
+   severity order: T12, T17, T20 are the `high` ones left
 3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
    exit criteria. `src/` is gone, so the only thing left is the 20 errors that arrived
    inside the moved science; they belong to M3 and M2-T12
@@ -433,14 +451,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **151, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **159, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
-| mypy errors | **19**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
+| mypy errors | **18**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **23** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **22** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

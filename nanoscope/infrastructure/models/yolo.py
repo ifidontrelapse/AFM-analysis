@@ -126,7 +126,7 @@ class YoloDetector(BaseDetector):
         return (boxes - np.array([pad_x, pad_y, pad_x, pad_y])) / scale
 
     def _detect_tiled(
-        self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float
+        self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float | None
     ) -> list[Detection]:
         from patched_yolo_infer import CombineDetections, MakeCropsDetectThem
 
@@ -149,7 +149,7 @@ class YoloDetector(BaseDetector):
         return self._boxes_to_detections(boxes, pixel_size_nm)
 
     def _detect_direct(
-        self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float
+        self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float | None
     ) -> list[Detection]:
         from ultralytics import YOLO
 
@@ -162,7 +162,7 @@ class YoloDetector(BaseDetector):
         return self._boxes_to_detections(boxes, pixel_size_nm)
 
     @staticmethod
-    def _boxes_to_detections(boxes: np.ndarray, pixel_size_nm: float) -> list[Detection]:
+    def _boxes_to_detections(boxes: np.ndarray, pixel_size_nm: float | None) -> list[Detection]:
         detections = []
         for box in boxes:
             x1, y1, x2, y2 = box
@@ -174,13 +174,15 @@ class YoloDetector(BaseDetector):
                     x_px=cx,
                     y_px=cy,
                     radius_px=radius_px,
-                    radius_nm=radius_px * pixel_size_nm,
+                    # No scale, no nanometres — never a pixel count in disguise
+                    # (D-07, ADR-0019).
+                    radius_nm=None if pixel_size_nm is None else radius_px * pixel_size_nm,
                     bbox=(int(x1), int(y1), int(x2), int(y2)),
                 )
             )
         return detections
 
-    def detect(self, z_above: np.ndarray, pixel_size_nm: float) -> list[Detection]:
+    def detect(self, z_above: np.ndarray, pixel_size_nm: float | None) -> list[Detection]:
         img = self._prepare_image(z_above)
         if self.use_tiling:
             return self._detect_tiled(img, z_above.shape, pixel_size_nm)

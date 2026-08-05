@@ -315,6 +315,40 @@
       "sum": 12540.193369375145
     },
     "log_detection": {
+      "detect_particles_no_scale": {
+        "n_blobs": 14,
+        "n_detections": 14,
+        "n_detections_with_radius_nm": 0,
+        "ok": true,
+        "radius_nm": {
+          "dtype": "float64",
+          "n_nonfinite": 14,
+          "shape": [
+            14
+          ],
+          "size": 14
+        },
+        "sigma_px": {
+          "dtype": "float64",
+          "max": 2.6309893887489957,
+          "mean": 2.630989388748996,
+          "min": 2.6309893887489957,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            2.6309893887489957,
+            2.6309893887489957,
+            2.6309893887489957,
+            2.6309893887489957,
+            2.6309893887489957
+          ],
+          "shape": [
+            14
+          ],
+          "size": 14,
+          "std": 4.440892098500626e-16,
+          "sum": 36.833851442485944
+        }
+      },
       "detect_particles_p10": {
         "n_blobs": 14,
         "n_true_particles": 14,
@@ -771,6 +805,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          97.69999999999999,
+          185.63
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,
@@ -1129,6 +1185,40 @@
       "sum": 105533.61689986388
     },
     "log_detection": {
+      "detect_particles_no_scale": {
+        "n_blobs": 59,
+        "n_detections": 59,
+        "n_detections_with_radius_nm": 0,
+        "ok": true,
+        "radius_nm": {
+          "dtype": "float64",
+          "n_nonfinite": 59,
+          "shape": [
+            59
+          ],
+          "size": 59
+        },
+        "sigma_px": {
+          "dtype": "float64",
+          "max": 6.7700126490071515,
+          "mean": 3.8825485540449556,
+          "min": 2.5374565843420696,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            3.5955956005083403,
+            3.5955956005083403,
+            3.5955956005083403,
+            3.5955956005083403,
+            4.865362419907867
+          ],
+          "shape": [
+            59
+          ],
+          "size": 59,
+          "std": 0.7502564553749257,
+          "sum": 229.07036468865238
+        }
+      },
       "detect_particles_p10": {
         "n_blobs": 59,
         "n_true_particles": 70,
@@ -1585,6 +1675,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          20.0,
+          38.0
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,
@@ -1943,6 +2055,40 @@
       "sum": 59127.99398056663
     },
     "log_detection": {
+      "detect_particles_no_scale": {
+        "n_blobs": 24,
+        "n_detections": 24,
+        "n_detections_with_radius_nm": 0,
+        "ok": true,
+        "radius_nm": {
+          "dtype": "float64",
+          "n_nonfinite": 24,
+          "shape": [
+            24
+          ],
+          "size": 24
+        },
+        "sigma_px": {
+          "dtype": "float64",
+          "max": 4.670463944245048,
+          "mean": 4.644950951197134,
+          "min": 4.0581521110950955,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            4.670463944245048,
+            4.670463944245048,
+            4.670463944245048,
+            4.670463944245048,
+            4.670463944245048
+          ],
+          "shape": [
+            24
+          ],
+          "size": 24,
+          "std": 0.12235601631324755,
+          "sum": 111.47882282873121
+        }
+      },
       "detect_particles_p10": {
         "n_blobs": 24,
         "n_true_particles": 24,
@@ -2399,6 +2545,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          20.0,
+          38.0
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,
@@ -2549,6 +2717,26 @@
       "sum": 1599.8869397263024
     },
     "log_detection": {
+      "detect_particles_no_scale": {
+        "n_blobs": 0,
+        "n_detections": 0,
+        "n_detections_with_radius_nm": 0,
+        "ok": true,
+        "radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        }
+      },
       "detect_particles_p10": {
         "n_blobs": 0,
         "n_true_particles": 6,
@@ -2849,6 +3037,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          20.0,
+          38.0
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,
@@ -3207,6 +3417,40 @@
       "sum": 792736.4662109106
     },
     "log_detection": {
+      "detect_particles_no_scale": {
+        "n_blobs": 30,
+        "n_detections": 30,
+        "n_detections_with_radius_nm": 0,
+        "ok": true,
+        "radius_nm": {
+          "dtype": "float64",
+          "n_nonfinite": 30,
+          "shape": [
+            30
+          ],
+          "size": 30
+        },
+        "sigma_px": {
+          "dtype": "float64",
+          "max": 7.59076416328062,
+          "mean": 5.440718865172739,
+          "min": 3.290673567064859,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            4.0646898743836966,
+            4.150691686308011,
+            5.010709805551164,
+            6.730746044037468,
+            6.8167478559617845
+          ],
+          "shape": [
+            30
+          ],
+          "size": 30,
+          "std": 1.3089991850919762,
+          "sum": 163.22156595518217
+        }
+      },
       "detect_particles_p10": {
         "n_blobs": 30,
         "n_true_particles": 30,
@@ -3663,6 +3907,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          20.0,
+          38.0
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,
@@ -4448,6 +4714,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          15.0,
+          28.5
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,
@@ -4560,6 +4848,28 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_no_scale": {
+        "ok": true,
+        "radius_nm": [
+          null,
+          null
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
+      "boxes_to_detections_scaled": {
+        "ok": true,
+        "radius_nm": [
+          5.0,
+          9.5
+        ],
+        "radius_px": [
+          10.0,
+          19.0
+        ]
+      },
       "current": {
         "dtype": "uint8",
         "max": 255.0,

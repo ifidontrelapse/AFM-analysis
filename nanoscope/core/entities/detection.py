@@ -20,7 +20,10 @@ class Detection:
     x_px: float
     y_px: float
     radius_px: float
-    radius_nm: float
+    # `None` when the image has no known pixel scale — the invariant D-07 states:
+    # a physical value is either physical or absent, never a pixel count wearing
+    # nanometre units (M3-T11, ADR-0019). Pixel-space fields are always present.
+    radius_nm: float | None
     confidence: float = 1.0
     # `type: ignore` and not a fix: `default_factory=tuple` genuinely disagrees
     # with the annotation, and mypy saying so *is* D-16. Correcting it changes

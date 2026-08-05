@@ -7,6 +7,76 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T11 · **D-07 fixed: an unknown pixel scale is a state, not a crash**
+
+**Task:** `M3-T11`. **Branch:** `sci/unknown-scale`. **ADR:** **ADR-0019**.
+**Defect:** D-07, high.
+
+### The defect
+
+`MicroscopyData.nm_per_pixel` is `float | None` — "scale unknown" is a typed, supported state —
+and `run_pipeline` hands that value straight to the detector. Both detectors multiplied by it
+without looking:
+
+```
+TypeError: unsupported operand type(s) for *: 'float' and 'NoneType'
+```
+
+An SEM or TEM image with no scale metadata therefore had exactly one outcome, and it was an
+exception. The invariant D-07 states is that a physical value is **either physical or absent** —
+never zero, never a pixel count wearing nanometre units, never a crash. The project already kept
+it in `measure_geometry_from_mask`, which has returned `radius_nm=None` since M2-T06. The
+detectors never got the same treatment.
+
+### The delta — 168 golden keys added, 0 changed
+
+| what | before | after |
+|---|---|---|
+| `detect_particles_no_scale` (5 AFM phantoms) | `TypeError` | 24 blobs, `radius_nm` all NaN, **0** detections carrying a radius |
+| `boxes_to_detections_{scaled,no_scale}` (7 phantoms) | not recorded | `[5.0, 9.5]` vs `[null, null]`, same `radius_px` |
+| mypy errors | 19 | **18** |
+
+**No number moves.** Every phantom has a scale, so every existing recorded value is
+byte-identical; the new keys record a path that used to raise and therefore had nothing to
+record.
+
+### Where the missing value lives, and why it is two different things
+
+`Detection.radius_nm` becomes `float | None`. The `(N, 4)` blob array cannot hold `None` — one
+dtype for the whole column — so `detect_particles` writes `NaN` there, and
+`_blobs_to_detections` turns it into `None` at the entity boundary. NaN is the float convention
+for "no measurement", and it is what pandas would coerce a `None` into one step downstream
+anyway.
+
+**This is not the NaN ADR-0018 deleted an hour ago.** That one came out of arithmetic
+(`0 / 0`) and propagated into decisions — a threshold comparison, a sigma range, an `int()` two
+calls away. This one is a marker in a reporting column, written on purpose, read by exactly one
+line, and never compared against anything. The distinction is not the value but whether anything
+downstream is allowed to compute with it, and it is commented at the site.
+
+### mypy had already found it
+
+`pipeline.py:62 — Incompatible types in assignment (expression has type "float | None", variable
+has type "float")`. That error has been in the baseline since M1-T04. It is D-07, reported at
+the assignment instead of at the crash, and it was read as noise from a legacy file. Annotating
+the variable `float | None` — which is what the pipeline actually carries — removes it.
+
+### Tests
+
+8 tests. The interesting mutation is not restoring the crash, it is the *tempting wrong fix*:
+`pixel_size_nm or 1.0`, which is what the npy loader does today (**D-20 / M3-T20**). It turns 4
+red, including the assertion that the nm column is NaN rather than a pixel count. The pixel-space
+columns are asserted **bit-identical** with and without a scale, which is what makes "only the
+physical value is missing" a fact rather than a claim.
+
+### Next
+
+**M3-T20** is now the natural successor: this task makes `None` survivable, M3-T20 makes the
+npy loader stop fabricating `1.0` — in that order, because the reverse introduces a `None` into
+a path that still crashes on it. **M3-T12** and **M3-T17** are the other unblocked `high` ones.
+
+---
+
 ## 2026-08-05 — M3-T07 · **D-11 fixed: the LoG normalisation requires a positive maximum**
 
 **Task:** `M3-T07`. **Branch:** `sci/log-zero-max`. **ADR:** **ADR-0018**.

@@ -22,13 +22,13 @@ class BaseDetector(ABC):
     """Abstract base class for all particle detectors."""
 
     @abstractmethod
-    def detect(self, z_above: np.ndarray, pixel_size_nm: float) -> list[Detection]:
+    def detect(self, z_above: np.ndarray, pixel_size_nm: float | None) -> list[Detection]:
         """
         Find particles in the image.
 
         Args:
             z_above:       z_flat - substrate (particles above the substrate)
-            pixel_size_nm: nm/pixel
+            pixel_size_nm: nm/pixel, or None when the physical scale is unknown
         Returns:
             list of Detection
         """
@@ -45,7 +45,10 @@ class BaseDetector(ABC):
                     x_px=float(x),
                     y_px=float(y),
                     radius_px=radius_px,
-                    radius_nm=float(radius_nm),
+                    # An ndarray column cannot hold None, so `detect_particles`
+                    # writes NaN when the scale is unknown; the entity can, and
+                    # says so (D-07, ADR-0019).
+                    radius_nm=None if np.isnan(radius_nm) else float(radius_nm),
                     bbox=(
                         int(x - radius_px),
                         int(y - radius_px),

@@ -36,12 +36,14 @@ class Detector(Protocol):
     exists, never its signature — the signature is mypy's job.
     """
 
-    def detect(self, z_above: np.ndarray, pixel_size_nm: float) -> list[Detection]:
+    def detect(self, z_above: np.ndarray, pixel_size_nm: float | None) -> list[Detection]:
         """Find particles.
 
         Args:
             z_above: the image to search — for AFM, `z_flat - substrate`.
-            pixel_size_nm: nm per pixel, used to report `radius_nm`.
+            pixel_size_nm: nm per pixel, used to report `radius_nm`. `None` when
+                the physical scale is unknown, and then `radius_nm` is `None`
+                too — the scale is never invented (D-07, ADR-0019).
 
         Returns:
             One `Detection` per particle, in the coordinate space of `z_above`.

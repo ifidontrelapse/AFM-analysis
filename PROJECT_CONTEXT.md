@@ -194,13 +194,15 @@ Detection(
     x_px: float,
     y_px: float,
     radius_px: float,
-    radius_nm: float,
+    radius_nm: float | None,
     confidence: float = 1.0,
     bbox: tuple[int, int, int, int] = (),  # x1, y1, x2, y2
 )
 ```
 
 Coordinates are image coordinates in pixels. LoG detections have a synthetic square bounding box derived from their radius. YOLO detections use the model box. LoG currently leaves `confidence` at its default `1.0`; the YOLO implementation currently does not copy model confidence scores into `Detection`.
+
+Since M3-T11 (ADR-0019) `radius_nm` is `None` when the image has no known pixel scale — `detect(z, pixel_size_nm=None)` is a supported call for both detectors, and the scale is never invented. The pixel-space fields are unaffected; in the raw LoG blob array, whose column dtype cannot hold `None`, the same absence is written as `NaN`.
 
 ### `PipelineConfig`
 

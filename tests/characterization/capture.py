@@ -269,6 +269,25 @@ def capture_log_detection(ph: phantoms.Phantom) -> dict:
             }
         else:
             out[key] = rb
+
+    # D-07 (ADR-0019): an unknown pixel scale is a supported state, and before
+    # M3-T11 this call raised `TypeError: unsupported operand type(s) for *`.
+    # Recording it takes the invariant "no scale, no nanometres" out of prose.
+    from nanoscope.core.science.detection import BaseDetector
+
+    rn = _record(detect_particles, z_above, None, sizes, 0.3, None, 20.0)
+    if rn["ok"]:
+        dets = BaseDetector._blobs_to_detections(rn["value"])
+        out["detect_particles_no_scale"] = {
+            "ok": True,
+            "n_blobs": len(rn["value"]),
+            "sigma_px": _array_digest(rn["value"][:, 2]),
+            "radius_nm": _array_digest(rn["value"][:, 3]),
+            "n_detections": len(dets),
+            "n_detections_with_radius_nm": sum(d.radius_nm is not None for d in dets),
+        }
+    else:
+        out["detect_particles_no_scale"] = rn
     return out
 
 
@@ -364,6 +383,22 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
         }
     else:
         out["non_square_half_height"] = r
+
+    # The YOLO half of D-07 (ADR-0019). `_boxes_to_detections` needs no weights,
+    # so the box → Detection conversion is recordable even though inference is
+    # not: with a scale, and with the scale unknown, which used to raise.
+    boxes = np.array([[10.0, 10.0, 30.0, 34.0], [100.0, 100.0, 140.0, 138.0]])
+    for label, scale in (("scaled", ph.pixel_size_nm), ("no_scale", None)):
+        rb = _record(YoloDetector._boxes_to_detections, boxes, scale)
+        out[f"boxes_to_detections_{label}"] = (
+            {
+                "ok": True,
+                "radius_px": [_num(d.radius_px) for d in rb["value"]],
+                "radius_nm": [_num(d.radius_nm) for d in rb["value"]],
+            }
+            if rb["ok"]
+            else rb
+        )
     return out
 
 

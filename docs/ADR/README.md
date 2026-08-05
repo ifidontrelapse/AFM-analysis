@@ -25,6 +25,8 @@ Use `TEMPLATE.md` for new records.
 | [0015](ADR-0015-yolo-input-is-normalised-before-it-is-cast.md) | YOLO input is normalised before it is cast to `uint8` | Accepted | 2026-08-05 |
 | [0016](ADR-0016-letterbox-the-yolo-input.md) | The YOLO input is letterboxed, not squashed | Accepted | 2026-08-05 |
 | [0017](ADR-0017-otsu-sizing-fails-loudly-and-counts-what-it-kept.md) | Otsu sizing fails loudly, and counts what it kept | Accepted | 2026-08-05 |
+| [0018](ADR-0018-log-normalisation-requires-a-positive-maximum.md) | LoG normalisation requires a positive maximum | Accepted | 2026-08-05 |
+| [0019](ADR-0019-unknown-pixel-scale-is-a-state-not-a-crash.md) | An unknown pixel scale is a state, not a crash | Accepted | 2026-08-05 |
 
 ## When to write one
 

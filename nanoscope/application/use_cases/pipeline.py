@@ -51,6 +51,10 @@ def run_pipeline(
         PipelineResult
     """
     # ── Unpack modality-specific fields ──────────────────────────────────────
+    # Annotated, not inferred: SEM/TEM carries `nm_per_pixel: float | None`, and
+    # without this the variable takes the AFM branch's `float` and mypy reports
+    # the SEM/TEM assignment as the error. That report *was* D-07 (M3-T11).
+    nm_per_pixel: float | None
     if isinstance(data, PreprocessingResult):
         image = data.z_result
         nm_per_pixel = data.pixel_size_nm

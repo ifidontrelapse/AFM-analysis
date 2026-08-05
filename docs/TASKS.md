@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-05 · **Active:** next is one of `M3-T11` / `M3-T12` / `M3-T17` / `M3-T20` (`M3-T03`, `M3-T04`, `M3-T06`, `M3-T07` closed 2026-08-05)
+**Updated:** 2026-08-05 · **Active:** next is `M3-T20` (or `M3-T12` / `M3-T17`); `M3-T03`, `M3-T04`, `M3-T06`, `M3-T07`, `M3-T11` closed 2026-08-05
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -86,7 +86,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 | M3-T08 | `flatten_lines` must promote dtype like `flatten_plane` does | D-13 | medium | [ ] |
 | M3-T09 | Define and apply the opening-radius rounding rule (half-integer radii break `disk()` centring) | D-10 | medium | [!] needs operator decision |
 | M3-T10 | Detection polarity: TEM currently returns 0 of 22 particles | D-12 | high | [!] needs operator decision |
-| M3-T11 | Handle unknown pixel scale (`None`) without crashing both detectors | D-07 | high | [ ] |
+| M3-T11 | Handle unknown pixel scale (`None`) without crashing both detectors | D-07 | high | [x] Done 2026-08-05, **ADR-0019**. `None` now propagates and the nanometre value becomes absent: `Detection.radius_nm` is `float \| None`, the LoG blob array's nm column is NaN (an ndarray cannot hold `None`) and `_blobs_to_detections` maps it to `None` at the entity boundary. Pixel-space output is bit-identical with and without a scale. Delta: **168 golden keys added, 0 changed** — every phantom has a scale, so nothing recorded moves; the new keys record a path that used to raise `TypeError`. **mypy 19 → 18**: the error it removes, `pipeline.py:62`, *was* D-07 reported at the assignment instead of at the crash, and had sat in the baseline since M1-T04. 8 tests; substituting the tempting wrong fix `pixel_size_nm or 1.0` turns 4 red |
 | M3-T12 | Empty measurements must return a schema-stable DataFrame | D-08 | high | [ ] |
 | M3-T13 | Typed error taxonomy + input validation at every numerical entry point | D-15 | medium | [ ] |
 | M3-T14 | One measurement schema across all four producers; fix the `bbox` contract | D-16, D-17 | medium | [ ] |

@@ -158,7 +158,7 @@ def estimate_log_threshold_adaptive(
 
 def detect_particles(
     z_above: np.ndarray,
-    pixel_size_nm: float,
+    pixel_size_nm: float | None,
     sizes: dict,
     overlap: float = 0.3,
     threshold: float = None,
@@ -176,12 +176,13 @@ def detect_particles(
 
     Args:
         z_above:       z_flat - substrate (particles above the substrate)
-        pixel_size_nm: nm per pixel
+        pixel_size_nm: nm per pixel, or None when the physical scale is unknown
         sizes:         dict from estimate_radius_otsu
         overlap:       permitted blob overlap (0..1)
 
     Returns:
-        blobs: np.ndarray shape (N, 4) — [y, x, sigma_px, radius_nm]
+        blobs: np.ndarray shape (N, 4) — [y, x, sigma_px, radius_nm].
+        `radius_nm` is NaN throughout when `pixel_size_nm` is None.
     """
     params = estimate_log_params(sizes)
 
@@ -219,7 +220,14 @@ def detect_particles(
 
     # radius = sigma * sqrt(2) — the standard LoG relation
     sigma_px = raw_blobs[:, 2]
-    radius_nm = sigma_px * np.sqrt(2) * pixel_size_nm
+    if pixel_size_nm is None:
+        # Unknown scale: the column stays NaN rather than becoming a pixel count
+        # in nanometre clothing (D-07, ADR-0019). This is the one NaN in the
+        # module that is *meant* — it marks a missing measurement and never
+        # enters a decision; the ones ADR-0018 removed came out of arithmetic.
+        radius_nm = np.full(len(sigma_px), np.nan)
+    else:
+        radius_nm = sigma_px * np.sqrt(2) * pixel_size_nm
 
     blobs = np.column_stack(
         [
@@ -232,12 +240,11 @@ def detect_particles(
     blobs = _filter_boundary_blobs(blobs, z_above.shape)
 
     logger.info(
-        "found %d particles: radius %.1f-%.1f nm (median %.1f), "
-        "LoG threshold %.4f, sigma %.1f-%.1f px",
+        "found %d particles: radius %s, LoG threshold %.4f, sigma %.1f-%.1f px",
         len(blobs),
-        radius_nm.min(),
-        radius_nm.max(),
-        np.median(radius_nm),
+        "unknown (no pixel scale)"
+        if pixel_size_nm is None
+        else f"{radius_nm.min():.1f}-{radius_nm.max():.1f} nm (median {np.median(radius_nm):.1f})",
         threshold,
         params["min_sigma"],
         params["max_sigma"],
@@ -291,13 +298,14 @@ class LogDetector(BaseDetector):
     def detect(
         self,
         z_above: np.ndarray,
-        pixel_size_nm: float,
+        pixel_size_nm: float | None,
         sizes: dict | None = None,
     ) -> list[Detection]:
         """
         Args:
             z_above:       z_flat - substrate
-            pixel_size_nm: nm/pixel
+            pixel_size_nm: nm/pixel, or None when the scale is unknown — then
+                           every `radius_nm` comes back None (D-07, ADR-0019)
             sizes:         dict from estimate_radius_otsu (needed for sigma range).
                            If None, estimated automatically via Otsu.
         """
