@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/opening-radius-ceil` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/tiling-default` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -64,15 +64,30 @@ levels of 256 and came out **anti-correlated** (−0.499) with a correctly prepa
 **This does not mean detections improved** — the weights were trained on images the old path
 produced; see the ADR's Consequences.
 
-**Four M3 tasks are blocked on operator decisions** and cannot start: B2/M3-T02
-(`min_size_nm` semantics), B4/M3-T09 (opening-radius rounding), B3/M3-T10 (TEM polarity),
-and now **B7/M3-T21** (what tiling should mean at 512 px).
+**All five operator decisions were answered on 2026-08-05** — B2, B3, B4, B6, B7 — and are being
+executed in order. B4/M3-T09 and B7/M3-T21 are done; B3/M3-T10, B2/M3-T02 and B6/M3-T16 remain,
+plus **B-058** (an ADR for the golden storing CPython exception text) and **B-040** (purging
+`node_modules` and the weights from git history), which goes last because it rewrites every SHA.
+**B-054** is closed: the operator deferred the two oversized README figures to the M9-T01 rewrite.
 
 ---
 
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T21** ✅ (2026-08-05, **ADR-0021**, decision **B7**) — the tiled YOLO backend **has never
+  tiled**: `_prepare_image` emits one 640 px square and the crop shape is 640, so `get_crops_xy`
+  computes one step per axis. It ran the direct backend's work through an extra library, more
+  slowly, and small particles were never seen at native resolution — the only reason tiling
+  exists. The overlap cannot rescue it (`int((side−shape)/step)+1` is 1 for any step when
+  `side == shape`, asserted at 0/25/50/75 %); only input size can, and real tiling needs 1120 px.
+  B7 answered **keep it, stop defaulting to it**: `use_tiling=False` in both `YoloDetector` and
+  `PipelineConfig`, and the degenerate case now says so in the log. Delta: **zero golden
+  difference** — inference is outside the gate — but the backends are **not bit-identical** even
+  at one crop (`CombineDetections` adds a second NMS), so real detections may move and **no claim
+  is made that either is better**; M3-T15 owns that question, and until it exists nobody can
+  choose between "upsample to 1120" and "smaller crops". 9 tests.
 
 - **M3-T09** ✅ (2026-08-05, **ADR-0020**, decision **B4**) — **D-10 fixed**. `disk(8.5)` is an
   18x18 element with no centre pixel, so the opening was biased by half a pixel; three sites fed
@@ -464,7 +479,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **170, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **179, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

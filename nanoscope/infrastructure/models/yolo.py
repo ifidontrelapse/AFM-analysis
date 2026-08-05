@@ -18,10 +18,14 @@ baseline.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 
 from nanoscope.core.entities import Detection
 from nanoscope.core.science.detection import BaseDetector
+
+logger = logging.getLogger(__name__)
 
 
 class YoloDetector(BaseDetector):
@@ -30,14 +34,17 @@ class YoloDetector(BaseDetector):
 
     Two inference backends, selected at construction time via `use_tiling`:
 
-    use_tiling=True  (default):
-        patched_yolo_infer sliding-window approach (MakeCropsDetectThem +
-        CombineDetections). Better for dense particle fields, avoids
-        missed detections at tile boundaries.
+    use_tiling=False (default since ADR-0021):
+        Direct ultralytics YOLO inference on a single prepared image.
 
-    use_tiling=False:
-        Direct ultralytics YOLO inference on a single resized image.
-        Faster and simpler; suitable for sparse fields or quick testing.
+    use_tiling=True:
+        patched_yolo_infer sliding-window approach (MakeCropsDetectThem +
+        CombineDetections). Intended for dense particle fields, to avoid
+        missed detections at tile boundaries — but see `_crop_steps`: with the
+        current `_prepare_image` the window covers the whole image in one
+        tile, so this backend does the direct backend's work more slowly. It
+        is kept, not deleted, because the fix is to feed it a larger input
+        (M3-T15 has to measure whether that is worth the inference cost).
 
     Both backends return the same list[Detection] in the coordinate space
     of the original z_above array.
@@ -46,7 +53,7 @@ class YoloDetector(BaseDetector):
     def __init__(
         self,
         model_path: str = "./checkpoints/best12x.pt",
-        use_tiling: bool = True,
+        use_tiling: bool = False,
         yolo_size: int = 640,
         # tiling-specific
         overlap_x: int = 25,
@@ -125,10 +132,39 @@ class YoloDetector(BaseDetector):
         scale, pad_x, pad_y = self._letterbox(original_shape)
         return (boxes - np.array([pad_x, pad_y, pad_x, pad_y])) / scale
 
+    def _crop_steps(self, side: int) -> int:
+        """How many crops the sliding window makes along an axis of `side` px.
+
+        `get_crops_xy` computes `int((side - shape) / (shape * (1 - overlap))) + 1`.
+        With `side == shape` that is 1, whatever the overlap — the finding behind
+        ADR-0021, and the reason this is a method rather than a comment.
+        """
+        step = self.yolo_size * (1 - self.overlap_x / 100)
+        return int((side - self.yolo_size) / step) + 1
+
+    def _warn_if_single_crop(self, img: np.ndarray) -> bool:
+        """Warn when the sliding window degenerates to one tile, and say so.
+
+        Separate from `_detect_tiled` so it is testable without weights: the
+        gate installs no ultralytics, and inference is outside it (§6).
+        """
+        if self._crop_steps(img.shape[1]) * self._crop_steps(img.shape[0]) > 1:
+            return False
+        logger.warning(
+            "tiling requested but the %dx%d input is one %d px crop: this runs the "
+            "direct backend's work more slowly and resolves nothing extra (ADR-0021)",
+            img.shape[1],
+            img.shape[0],
+            self.yolo_size,
+        )
+        return True
+
     def _detect_tiled(
         self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float | None
     ) -> list[Detection]:
         from patched_yolo_infer import CombineDetections, MakeCropsDetectThem
+
+        self._warn_if_single_crop(img)
 
         crops = MakeCropsDetectThem(
             image=img,

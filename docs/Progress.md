@@ -7,6 +7,58 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T21 · **The tiled backend is not the default (B7)**
+
+**Task:** `M3-T21`. **Branch:** `sci/tiling-default`. **ADR:** **ADR-0021**.
+**Decision:** B7, answered by the operator — keep the backend, stop defaulting to it.
+
+### The finding
+
+`use_tiling=True` was the default and **has never tiled**. `_prepare_image` returns exactly one
+640 px square, the crop shape is also 640, so `get_crops_xy` computes
+`int((640 - 640) / (640 * 0.75)) + 1 = 1` step per axis. One crop, the whole image. The tiled
+backend ran the direct backend's work through an extra library, more slowly, and the only reason
+tiling exists — small particles at native resolution instead of downscaled into 640 px — never
+happened.
+
+**The overlap is not the lever.** `int((side - shape) / step) + 1` is 1 for *any* step when
+`side == shape`; a test asserts it at 0, 25, 50 and 75 % overlap. Only the input size is: real
+tiling needs `shape * (2 - overlap/100)` = **1120 px**, and a 512 px scan cannot reach it.
+
+### The delta — zero, and for a stated reason
+
+Inference is outside the gate (PROJECT_RULES §6): only `_prepare_image` is recorded, and it is
+untouched. **`git diff` on the golden is empty.**
+
+That is not the same as "nothing changed on real data". The two backends are **not
+bit-identical** even at one crop — `MakeCropsDetectThem` preprocesses its own way and
+`CombineDetections` runs a second NMS at 0.25 on top of ultralytics' `iou=0.7`. Detections on
+real scans may differ slightly, nothing in the gate can see it, and **no claim is made that
+either is better.** M3-T15 owns that.
+
+### Kept, not deleted
+
+Deleting the backend was the shortest diff and the wrong one: the question is input size, not
+backend. Choosing between "upsample to 1120 and tile" (the model then examines interpolated
+pixels) and "crops smaller than 640" (inference cost rises with crop count) is a
+resolution-versus-cost trade-off, and the project **cannot yet measure detection quality** —
+M3-T15, the evaluation harness, does not exist. Deleting now means rewriting from history later.
+
+### Self-reporting
+
+Asking for tiling anyway now logs that it will produce one crop and resolve nothing extra. It
+lives in `_warn_if_single_crop`, separate from `_detect_tiled`, because that function imports
+`patched_yolo_infer` on its first line and then runs a model — a test through it would need
+weights and would run inference inside the gate. The first attempt did exactly that and took
+5.7 s before failing; the seam is the fix.
+
+### Next
+
+**B-058** (an ADR for the golden storing CPython exception text), then **B3 → M3-T10**,
+**B2 → M3-T02**, **B6 → M3-T16**, and **B-040** last.
+
+---
+
 ## 2026-08-05 — M3-T09 · **D-10 fixed: opening radii are integers, rounded up (B4)**
 
 **Task:** `M3-T09`. **Branch:** `sci/opening-radius-ceil`. **ADR:** **ADR-0020**.

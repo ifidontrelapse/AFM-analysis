@@ -39,7 +39,11 @@ class PipelineConfig:
 
     # YoloDetector params
     yolo_model_path: str = "./checkpoints/best12x.pt"
-    yolo_use_tiling: bool = True
+    # False since ADR-0021 (B7): `_prepare_image` produces exactly one
+    # `yolo_size` square and the crop shape is the same square, so the tiled
+    # backend has always produced a single crop — the direct backend's work,
+    # more slowly. The backend is kept for the day the input is larger.
+    yolo_use_tiling: bool = False
     yolo_conf: float = 0.5
 
     # SAM2 params
