@@ -7,6 +7,65 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-05 — M3-T06 · **D-05 / D-06 fixed: the sizing stops lying about how many**
+
+**Task:** `M3-T06`. **Branch:** `sci/otsu-sizing`. **ADR:** **ADR-0017**.
+**Defects:** D-05 (high), D-06 (medium) — same eight lines, so one commit.
+
+### The defects
+
+`estimate_radius_otsu` guards `len(props) == 0` *before* the size filter and never after. When
+the filter removed everything, `np.median([])` returned `nan` with a `RuntimeWarning`, and the
+`nan` travelled into the LoG sigma range to surface two calls later as `zero-size array to
+reduction operation minimum` — a message naming neither the parameter nor the stage. And
+`n_objects` returned the *pre-filter* count while `radii_px` was already filtered.
+
+### The delta — 8 golden differences
+
+| what | before | after |
+|---|---|---|
+| `afm_sparse_low_snr` · `n_objects_reported` | **1023** | **75** |
+| `degenerate_inputs.extreme_aspect` · error | `cannot convert float NaN to integer`, raised in `build_substrate_map` | the sizing's own message, raised in `estimate_radius_otsu` |
+| `estimate_radius_otsu_all_filtered` | — | added, 5 phantoms |
+
+**1023 against 75 is a 13.6× over-count** on the noisiest phantom — every one of those 948
+extra "objects" is a single-pixel noise blob that the filter had already discarded. The other
+four phantoms do not move, and *why* they do not is worth stating: **D-04** floors
+`min_size_pixel` to 0 on coarse scans, so on most inputs the filter removes nothing and the
+two counts already agreed. When **B2 / M3-T02** answers D-04, this fix starts mattering on
+real data.
+
+The `extreme_aspect` line is D-05 caught in the wild by the harness: the `nan` had reached
+`max(int(nan * 2.5), 5)` in `build_substrate_map`, one call away from where it was created.
+
+### The error message says three things, on purpose
+
+`Otsu found 804 objects, none with a radius of at least min_size_pixel=5 px (the largest is
+3.48 px).` PROJECT_RULES §3 requires the parameter and its value. The largest object is there
+because without it "this image has no particles" and "your minimum size is 100× too large"
+read identically, and the caller cannot tell which. It stays a plain `ValueError`: the typed
+taxonomy is M3-T13, and half a taxonomy is worse than none.
+
+### What the tests found
+
+**An M3-T01 test started failing** — `test_a_different_radius_produces_a_different_substrate`,
+written four commits ago. Its fixture is four 4.7 px particles and it passed `min_size_nm=5`
+at 1 nm/px, so the filter removed all four. It had been passing *because* the sizing silently
+returned `nan`: the test compared `z_above` arrays and never looked at `sizes`. That is D-05's
+blast radius in miniature — the defect is invisible exactly because the `nan` sits in a field
+nobody reads until something far away divides by it. The test now passes `min_size_nm=1` and
+says why.
+
+4 new tests; restoring the old behaviour turns 3 red. The fourth — the filter removing nothing
+— passes either way by design, and is what guarantees the four unmoved phantoms stay unmoved.
+
+### Next
+
+**M3-T21** (the single-crop tiling) or **M3-T07** (D-11, LoG normalisation against a zero
+maximum). M3-T21 needs a decision first — see `STATE.md`.
+
+---
+
 ## 2026-08-05 — M3-T04 · **D-21 fixed: the scan is letterboxed, not squashed**
 
 **Task:** `M3-T04`. **Branch:** `sci/yolo-letterbox` (off `sci/yolo-normalise-then-cast`).

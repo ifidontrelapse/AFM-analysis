@@ -712,6 +712,12 @@
           "sum": 29261.15242996812
         }
       },
+      "estimate_radius_otsu_all_filtered": {
+        "error_message": "Otsu found 14 objects, none with a radius of at least min_size_pixel=500 px (the largest is 4.37 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "estimate_radius_otsu"
+      },
       "flatten_lines": {
         "ok": true,
         "stdout_lines": 0,
@@ -1519,6 +1525,12 @@
           "std": 2.975412012051332,
           "sum": 130688.16005215049
         }
+      },
+      "estimate_radius_otsu_all_filtered": {
+        "error_message": "Otsu found 46 objects, none with a radius of at least min_size_pixel=500 px (the largest is 14.5 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "estimate_radius_otsu"
       },
       "flatten_lines": {
         "ok": true,
@@ -2328,6 +2340,12 @@
           "sum": 83625.56252968311
         }
       },
+      "estimate_radius_otsu_all_filtered": {
+        "error_message": "Otsu found 24 objects, none with a radius of at least min_size_pixel=500 px (the largest is 7.53 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "estimate_radius_otsu"
+      },
       "flatten_lines": {
         "ok": true,
         "stdout_lines": 0,
@@ -2650,7 +2668,7 @@
         "opening_radius": 7,
         "opening_radius_type": "int",
         "sizes": {
-          "n_objects_reported": 1023,
+          "n_objects_reported": 75,
           "n_radii_kept": 75,
           "otsu_threshold": 1.1680029663783884,
           "radii_px": {
@@ -2771,6 +2789,12 @@
           "std": 1.0186161843651096,
           "sum": 171721.8859347105
         }
+      },
+      "estimate_radius_otsu_all_filtered": {
+        "error_message": "Otsu found 243 objects, none with a radius of at least min_size_pixel=500 px (the largest is 102 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "estimate_radius_otsu"
       },
       "flatten_lines": {
         "ok": true,
@@ -3580,6 +3604,12 @@
           "sum": 139626.88725842163
         }
       },
+      "estimate_radius_otsu_all_filtered": {
+        "error_message": "Otsu found 29 objects, none with a radius of at least min_size_pixel=500 px (the largest is 13.1 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "estimate_radius_otsu"
+      },
       "flatten_lines": {
         "ok": true,
         "stdout_lines": 0,
@@ -3955,10 +3985,10 @@
     },
     "extreme_aspect": {
       "build_substrate_map": {
-        "error_message": "cannot convert float NaN to integer",
+        "error_message": "Otsu found 804 objects, none with a radius of at least min_size_pixel=5 px (the largest is 3.48 px). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
-        "raised_in": "build_substrate_map"
+        "raised_in": "estimate_radius_otsu"
       },
       "detect_particles": {
         "ok": true,

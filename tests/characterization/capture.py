@@ -138,6 +138,7 @@ def _record(fn, *args, **kwargs) -> dict:
 def capture_preprocessing(ph: phantoms.Phantom) -> dict:
     from nanoscope.core.science.preprocessing import (
         build_substrate_map,
+        estimate_radius_otsu,
         flatten_lines,
         flatten_plane,
     )
@@ -206,6 +207,15 @@ def capture_preprocessing(ph: phantoms.Phantom) -> dict:
         }
     else:
         out["build_substrate_map_manual"] = rm
+
+    # D-05's own reproduction: a size filter no object can pass. This returned
+    # `{"typical_radius_px": nan, ...}` until M3-T06 (ADR-0017) and the nan
+    # surfaced several calls later, inside estimate_log_params, as "zero-size
+    # array to reduction operation minimum". It raises here now, and the golden
+    # records which — the failure is part of the contract.
+    out["estimate_radius_otsu_all_filtered"] = _record(
+        estimate_radius_otsu, z_flat, ph.pixel_size_nm, 500
+    )
     return out
 
 

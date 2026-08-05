@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/yolo-letterbox` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-05 · **Branch:** `sci/otsu-sizing` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,9 +26,17 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M3-T06` — Otsu sizing: raise on empty-after-filter, report post-filter `n_objects`
-(D-05, D-06).** Status: **selected, not started**. The alternative, if the YOLO path is to be
-finished while it is fresh, is **M3-T21** — the single-crop tiling found during M3-T04.
+**`M3-T07` — guard the LoG normalisation against a zero maximum (D-11).** Status:
+**selected, not started**. The other candidate, **M3-T21**, is now **blocked on decision B7**:
+its fix is not "make tiling work", it is "decide what tiling should mean on a 512 px scan",
+and that is a physics-and-cost trade-off, not an engineering one.
+
+**`M3-T06` done 2026-08-05 (ADR-0017)** — D-05/D-06 fixed: the empty-after-filter case raised
+nothing and returned `nan`; it now raises with the parameter, its value and the largest object
+measured, and `n_objects` counts survivors. **8 golden differences**, of which the headline is
+`n_objects_reported` **1023 → 75** on `afm_sparse_low_snr` — a 13.6× over-count of
+single-pixel noise. It also broke a test written in M3-T01 that had been passing *because* of
+the `nan`.
 
 **`M3-T04` done 2026-08-05 (ADR-0016)** — D-21 fixed: the scan is scaled isotropically and
 padded to the model square instead of squashed into it, and `_scale_boxes` inverts exactly
@@ -45,14 +53,31 @@ levels of 256 and came out **anti-correlated** (−0.499) with a correctly prepa
 **This does not mean detections improved** — the weights were trained on images the old path
 produced; see the ADR's Consequences.
 
-**Three M3 tasks are blocked on operator decisions** and cannot start: B2/M3-T02
-(`min_size_nm` semantics), B4/M3-T09 (opening-radius rounding), B3/M3-T10 (TEM polarity).
+**Four M3 tasks are blocked on operator decisions** and cannot start: B2/M3-T02
+(`min_size_nm` semantics), B4/M3-T09 (opening-radius rounding), B3/M3-T10 (TEM polarity),
+and now **B7/M3-T21** (what tiling should mean at 512 px).
 
 ---
 
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T06** ✅ (2026-08-05, **ADR-0017**) — **D-05 and D-06 fixed**, one commit because they
+  are the same eight lines. The size filter could remove every object, and then `np.median([])`
+  returned `nan` with a warning; the `nan` reached the LoG sigma range and failed two calls
+  later as `zero-size array to reduction operation minimum`. It now raises where it happens,
+  naming the parameter, its value **and the largest object measured** — without that third
+  number, "no particles here" and "your minimum is 100× too large" read identically. And
+  `n_objects` counts survivors instead of the pre-filter population. Delta: **8 golden
+  differences** — `n_objects_reported` **1023 → 75** on `afm_sparse_low_snr` (13.6× over-count
+  of single-pixel noise), the `extreme_aspect` degenerate input now fails as
+  `estimate_radius_otsu` instead of `cannot convert float NaN to integer` one call downstream,
+  plus 5 added keys recording D-05's own reproduction. **Only one phantom moved, and why is the
+  point:** D-04 floors `min_size_pixel` to 0 on coarse scans, so the filter usually removes
+  nothing — this fix starts mattering on real data the day **B2** is answered. 4 tests;
+  restoring the old behaviour turns 3 red. **It also turned an M3-T01 test red**, one that had
+  been passing because the sizing silently returned `nan` into a field it never read.
 
 - **M3-T04** ✅ (2026-08-05, **ADR-0016**) — **D-21 fixed**: `_prepare_image` squashed every
   scan into a 640 × 640 square and `_scale_boxes` stretched the boxes back per axis. The two
@@ -298,15 +323,17 @@ produced; see the ADR's Consequences.
 
 ## In progress
 
-**M2 is closed and M3 has started.** M3-T01, M3-T03 and M3-T04 are done. Two of the four
+**M2 is closed and M3 has started.** M3-T01, T03, T04 and T06 are done — four defects
+closed in two sessions. Two of the four
 critical defects are closed; the other two (D-04, D-12) wait on operator decisions B2 and B3.
 **The YOLO input path is now correct in both respects** — the data survives preparation and
 the sample keeps its shape — and neither claim extends to detection quality, which nothing in
 the gate can measure.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-M3-T03 is on `sci/yolo-normalise-then-cast` (pushed); M3-T04 is on `sci/yolo-letterbox`,
-branched off it, so the two land in order. CI on `main` is green: **216 s**, of which
+Three branches stack in order and are pushed: `sci/yolo-normalise-then-cast` (M3-T03) →
+`sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06). Each is green locally; CI has not
+been read from this session. CI on `main` is green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
 
@@ -331,6 +358,7 @@ Decisions only the operator can make. Each blocks a specific task.
 | B2 | **`min_size_nm` semantics (D-04).** `int(5 / 9.77) == 0` disables the noise filter on 90% of your scans. What *should* the minimum particle size mean at coarse pixel scales — a floor of 1 px, a rounded value, or an error? | M3-T02 | It defines what counts as a particle; that is physics, not engineering |
 | B3 | **Detection polarity (D-12).** TEM particles are dark on bright; the detector keeps the bright side and finds 0 of 22. Explicit configuration per modality, or auto-detection? | M3-T10 | Determines whether TEM support is a setting or a heuristic |
 | B4 | **Opening-radius rounding (D-10).** Half-integer radii produce an even-sized structuring element with no centre pixel, shifting `z_result` by half a pixel. Round up, round to nearest odd, or floor? | M3-T09 | Changes substrate estimation on real data |
+| B7 | **What should tiling mean on a 512 px scan (M3-T21)?** `use_tiling=True` produces exactly one crop today, so it has never tiled. Making it tile requires either upsampling the scan to ≥ 1120 px before tiling (the model then sees interpolated pixels), using crops smaller than 640 (each is upscaled by the model instead), or accepting that tiling is pointless at this resolution and dropping the backend. | M3-T21 | It trades inference cost against whether small particles are resolvable, and the answer depends on what your scans actually contain |
 | B6 | **Real sample data in git.** `data/` holds 628 SPM scans and is ignored. Should one small representative scan be committed as a test fixture? | M3-T16 | Data ownership and repository size |
 
 **Closed 2026-08-04 by the operator:**
@@ -347,9 +375,8 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Execute `M3-T06`** (Otsu sizing, D-05/D-06) or **`M3-T21`** (the single-crop tiling
-   found in M3-T04). Rewrite `docs/CURRENT_TASK.md` for whichever is chosen. M3-T21 is the
-   one that finishes the YOLO path while the context is fresh, and it is rated high
+1. **Execute `M3-T07`** (D-11, LoG normalisation against a zero maximum). Rewrite
+   `docs/CURRENT_TASK.md` for it. M3-T21 is the other candidate but is blocked on **B7**
 2. **The two remaining critical defects need operator answers, not engineering.** B2 (D-04)
    and B3 (D-12) have been open since M0; every session that passes without them is a
    session M3 cannot finish. Everything else in M3 is unblocked and can be worked in
@@ -373,14 +400,14 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **136, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **140, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **19**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **26** (was 28) — D-01, D-03, D-21 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **24** (was 28) — D-01, D-03, D-21, D-05, D-06 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

@@ -1,4 +1,4 @@
-"""`build_substrate_map`, and the manual-radius branch that never worked (D-01).
+"""`build_substrate_map` and `estimate_radius_otsu`: D-01, and D-05/D-06.
 
 The characterization golden records that this branch used to raise, so the fix is
 visible there too. These tests exist because the golden can only say *what*
@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from nanoscope.core.science.preprocessing import build_substrate_map
+from nanoscope.core.science.preprocessing import build_substrate_map, estimate_radius_otsu
 
 
 def _particles(size: int = 64, radius: float = 4.0) -> np.ndarray:
@@ -51,8 +51,12 @@ class TestManualRadius:
         # Guards against the fix being cosmetic: the radius must still reach the
         # morphological opening, not just the return value.
         z = _particles()
-        _, above_small, _, _ = build_substrate_map(z, 1.0, 5, manual_radius_px=6)
-        _, above_large, _, _ = build_substrate_map(z, 1.0, 5, manual_radius_px=20)
+        # min_size_nm=1, not the default 5: at 1 nm/px the fixture's 4.7 px
+        # particles are all below a 5 px floor, and since M3-T06 that is an
+        # error rather than a silent nan. This test is about the radius, not
+        # about the size filter.
+        _, above_small, _, _ = build_substrate_map(z, 1.0, 1, manual_radius_px=6)
+        _, above_large, _, _ = build_substrate_map(z, 1.0, 1, manual_radius_px=20)
         assert not np.allclose(above_small, above_large)
 
     def test_the_automatic_branch_is_untouched(self) -> None:
@@ -79,3 +83,52 @@ def test_an_empty_image_still_raises_from_otsu() -> None:
     """The fix must not swallow the failure modes the golden already records."""
     with pytest.raises(ValueError, match="Otsu found no objects"):
         build_substrate_map(np.zeros((32, 32), np.float32), 1.0, 5, manual_radius_px=5)
+
+
+def _two_sizes(size: int = 64) -> np.ndarray:
+    """Two large bumps and two small ones — the audit's 4-objects-2-retained case."""
+    ys, xs = np.mgrid[0:size, 0:size]
+    z = np.zeros((size, size), dtype=np.float32)
+    for (cy, cx), radius in (((16, 16), 6.0), ((16, 48), 6.0), ((48, 16), 1.5), ((48, 48), 1.5)):
+        z += 10.0 * np.exp(-((ys - cy) ** 2 + (xs - cx) ** 2) / (2 * radius**2))
+    return z
+
+
+class TestOtsuSizing:
+    """D-05 and D-06 — what `estimate_radius_otsu` does when the size filter
+    bites, and what it reports when it does not."""
+
+    def test_filtering_everything_away_raises_instead_of_returning_nan(self) -> None:
+        """The audit's own reproduction. `np.median([])` is `nan` with a
+        RuntimeWarning, and the `nan` used to surface several calls later as
+        "zero-size array to reduction operation minimum"."""
+        with pytest.raises(ValueError, match="none with a radius of at least"):
+            estimate_radius_otsu(_particles(), pixel_size_nm=1.0, min_size_pixel=500)
+
+    def test_the_error_names_the_parameter_its_value_and_the_largest_object(self) -> None:
+        """PROJECT_RULES §3: an error names the offending parameter and its
+        value. Here it also names what the filter was measured against, because
+        "no particles" and "the threshold is 100x too high" look identical from
+        the caller's side."""
+        with pytest.raises(ValueError) as excinfo:
+            estimate_radius_otsu(_particles(), pixel_size_nm=1.0, min_size_pixel=500)
+        message = str(excinfo.value)
+        assert "min_size_pixel=500" in message
+        assert "the largest is" in message
+
+    def test_n_objects_counts_what_survived_the_filter(self) -> None:
+        """D-06: it used to report the pre-filter count, so a caller reading it
+        as "particles found" over-counted — 4 reported against 2 retained in the
+        audit's measurement, which is exactly what this reproduces."""
+        z = _two_sizes()
+        unfiltered = estimate_radius_otsu(z, 1.0, min_size_pixel=0)
+        filtered = estimate_radius_otsu(z, 1.0, min_size_pixel=3)
+        assert unfiltered["n_objects"] == 4
+        assert filtered["n_objects"] == 2 == len(filtered["radii_px"])
+
+    def test_n_objects_is_unchanged_when_the_filter_removes_nothing(self) -> None:
+        """The common case on real scans, because D-04 floors `min_size_pixel`
+        to 0 there. Nothing is filtered, so the old and new counts agree — which
+        is why the golden moves on only some phantoms."""
+        sizes = estimate_radius_otsu(_particles(), 1.0, min_size_pixel=0)
+        assert sizes["n_objects"] == len(sizes["radii_px"])

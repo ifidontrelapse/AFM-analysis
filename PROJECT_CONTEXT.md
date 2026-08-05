@@ -300,7 +300,7 @@ manual path:
   -> substrate, z_above
 ```
 
-`estimate_radius_otsu` thresholds with `threshold_otsu`, labels connected components, converts each component area to an equivalent circular radius, and removes radii below `min_size_pixel`. It returns `typical_radius_px`, `typical_radius_nm`, arrays of radii, object count, and the Otsu threshold.
+`estimate_radius_otsu` thresholds with `threshold_otsu`, labels connected components, converts each component area to an equivalent circular radius, and removes radii below `min_size_pixel`. It returns `typical_radius_px`, `typical_radius_nm`, arrays of radii, `n_objects`, and the Otsu threshold. Since M3-T06 (ADR-0017) `n_objects` is the **post-filter** count — the same length as `radii_px` — and the function raises `ValueError` when the filter removes every object, instead of returning `nan` radii that failed further downstream.
 
 The `sizes` dictionary is later used to determine the LoG sigma range.
 

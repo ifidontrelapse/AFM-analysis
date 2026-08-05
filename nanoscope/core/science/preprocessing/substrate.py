@@ -8,10 +8,15 @@ here, because each moves a number the golden records:
 
 - `min_size_pixel=int(min_size_nm / pixel_size_nm)` is 0 for any scan coarser than
   5 nm/px, which disables the noise filter — audit **D-04**, open decision **B2**.
+  Note what that means for the filter below: on most real scans it currently
+  removes nothing, so the empty-after-filter error is reachable mainly through an
+  explicit `min_size_nm`.
 - `estimate_rough_radius` is annotated `-> int` and can return a float.
+- `radii_nm` is assigned twice in a row, identically (audit §Duplication). Left
+  alone on purpose: this file's commits are numerical, and ADR-0010 keeps tidying
+  out of them.
 
-D-01 — `opening_radius` unbound on the manual branch — was fixed in **M3-T01**
-(**ADR-0014**). It is the one defect here that is closed.
+Closed here: **D-01** (M3-T01, ADR-0014) and **D-05 / D-06** (M3-T06, ADR-0017).
 """
 
 from __future__ import annotations
@@ -57,7 +62,14 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pix
         min_size_pixel:   minimum particle size in pixels
 
     Returns:
-        dict with the typical radius, the range, and the number of objects found
+        dict with the typical radius, the range, and `n_objects` — the number of
+        objects that **survived** the `min_size_pixel` filter, which is the same
+        length as `radii_px` (ADR-0017 / D-06).
+
+    Raises:
+        ValueError: if Otsu finds no objects at all, or if the filter removes
+            every one of them (ADR-0017 / D-05). The second case used to return
+            `nan` and fail several calls later.
     """
     thresh = threshold_otsu(z_above)
     binary = z_above > thresh
@@ -69,9 +81,17 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pix
 
     radii_px = np.array([p.equivalent_diameter_area / 2 for p in props])
 
+    n_found, largest = len(radii_px), float(radii_px.max())
     # Filter noise immediately — anything smaller than min_size_pixel is not a particle
-    valid = radii_px >= min_size_pixel
-    radii_px = radii_px[valid]
+    radii_px = radii_px[radii_px >= min_size_pixel]
+
+    if radii_px.size == 0:
+        raise ValueError(
+            f"Otsu found {n_found} objects, none with a radius of at least "
+            f"min_size_pixel={min_size_pixel} px (the largest is {largest:.3g} px). "
+            "Lower the minimum size, or check the preprocessing and the image quality."
+        )
+
     radii_nm = radii_px * pixel_size_nm
     radii_nm = radii_px * pixel_size_nm
 
@@ -83,7 +103,7 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pix
         "typical_radius_nm": typical_radius_nm,
         "radii_px": radii_px,
         "radii_nm": radii_nm,
-        "n_objects": len(props),
+        "n_objects": len(radii_px),  # post-filter, and so equal to len(radii_px) (D-06)
         "otsu_threshold": thresh,
     }
 
