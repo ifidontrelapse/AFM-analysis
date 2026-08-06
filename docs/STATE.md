@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-06 · **Branch:** `sci/min-size-in-nm` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-06 · **Branch:** `sci/npy-no-invented-scale` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,12 +26,23 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **All four `critical` defects are closed** and so are all five operator
-decisions that were open when M3 started. What is left in M3 is unblocked engineering: the next
-task is **M3-T20** — the other half of D-07, stopping the npy loader from inventing `1.0` where
-M3-T11 made `None` survivable — with **M3-T12** and **M3-T17** the other `high` ones (T17 and
-T20 are the same file). **B6 → M3-T16** is the last operator answer waiting to be executed, and
-**B-040** goes last of everything because it rewrites every SHA above it.
+**None selected.** **All four `critical` defects are closed**, **D-07 is closed on both sides**,
+and so are all five operator decisions that were open when M3 started. The next task is
+**M3-T17** — the same unknown-scale state arriving from the SPM header, which now has a contract
+to satisfy (ADR-0025) instead of an open question. **M3-T12** is the other unblocked `high` one.
+**B6 → M3-T16** is the last operator answer waiting to be executed, and **B-040** goes last of
+everything because it rewrites every SHA above it.
+
+**`M3-T20` done 2026-08-06 (ADR-0025)** — the npy loader no longer invents `1.0` nm/px and a scan
+size equal to the row count. `None` is unknown and passes through to the entity; a scale that
+*is* given must be positive, so `0.0`, `-1` and `nan` raise instead of being swallowed by `or`.
+`build_substrate_map` accepts `None`: the `_nm` outputs are absent and the `min_size_nm` filter
+cannot be applied, which is **warned**. Delta: **5 golden keys added, 0 values changed** — every
+phantom has a scale. The new keys carry the finding: an unscaled run is exactly a scaled run with
+`min_size_nm=0`, so on four phantoms the substrate is bit-identical and on `afm_sparse_low_snr`
+it is not — **17 objects become 3351**, the typical radius falls 2.99 px → 0.80 and the opening
+radius 8 → 5. **Losing the scale is losing the filter**, which is D-04's mechanism one commit
+after D-04 was closed. 10 tests; restoring `pixel_size_nm or 1.0` turns 6 red.
 
 **`M3-T02` done 2026-08-06 (ADR-0024, decision B2)** — **D-04 fixed, the last `critical`.**
 `int(min_size_nm / pixel_size_nm)` is gone; the filter compares `radii_nm >= min_size_nm`, so a
@@ -90,6 +101,20 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T20** ✅ (2026-08-06, **ADR-0025**) — **the other half of D-07.** `load_afm(fmt="npy")`
+  fabricated `pixel_size_nm=1.0` and `scan_size_nm=float(z.shape[0])`, so every `_nm` downstream
+  was a pixel count wearing nanometre units and no consumer could tell — and `or` swallowed an
+  explicit `0.0` on the way. The loader now passes through what it was given, `AFMRawData` and
+  `PreprocessingResult` carry `float | None`, and a scale that *is* given must be positive.
+  `build_substrate_map` takes `None`: `radii_nm` and `typical_radius_nm` are absent, and the
+  `min_size_nm` filter is skipped **with a warning** — silently would be D-04 again. Delta:
+  **5 keys added, 0 values changed**; the new `build_substrate_map_no_scale` records that an
+  unscaled run equals a scaled one with `min_size_nm=0` — bit-identical substrate on four
+  phantoms, and on `afm_sparse_low_snr` **17 objects → 3351**, typical radius **2.99 → 0.80 px**,
+  opening radius **8 → 5**. The ADR's draft claimed the pixel-space result was unaffected; the
+  golden disagreed on one phantom in five and the ADR now says what was measured. **M3-T17
+  inherits a contract instead of a question.** 10 tests; restoring the fabrication turns 6 red.
 
 - **M3-T02** ✅ (2026-08-06, **ADR-0024**, decision **B2**) — **D-04 fixed: the minimum particle
   size is a physical size.** `min_size_nm` was converted to pixels with `int()` at three sites,
@@ -466,13 +491,14 @@ a `nan` image**, and its adaptive threshold now always lands in the interval it 
 against. **The noise filter runs for the first time** on the scans where it was floored away.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Ten branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+Eleven branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 `sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
 `sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
 (M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
-`sci/min-size-in-nm` (M3-T02). **All ten are pushed and all ten are green on CI** — the seven
-that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s each, every one `success`.
-That is the first CI reading of M3-T07, T09, T10, T11, T21, T02 and B-058. CI on `main` is
+`sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20). The first ten are pushed
+and all ten are green on CI — the seven that had never been pushed ran as #44–#50 on 2026-08-06,
+139–459 s each, every one `success`. That is the first CI reading of M3-T07, T09, T10, T11, T21,
+T02 and B-058. The eleventh, M3-T20, is green locally and not yet pushed. CI on `main` is
 green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
@@ -519,10 +545,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Push the stacked `sci/` branches and read CI**, then execute **M3-T20** — the other half of
-   D-07, now that `None` is survivable. **M3-T12**, **M3-T17** are the other unblocked `high`
-   ones, and T17/T20 are the same file, worth reading together. Rewrite `docs/CURRENT_TASK.md`
-   for it
+1. **Push `sci/npy-no-invented-scale` and read CI**, then execute **M3-T17** — the unknown-scale
+   state arriving from the SPM header, which ADR-0025 has now given a contract. **M3-T12** is the
+   other unblocked `high` one. Rewrite `docs/CURRENT_TASK.md` for whichever is chosen
 2. **Every `critical` defect is closed and every decision except B6 is answered and executed.**
    What remains in M3 is engineering, in severity order: T20, T12, T17 are the `high` ones, then
    T05, T08, T13, T14. **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last
@@ -546,7 +571,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **204, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **216, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -55,7 +55,9 @@ def get_substrate_map(z: np.ndarray, radius_px: float) -> np.ndarray:
     return morph_opening(z, disk(_integer_radius(radius_px))).astype(np.float32)
 
 
-def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_nm: float) -> dict:
+def estimate_radius_otsu(
+    z_above: np.ndarray, pixel_size_nm: float | None, min_size_nm: float
+) -> dict:
     """
     Estimate the typical particle radius by Otsu thresholding.
 
@@ -64,7 +66,9 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_nm:
 
     Args:
         z_above:       z - substrate (particles above the substrate)
-        pixel_size_nm: nm per pixel = scan_size_nm / z.shape[0]
+        pixel_size_nm: nm per pixel = scan_size_nm / z.shape[0], or `None` when
+            the scale is unknown — then the nanometre outputs are `None` and the
+            `min_size_nm` filter cannot be applied (ADR-0025)
         min_size_nm:   minimum particle radius, in nanometres. Compared against
             the radii **in nanometres** (ADR-0024 / D-04); there is no pixel
             conversion and therefore no floor to zero on a coarse scan.
@@ -72,7 +76,8 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_nm:
     Returns:
         dict with the typical radius, the range, and `n_objects` — the number of
         objects that **survived** the `min_size_nm` filter, which is the same
-        length as `radii_px` (ADR-0017 / D-06).
+        length as `radii_px` (ADR-0017 / D-06). `radii_nm` and
+        `typical_radius_nm` are `None` when `pixel_size_nm` is.
 
     Raises:
         ValueError: if Otsu finds no objects at all, or if the filter removes
@@ -88,6 +93,27 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_nm:
         raise ValueError("Otsu found no objects. Check the preprocessing and the image quality.")
 
     radii_px = np.array([p.equivalent_diameter_area / 2 for p in props])
+
+    if pixel_size_nm is None:
+        # No scale, so `min_size_nm` cannot be expressed in anything this image
+        # has. Skipping the filter is the honest answer — the pixel-space work
+        # below is unaffected — but skipping it *silently* is D-04 again, so it
+        # is said out loud, once, here (ADR-0025).
+        logger.warning(
+            "no physical scale: the %s nm minimum particle size cannot be applied, so every "
+            "object Otsu found is kept — on a noisy scan the radius estimate is then driven "
+            "by single-pixel noise",
+            min_size_nm,
+        )
+        return {
+            "typical_radius_px": float(np.median(radii_px)),
+            "typical_radius_nm": None,
+            "radii_px": radii_px,
+            "radii_nm": None,
+            "n_objects": len(radii_px),
+            "otsu_threshold": thresh,
+        }
+
     radii_nm = radii_px * pixel_size_nm
 
     n_found, largest_nm = len(radii_px), float(radii_nm.max())
@@ -118,7 +144,7 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_nm:
 
 
 def estimate_rough_radius(
-    z: np.ndarray, pixel_size_nm: float, min_size_nm: float, scale: float = 1.7
+    z: np.ndarray, pixel_size_nm: float | None, min_size_nm: float, scale: float = 1.7
 ) -> int:
     """
     Estimate a starting radius from the image itself, with no hard-coded constants.
@@ -128,7 +154,9 @@ def estimate_rough_radius(
 
     Args:
         z:              the source image
-        pixel_size_nm:  nm per pixel = scan_size_nm / z.shape[0]
+        pixel_size_nm:  nm per pixel = scan_size_nm / z.shape[0], or `None` when
+                        the scale is unknown — then the floor is 0 px, because a
+                        nanometre floor cannot be converted (ADR-0025)
         min_size_nm:    minimum particle radius in nm — the floor for the
                         estimate. Converted to pixels here, and **not** floored
                         to an integer on the way (ADR-0024)
@@ -138,7 +166,9 @@ def estimate_rough_radius(
     Returns:
         int: rough radius in pixels for the morphological opening
     """
-    min_size_px = min_size_nm / pixel_size_nm
+    # 0.0, not `min_size_nm`: without a scale the floor is not "the same number
+    # in pixels" — that is the unit confusion ADR-0024 deleted. It is nothing.
+    min_size_px = 0.0 if pixel_size_nm is None else min_size_nm / pixel_size_nm
 
     z_flat = z.flatten()
     thresh = np.median(z_flat) + z_flat.std()
@@ -165,7 +195,10 @@ def estimate_rough_radius(
 
 
 def build_substrate_map(
-    z: np.ndarray, pixel_size_nm: float, min_size_nm: float = 5, manual_radius_px: float = None
+    z: np.ndarray,
+    pixel_size_nm: float | None,
+    min_size_nm: float = 5,
+    manual_radius_px: float = None,
 ) -> tuple:
     """
     Build the substrate map, estimating the opening radius automatically unless
@@ -173,7 +206,10 @@ def build_substrate_map(
 
     Args:
         z: sample topography
-        pixel_size_nm: nm per pixel = scan_size_nm / z.shape[0]
+        pixel_size_nm: nm per pixel = scan_size_nm / z.shape[0], or `None` when
+            the scale is unknown. Every pixel-space result is unchanged by that;
+            the `sizes` dict's `_nm` entries are `None` and the `min_size_nm`
+            filter is not applied, with a warning (ADR-0025)
         min_size_nm: minimum particle radius in nm — the floor for the estimate,
             and the noise filter in `estimate_radius_otsu`. Since ADR-0024 it is
             used as a physical size at both sites; nothing converts it with `int()`

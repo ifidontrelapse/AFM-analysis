@@ -304,14 +304,13 @@ def test_npy_uses_the_metadata_it_is_given(tmp_path) -> None:
     assert data.scan_size_nm == 10.0
 
 
-def test_npy_without_metadata_invents_a_scale_of_one_nm_per_pixel(tmp_path) -> None:
-    """Characterized, not endorsed — **M3-T20**, a defect this test found.
+def test_npy_without_metadata_reports_an_unknown_scale(tmp_path) -> None:
+    """**M3-T20 / ADR-0025** — the defect this test used to characterize.
 
-    PROJECT_RULES §3 and D-07 both say an unknown physical scale is `None`, never
-    a substitute value. This path fabricates `1.0` nm/px and a scan size equal to
-    the row count, so every downstream `_nm` becomes a pixel count wearing
-    nanometre units — and because it is written with `or`, an explicit `0.0` is
-    swallowed the same way. The assertions flip to `None` when M3-T20 lands.
+    It fabricated `1.0` nm/px and a scan size equal to the **row count**, so
+    every downstream `_nm` became a pixel count wearing nanometre units and no
+    consumer could tell. PROJECT_RULES §3 and D-07 both say an unknown physical
+    scale is `None`, never a substitute value.
     """
     z = np.zeros((7, 3), dtype=np.float32)
     path = tmp_path / "z.npy"
@@ -319,11 +318,37 @@ def test_npy_without_metadata_invents_a_scale_of_one_nm_per_pixel(tmp_path) -> N
 
     data = load_afm(str(path), fmt="npy")
 
-    assert data.pixel_size_nm == 1.0
-    assert data.scan_size_nm == 7.0  # rows, not columns, and not a physical size
+    assert data.pixel_size_nm is None
+    assert data.scan_size_nm is None
+    assert data.z_raw.shape == (7, 3)  # the array still loads; only the metadata is absent
 
-    # The `or` half of M3-T20: a caller who genuinely means 0 is overruled.
-    assert load_afm(str(path), fmt="npy", pixel_size_nm=0.0).pixel_size_nm == 1.0
+
+@pytest.mark.parametrize("bad", [0.0, -1.0, float("nan")])
+def test_npy_refuses_a_scale_that_is_not_a_size(tmp_path, bad: float) -> None:
+    """The other half of M3-T20: `or` swallowed an explicit `0.0` the same way
+    it swallowed `None`, so a caller who meant zero was silently given 1.0.
+    Zero is not "unknown" — it is a caller error, and `PixelScale` has said so
+    since M2-T02. `nan` fails the same `not value > 0`, deliberately."""
+    path = tmp_path / "z.npy"
+    np.save(path, np.zeros((4, 4), dtype=np.float32))
+
+    with pytest.raises(ValueError, match="pixel_size_nm must be positive"):
+        load_afm(str(path), fmt="npy", pixel_size_nm=bad)
+    with pytest.raises(ValueError, match="scan_size_nm must be positive"):
+        load_afm(str(path), fmt="npy", scan_size_nm=bad)
+
+
+def test_npy_keeps_a_known_scale_and_an_unknown_one_apart(tmp_path) -> None:
+    """One of the two may be known — an operator who knows the pixel size need
+    not also know the scan size. Nothing is derived from the other: see ADR-0025
+    on why `pixel_size_nm * z.shape[0]` is not filled in here."""
+    path = tmp_path / "z.npy"
+    np.save(path, np.zeros((4, 6), dtype=np.float32))
+
+    data = load_afm(str(path), fmt="npy", pixel_size_nm=2.5)
+
+    assert data.pixel_size_nm == 2.5
+    assert data.scan_size_nm is None
 
 
 # ── SEM / TEM ─────────────────────────────────────────────────────────────────

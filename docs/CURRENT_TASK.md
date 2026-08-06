@@ -5,7 +5,8 @@
 **Milestone:** M3 — Numerical correctness, ninth task
 **Defect:** **M3-T20** (high), found by the M1-T06 tests · **ADR:** **ADR-0025**
 **Branch:** `sci/npy-no-invented-scale` (stacked on `sci/min-size-in-nm`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next
+session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -79,24 +80,38 @@ can be expressed. The options:
 |---|---|
 | **Refuse** — raise, an AFM scan must have a scale | Throws away pixel-space work that is correct, and contradicts ADR-0019's ruling that unknown scale is a supported state |
 | **Skip the filter silently** | Re-creates D-04 exactly: a noise filter that is off and says nothing |
-| **Skip the filter, loudly** ✅ | The substrate estimate is pixel-space and unaffected; the physical threshold is inapplicable, and the log says so at the moment it is dropped |
+| **Skip the filter, loudly** ✅ | The physical threshold is inapplicable, and the log says so at the moment it is dropped |
 
-Chosen: the third. `radii_nm` and `typical_radius_nm` come back `None`; `radii_px` and the
-opening radius are bit-identical to a scaled run, which is the property the tests pin.
+Chosen: the third. `radii_nm` and `typical_radius_nm` come back `None`, and an unscaled run is
+exactly a scaled run with `min_size_nm=0` — which is *not* the same as "unaffected", as the
+golden went on to show. See below.
 
 ---
 
 ## Definition of done
 
-- [ ] No fabricated scale anywhere in `load_afm`; an explicit non-positive value raises
-- [ ] `float | None` on both entities, and mypy strict is happy at the boundary
-- [ ] `build_substrate_map` returns pixel-space results with `None` in every `_nm` field
-- [ ] The dropped filter is warned, once, naming the value it could not apply
-- [ ] Tests, including: pixel-space output identical with and without a scale
-- [ ] `make check` green; delta quantified (expect **keys added, values unchanged** — every
-      phantom has a scale)
-- [ ] ADR-0025; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T20: an unknown AFM scale is not a fabricated 1.0`
+- [x] No fabricated scale anywhere in `load_afm`; an explicit non-positive value raises
+- [x] `float | None` on both entities; mypy unchanged at 15
+- [x] `build_substrate_map` returns pixel-space results with `None` in every `_nm` field
+- [x] The dropped filter is warned, once, naming the value it could not apply **and what it
+      costs** — the warning gained that clause after the golden was read
+- [x] Tests — 10, of which 6 turn red if the fabrication is restored
+- [x] `make check` green — 216 tests; delta: **5 keys added, 0 values changed**
+- [x] ADR-0025; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T20: an unknown AFM scale is not a fabricated 1.0`
+
+---
+
+## What it turned up
+
+**"Pixel-space output is identical with and without a scale" was false**, and the definition of
+done above said it before the golden did. An unscaled run is exactly a scaled run with
+`min_size_nm=0`; where the filter was removing objects, the surviving radii differ, and they set
+the opening radius. `afm_sparse_low_snr`: **17 objects → 3351**, typical radius **2.99 → 0.80 px**,
+opening radius **8 → 5**, substrate **different**. Four of five phantoms are bit-identical.
+
+The decision stands — refusing to preprocess would throw away correct pixel-space work — but the
+warning now names the consequence, one test pins the equivalence and another pins the cost.
 
 ---
 

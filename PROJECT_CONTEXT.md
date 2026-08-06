@@ -259,7 +259,7 @@ load_afm
 `load_afm(file_path, fmt, pixel_size_nm=None, scan_size_nm=None)` supports only:
 
 - `fmt="spm"`: custom Bruker Nanoscope parser.
-- `fmt="npy"`: `np.load`, converted to `float32`; metadata is supplied by the caller or defaults to `pixel_size_nm=1.0` and `scan_size_nm=z.shape[0]`.
+- `fmt="npy"`: `np.load`, converted to `float32`; metadata is supplied by the caller or is **unknown**, which is `None` through to the entity. Since M3-T20 (ADR-0025) nothing is fabricated — the old `pixel_size_nm or 1.0` / `scan_size_nm or float(z.shape[0])` made every downstream `_nm` a pixel count wearing nanometre units. A scale that *is* given must be positive: `0.0`, a negative number and `nan` raise instead of being swallowed.
 
 For SPM, `_read_nanoscope_z`:
 
@@ -301,6 +301,8 @@ manual path:
   -> Otsu radius statistics
   -> substrate, z_above
 ```
+
+With `pixel_size_nm=None` the substrate is still built: the opening is pixel-space arithmetic, so `radii_px` and the opening radius are produced as usual, the `_nm` entries of `sizes` are `None`, and the `min_size_nm` filter is skipped with a `WARNING` — which costs the radius estimate on a noisy scan, because the filtered radii are what set the opening radius (ADR-0025).
 
 `estimate_radius_otsu` thresholds with `threshold_otsu`, labels connected components, converts each component area to an equivalent circular radius, and removes radii below `min_size_nm`. It returns `typical_radius_px`, `typical_radius_nm`, arrays of radii, `n_objects`, and the Otsu threshold. Since M3-T06 (ADR-0017) `n_objects` is the **post-filter** count — the same length as `radii_px` — and the function raises `ValueError` when the filter removes every object, instead of returning `nan` radii that failed further downstream. Since M3-T02 (ADR-0024) the filter compares **nanometres with nanometres**: `min_size_nm` reaches both `estimate_radius_otsu` and `estimate_rough_radius` unconverted, and the `int(min_size_nm / pixel_size_nm)` that floored the threshold to 0 on 90% of real scans (D-04) is gone.
 
@@ -633,12 +635,12 @@ and the golden already records the exception, so the fix will show as a declared
 
 ### Numerical edge cases
 
-- LoG normalization divides by `z_above.max()`. A zero or non-positive map can produce invalid values or unstable thresholding.
+- LoG normalization divides by `z_above.max()`. A zero or non-positive map can produce invalid values or unstable thresholding. (Closed in M3-T07 / ADR-0018.)
 - Otsu sizing can leave an empty radius array after minimum-size filtering even when connected components exist.
 - The automatic rough-radius fallback logs a warning (M2-T11) and uses approximately 1% of image width; this is a heuristic, not a calibrated estimate.
 - Morphological opening assumes its radius exceeds the largest particle radius. An incorrect radius changes the physical meaning of `z_result`.
 - Local ring measurement falls back to a global baseline when the ring is too small, which can hide local substrate gradients.
-- `estimate_rough_radius` is annotated as returning `int` but can return a float after multiplying by its scale. mypy reports this; it is not silenced.
+- `estimate_rough_radius` returned a float from a function annotated `-> int`; closed in M3-T09 (ADR-0020), which put one `ceil` in `get_substrate_map`.
 - The SPM parser assumes the relevant header fields and the image layout match the implemented regular expressions.
 
 ### Model and result semantics
@@ -691,8 +693,9 @@ number survived. The order below is `docs/Roadmap.md`'s, not a separate opinion.
 1. **All four `critical` defects are closed** — D-01 (M3-T01), D-03 (M3-T03), D-12 (M3-T10)
    and D-04 (M3-T02, ADR-0024). So are the five operator decisions that blocked them; **B6**
    (a real scan as a test fixture, M3-T16) is the last one outstanding.
-2. **The unblocked `high` tasks are M3-T20, M3-T12 and M3-T17.** T17 and T20 are the same
-   file (`nanoscope/core/science/io/`) and are worth reading together.
+2. **M3-T17 is next**, and M3-T12 is the other unblocked `high` one. T17 is the same
+   unknown-scale state arriving from the SPM header, and since M3-T20 (ADR-0025) that state has
+   a defined meaning everywhere downstream — the task is the parser, not the contract.
 3. **B-040** — purge `node_modules` and the model weights from git history. Last of the
    repository-hygiene work, because it rewrites every SHA above it.
 4. **M3-T15** — an evaluation harness (precision/recall/localisation against phantom ground

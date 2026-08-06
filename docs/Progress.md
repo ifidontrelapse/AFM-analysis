@@ -7,6 +7,84 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-06 — M3-T20 · **D-07 closed on both sides: an unknown AFM scale is not a fabricated 1.0**
+
+**Task:** `M3-T20`. **Branch:** `sci/npy-no-invented-scale`. **ADR:** **ADR-0025**.
+**Defect:** the other half of D-07, high, found by the M1-T06 tests.
+
+### The defect
+
+```python
+pixel_size_nm=pixel_size_nm or 1.0,
+scan_size_nm=scan_size_nm or float(z.shape[0]),
+```
+
+Three defects in two lines: a fabricated scale is indistinguishable from a measured one, `or`
+swallows an explicit `0.0`, and a row count is not dimensionally a length in nanometres.
+
+ADR-0019 wrote the order this had to happen in — *"that task makes `None` survivable; M3-T20
+makes it honest"* — and it held: the detectors have accepted `None` since M3-T11, so the
+fabrication could be removed without introducing a crash.
+
+### The delta — 5 keys added, 0 values changed
+
+Every phantom has a scale, so nothing recorded moves. The new keys are
+`build_substrate_map_no_scale`, one per AFM phantom — a path that could not be reached from
+`load_afm` until the fabrication was removed. What they record is the finding:
+
+| phantom | opening radius | objects kept | typical radius px | substrate |
+|---|---|---|---|---|
+| `afm_flat_monodisperse` | 19 → 19 | 24 → 24 | 7.2031 → 7.2031 | identical |
+| `afm_coarse_pixels` | 11 → 11 | 14 → 14 | 4.0093 → 4.0093 | identical |
+| `afm_dense_overlapping` | 16 → 16 | 51 → 51 | 6.0239 → 6.0239 | identical |
+| `afm_tilted_polydisperse` | 18 → 18 | 29 → **30** | 6.8868 → 6.8520 | identical |
+| `afm_sparse_low_snr` | 8 → **5** | 17 → **3351** | 2.9854 → **0.7979** | **differs** |
+
+### What it turned up: losing the scale is losing the filter
+
+Without a scale, `min_size_nm` cannot be expressed, so the filter does not run — and **an
+unscaled run is exactly a scaled run with `min_size_nm=0`**, which a test now pins. On four of
+the five phantoms that costs nothing and the substrate is bit-identical. On the noisy one it
+costs the radius estimate: 3351 objects instead of 17, a median radius of 0.80 px instead of
+2.99, and therefore an opening radius of 5 instead of 8. **The substrate is not
+scale-independent in general**, because the filtered radii feed the radius that opens it.
+
+That is **D-04's mechanism arriving by a different road** — one commit after D-04 was closed. It
+is why the skip is logged at `WARNING` naming both the minimum it could not apply and the
+consequence. A silently disabled size filter is precisely what the previous ADR spent its length
+removing.
+
+The draft of ADR-0025 claimed the pixel-space result was "produced exactly as before". The
+regenerated golden said otherwise on one phantom in five, and the ADR now says what was measured.
+**A comfortable sentence in an ADR is a hypothesis until the golden agrees with it.**
+
+### The contract, and who inherits it
+
+- `None` is unknown and passes through; a scale that *is* given must be positive, so `0.0`, `-1`
+  and `nan` raise instead of being swallowed by `or`. Same rule as `PixelScale.__post_init__`,
+  restated at the boundary — the value object is not adopted as the field type, and the ADR says
+  why.
+- `AFMRawData` and `PreprocessingResult` carry `float | None`, so the AFM and SEM/TEM branches of
+  `run_pipeline` finally have the same type.
+- `scan_size_nm` is **not** derived from `pixel_size_nm * z.shape[0]`: the SPM path derives from
+  columns, the deleted line used rows, and nothing settles that axis convention yet.
+- **M3-T17 now inherits a contract rather than a question.** When `_read_nanoscope_z` stops
+  dividing `None` by `samps`, the state it produces already means something everywhere
+  downstream.
+
+### Tests
+
+10, of which 6 turn red if `pixel_size_nm or 1.0` comes back. The end-to-end one is
+`run_preprocessing` on a bare `.npy` — the route the defect actually travels.
+
+### Next
+
+**M3-T17** — the same state arriving from the SPM header, and the contract for it now exists.
+**M3-T12** is the other unblocked `high` one. **B6 → M3-T16** is the last operator answer
+waiting; **B-040** goes last of all.
+
+---
+
 ## 2026-08-06 — M3-T02 · **D-04 fixed: the minimum particle size is a physical size (B2)**
 
 **Task:** `M3-T02`. **Branch:** `sci/min-size-in-nm`. **ADR:** **ADR-0024**.

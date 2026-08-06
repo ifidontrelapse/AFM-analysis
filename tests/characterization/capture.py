@@ -238,6 +238,31 @@ def capture_preprocessing(ph: phantoms.Phantom) -> dict:
     else:
         out["build_substrate_map_manual"] = rm
 
+    # M3-T20 / ADR-0025: the same call with no scale at all — reachable from
+    # `load_afm(fmt="npy")` since the fabricated 1.0 nm/px was removed. The
+    # pixel-space fields must equal the scaled run's; only the `_nm` ones go
+    # absent, and the size filter is skipped because it cannot be expressed.
+    rn = _record(build_substrate_map, z_flat, None)
+    if rn["ok"]:
+        substrate_n, z_above_n, opening_radius_n, sizes_n = rn["value"]
+        out["build_substrate_map_no_scale"] = {
+            "ok": True,
+            "substrate": _array_digest(substrate_n),
+            "z_above": _array_digest(z_above_n),
+            "opening_radius": _num(opening_radius_n),
+            "sizes": {
+                "typical_radius_px": _num(sizes_n["typical_radius_px"]),
+                "typical_radius_nm": _num(sizes_n["typical_radius_nm"]),
+                "n_objects_reported": _num(sizes_n["n_objects"]),
+                "n_radii_kept": len(sizes_n["radii_px"]),
+                "otsu_threshold": _num(sizes_n["otsu_threshold"]),
+                "radii_px": _array_digest(sizes_n["radii_px"]),
+                "radii_nm_is_none": sizes_n["radii_nm"] is None,
+            },
+        }
+    else:
+        out["build_substrate_map_no_scale"] = rn
+
     # D-05's own reproduction: a size filter no object can pass. This returned
     # `{"typical_radius_px": nan, ...}` until M3-T06 (ADR-0017) and the nan
     # surfaced several calls later, inside estimate_log_params, as "zero-size
