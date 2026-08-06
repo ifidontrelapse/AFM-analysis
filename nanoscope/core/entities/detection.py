@@ -24,7 +24,12 @@ class Detection:
     # a physical value is either physical or absent, never a pixel count wearing
     # nanometre units (M3-T11, ADR-0019). Pixel-space fields are always present.
     radius_nm: float | None
-    confidence: float = 1.0
+    # `None` when the detector produces no score, which is the LoG path: its blob
+    # response is not a probability and normalising one into a confidence would be
+    # a scientific claim, not a fix. The old default was `1.0`, so every detection
+    # — including a YOLO box that only just cleared the threshold — reported
+    # certainty (audit D-09, M3-T05, ADR-0028). Absent, never a substitute value.
+    confidence: float | None = None
     # `type: ignore` and not a fix: `default_factory=tuple` genuinely disagrees
     # with the annotation, and mypy saying so *is* D-16. Correcting it changes
     # `default_detection_bbox_len`, which the golden records, so it belongs to M3

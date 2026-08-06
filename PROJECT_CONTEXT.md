@@ -645,7 +645,7 @@ and the golden already records the exception, so the fix will show as a declared
 
 ### Model and result semantics
 
-- YOLO `Detection.confidence` is not populated from model scores.
+- `Detection.confidence` is `float | None`. Both YOLO backends populate it from the model's per-box scores (M3-T05, ADR-0028); the LoG detector leaves it `None`, because its blob response is not a probability. It used to default to `1.0`, so every detection from either detector reported full certainty.
 - The YOLO input conversion casts to `uint8` before normalization; negative or non-8-bit height values may not be transformed as intended.
 - SAM2 predictor initialization/checkpoint loading is outside the library and outside the frontend repository.
 - `run_pipeline` assumes that any non-`PreprocessingResult` input is a valid `MicroscopyData` instance; explicit runtime validation is limited.

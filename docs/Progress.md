@@ -7,6 +7,69 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-06 — M3-T05 · **D-09 fixed: a detection carries its own score, or none**
+
+**Task:** `M3-T05`. **Branch:** `sci/yolo-confidence`. **ADR:** **ADR-0028**.
+**Defect:** D-09, medium — the first `medium` one, every `critical` and `high` being closed.
+
+### The defect
+
+The model scores every box. `cfg.yolo_conf` *filters* on those scores. The conversion to entities
+then dropped them, so every YOLO detection reported **1.0** — including a box that had only just
+cleared the threshold. Sorting by confidence gave the input order; filtering on it kept
+everything.
+
+The default was the real defect. `confidence: float = 1.0` is a **substitute value**, the fifth
+this milestone has deleted after a fabricated pixel scale (ADR-0019/0025/0026), a fabricated
+minimum size (ADR-0024) and a fabricated empty table (ADR-0027). And it reached further than the
+audit said: **the LoG detector claimed 1.0 too**, in the same field, having computed nothing.
+
+### The delta — 29 keys added, 0 values changed
+
+Inference is outside the gate, so nothing recorded could move; what is new is the conversion
+seam's scores, recorded on all seven phantoms, plus a `0.0` case and the length-mismatch error.
+
+**The finding is `contracts.default_detection_confidence: ADDED`.** The harness recorded
+`default_detection_bbox` and `default_detection_bbox_len` — the defaults of the field the audit
+filed as **D-16** — and never recorded `confidence`, the field it filed as **D-09**, one line
+below in the same dataclass. **The golden could not have caught this defect**, because the 1.0
+every detection carried was not written down anywhere.
+
+That is the third time in M3. M3-T07 found the harness recording every scalar as the string
+`"non-array"`; M3-T12 found it recording `columns: []` for a real phantom and nobody reading it;
+this one had no entry at all. **A characterization baseline is a gate only for the values it
+happens to record** — and the audit's defect list and the harness are two different documents,
+written by the same person in the same week.
+
+### What was decided, beyond propagating a number
+
+**`None`, not 1.0, for a detector that has no score.** LoG's blob response is a filter response:
+unnormalised, contrast-dependent, and not a probability. Turning it into a confidence would be a
+scientific claim, and **M3-T15** — the evaluation harness — is the only thing that could license
+one. It still does not exist.
+
+**A length mismatch raises.** `zip` would drop the tail and return a shorter, plausible list;
+worse, a shifted score reads as a measurement *of that box*. And `0.0` is kept as `0.0`: it is
+falsy, and an `or`-spelled fallback would erase exactly the least confident detection — the same
+trap ADR-0025 pulled out of the loaders.
+
+### mypy 14 → 12, by accident
+
+This defect had no static shadow — an unassigned default is perfectly typed. But threading a
+second array through `_detect_tiled` would have **added** a third `"None" has no attribute ...`
+error on `self._last_result`. Annotating that field `Any` — which its own comment already
+described, and which is honest because both possible result types live in optional heavy
+dependencies — removed all three. A change that would have made the baseline worse made it
+better.
+
+### Next
+
+**M3-T08** (`flatten_lines` dtype promotion, D-13), then **M3-T13** (error taxonomy) and
+**M3-T14** (one measurement schema, and the `bbox` default whose `type: ignore` is written to
+expire itself). **M3-T15** is the one that unblocks every claim about detection quality.
+
+---
+
 ## 2026-08-06 — M3-T12 · **D-08 fixed: an empty measurement table keeps its columns**
 
 **Task:** `M3-T12`. **Branch:** `sci/empty-measurements-keep-their-schema`.

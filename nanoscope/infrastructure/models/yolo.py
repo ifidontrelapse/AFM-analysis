@@ -19,6 +19,7 @@ baseline.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 
@@ -74,7 +75,12 @@ class YoloDetector(BaseDetector):
         self.conf = conf
         self.iou = iou
         self.polarity = polarity
-        self._last_result = None  # CombineDetections or ultralytics Results
+        # `Any` because the two possible types — `CombineDetections` and
+        # ultralytics `Results` — live in heavy optional dependencies that
+        # must not be imported at module level (see this module's docstring).
+        # Without it, every attribute read off this field is a mypy error on
+        # `None`; M3-T05 would otherwise have added a third.
+        self._last_result: Any = None  # CombineDetections or ultralytics Results
 
     def _letterbox(self, original_shape: tuple[int, int]) -> tuple[float, int, int]:
         """Geometry of the map from `original_shape` into the model square.
@@ -192,7 +198,10 @@ class YoloDetector(BaseDetector):
             np.array(self._last_result.filtered_boxes, dtype=np.float32),
             original_shape,
         )
-        return self._boxes_to_detections(boxes, pixel_size_nm)
+        # After NMS across crops, so these are the scores of the boxes that
+        # survived — the same list, in the same order (D-09, ADR-0028).
+        confidences = np.array(self._last_result.filtered_confidences, dtype=np.float32)
+        return self._boxes_to_detections(boxes, pixel_size_nm, confidences)
 
     def _detect_direct(
         self, img: np.ndarray, original_shape: tuple, pixel_size_nm: float | None
@@ -205,12 +214,40 @@ class YoloDetector(BaseDetector):
 
         boxes_yolo = results[0].boxes.xyxy.cpu().numpy()
         boxes = self._scale_boxes(boxes_yolo, original_shape)
-        return self._boxes_to_detections(boxes, pixel_size_nm)
+        # `boxes.conf` is per box and already filtered by `conf=self.conf`, so it
+        # aligns with `boxes.xyxy` row for row (D-09, ADR-0028).
+        confidences = results[0].boxes.conf.cpu().numpy()
+        return self._boxes_to_detections(boxes, pixel_size_nm, confidences)
 
     @staticmethod
-    def _boxes_to_detections(boxes: np.ndarray, pixel_size_nm: float | None) -> list[Detection]:
+    def _boxes_to_detections(
+        boxes: np.ndarray, pixel_size_nm: float | None, confidences: np.ndarray | None = None
+    ) -> list[Detection]:
+        """Convert scaled boxes into entities, carrying each box's own score.
+
+        Args:
+            boxes: `(N, 4)` array of `(x1, y1, x2, y2)` in image pixels.
+            pixel_size_nm: nm/pixel, or `None` when the scale is unknown.
+            confidences: `(N,)` scores from the model, in the same order as
+                `boxes`. `None` only for a caller that has none — the two
+                backends always have them (D-09, ADR-0028).
+
+        Returns:
+            One `Detection` per box.
+
+        Raises:
+            ValueError: if `confidences` is given and its length does not match
+                `boxes`. Zipping them would silently drop the tail, and a score
+                attached to the wrong box is worse than no score.
+        """
+        if confidences is not None and len(confidences) != len(boxes):
+            raise ValueError(
+                f"got {len(confidences)} confidences for {len(boxes)} boxes; "
+                "they must correspond one to one"
+            )
+
         detections = []
-        for box in boxes:
+        for i, box in enumerate(boxes):
             x1, y1, x2, y2 = box
             cx = (x1 + x2) / 2
             cy = (y1 + y2) / 2
@@ -223,6 +260,7 @@ class YoloDetector(BaseDetector):
                     # No scale, no nanometres — never a pixel count in disguise
                     # (D-07, ADR-0019).
                     radius_nm=None if pixel_size_nm is None else radius_px * pixel_size_nm,
+                    confidence=None if confidences is None else float(confidences[i]),
                     bbox=(int(x1), int(y1), int(x2), int(y2)),
                 )
             )

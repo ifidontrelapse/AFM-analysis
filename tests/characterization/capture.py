@@ -452,10 +452,27 @@ def capture_yolo_preprocessing(ph: phantoms.Phantom) -> dict:
                 "ok": True,
                 "radius_px": [_num(d.radius_px) for d in rb["value"]],
                 "radius_nm": [_num(d.radius_nm) for d in rb["value"]],
+                # D-09 (ADR-0028): with no scores passed, none are reported.
+                # This used to read [1.0, 1.0] — the dataclass default, which is
+                # what every YOLO detection carried.
+                "confidence": [_num(d.confidence) for d in rb["value"]],
             }
             if rb["ok"]
             else rb
         )
+
+    # The scores the model actually produces, converted at the same seam. 0.0 is
+    # included on purpose: it is falsy, and a `confidence or 1.0` phrasing would
+    # erase exactly the least confident detection.
+    rc = _record(YoloDetector._boxes_to_detections, boxes, ph.pixel_size_nm, np.array([0.91, 0.0]))
+    out["boxes_to_detections_with_scores"] = (
+        {"ok": True, "confidence": [_num(d.confidence) for d in rc["value"]]} if rc["ok"] else rc
+    )
+
+    # Length mismatch: an error rather than a `zip` that drops the tail.
+    out["boxes_to_detections_confidence_mismatch"] = _record(
+        YoloDetector._boxes_to_detections, boxes, ph.pixel_size_nm, np.array([0.9])
+    )
     return out
 
 
@@ -535,6 +552,9 @@ def capture_contracts() -> dict:
     return {
         "default_detection_bbox": list(det.bbox),
         "default_detection_bbox_len": len(det.bbox),
+        # Was 1.0 until M3-T05 (D-09, ADR-0028): a detector that computes no
+        # score reports none, rather than reporting certainty.
+        "default_detection_confidence": _num(det.confidence),
         "pipeline_result_json_serializable": serializable,
         "pipeline_result_json_error": err,
         "config_fields": sorted(f.name for f in dataclasses.fields(PipelineConfig)),

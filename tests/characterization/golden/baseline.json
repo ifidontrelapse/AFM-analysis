@@ -970,7 +970,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -982,6 +992,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           97.69999999999999,
@@ -991,6 +1005,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",
@@ -2005,7 +2026,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -2017,6 +2048,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           20.0,
@@ -2026,6 +2061,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",
@@ -3040,7 +3082,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -3052,6 +3104,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           20.0,
@@ -3061,6 +3117,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",
@@ -3786,7 +3849,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -3798,6 +3871,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           20.0,
@@ -3807,6 +3884,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",
@@ -4821,7 +4905,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -4833,6 +4927,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           20.0,
@@ -4842,6 +4940,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",
@@ -4914,6 +5019,7 @@
     ],
     "default_detection_bbox": [],
     "default_detection_bbox_len": 0,
+    "default_detection_confidence": null,
     "pipeline_result_json_error": "TypeError: Object of type ndarray is not JSON serializable",
     "pipeline_result_json_serializable": false,
     "result_fields": [
@@ -5629,7 +5735,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -5641,6 +5757,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           15.0,
@@ -5650,6 +5770,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",
@@ -5776,7 +5903,17 @@
       }
     },
     "yolo_input_preparation": {
+      "boxes_to_detections_confidence_mismatch": {
+        "error_message": "got 1 confidences for 2 boxes; they must correspond one to one",
+        "error_type": "ValueError",
+        "ok": false,
+        "raised_in": "_boxes_to_detections"
+      },
       "boxes_to_detections_no_scale": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           null,
@@ -5788,6 +5925,10 @@
         ]
       },
       "boxes_to_detections_scaled": {
+        "confidence": [
+          null,
+          null
+        ],
         "ok": true,
         "radius_nm": [
           5.0,
@@ -5797,6 +5938,13 @@
           10.0,
           19.0
         ]
+      },
+      "boxes_to_detections_with_scores": {
+        "confidence": [
+          0.91,
+          0.0
+        ],
+        "ok": true
       },
       "current": {
         "dtype": "uint8",

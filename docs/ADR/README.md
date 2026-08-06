@@ -35,6 +35,7 @@ Use `TEMPLATE.md` for new records.
 | [0025](ADR-0025-an-unknown-afm-scale-is-not-a-fabricated-one.md) | An unknown AFM scale is not a fabricated 1.0 | Accepted | 2026-08-06 |
 | [0026](ADR-0026-a-header-without-a-scan-size-parses.md) | A header without a scan size parses | Accepted | 2026-08-06 |
 | [0027](ADR-0027-an-empty-measurement-table-keeps-its-columns.md) | An empty measurement table keeps its columns | Accepted | 2026-08-06 |
+| [0028](ADR-0028-a-detection-carries-its-own-score.md) | A detection carries its own score, or none | Accepted | 2026-08-06 |
 
 ## When to write one
 

@@ -49,6 +49,10 @@ class BaseDetector(ABC):
                     # writes NaN when the scale is unknown; the entity can, and
                     # says so (D-07, ADR-0019).
                     radius_nm=None if np.isnan(radius_nm) else float(radius_nm),
+                    # `confidence` is left at its `None` default on purpose: the
+                    # LoG response is not a probability, and normalising one into
+                    # a score would be a scientific claim rather than a fix
+                    # (D-09, ADR-0028). No score is not a score of 1.0.
                     bbox=(
                         int(x - radius_px),
                         int(y - radius_px),

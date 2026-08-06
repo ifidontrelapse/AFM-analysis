@@ -5,7 +5,8 @@
 **Milestone:** M3 — Numerical correctness, twelfth task
 **Defect:** **D-09** (medium) · **ADR:** **ADR-0028**
 **Branch:** `sci/yolo-confidence` (stacked on `sci/empty-measurements-keep-their-schema`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next
+session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -61,15 +62,30 @@ only reaches one backend is half a fix.
 
 ## Definition of done
 
-- [ ] `Detection.confidence` is `float | None`, defaulting to `None`
-- [ ] Both YOLO backends pass real per-box scores; a mismatch in length is an error, not a zip
-      that silently truncates
-- [ ] LoG detections report `None`
-- [ ] Tests, including: the score reaches the entity, and restoring the drop turns them red
-- [ ] `make check` green; delta quantified (the harness records `Detection`'s defaults and the
-      `boxes_to_detections_*` conversions)
-- [ ] ADR-0028; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T05: a detection carries the score its detector gave it`
+- [x] `Detection.confidence` is `float | None`, defaulting to `None`
+- [x] Both YOLO backends pass real per-box scores; a length mismatch raises and names both counts
+- [x] LoG detections report `None`
+- [x] Tests — 7; restoring the drop turns 6 red
+- [x] `make check` green — 232 tests; delta: **29 keys added, 0 values changed**; mypy **14 → 12**
+- [x] ADR-0028; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T05: a detection carries the score its detector gave it`
+
+---
+
+## What it turned up
+
+**The golden could never have caught this defect.** `contracts.default_detection_confidence` is
+an *added* key, not a changed one: the harness recorded `default_detection_bbox` — the field the
+audit filed as D-16 — and not `confidence`, filed as D-09 one line below in the same dataclass.
+Third time in M3 the harness itself was the blind spot (M3-T07's `"non-array"`, M3-T12's
+`columns: []`).
+
+**The audit understated the defect.** It named YOLO; the same `1.0` was reported by every **LoG**
+detection too, which computes no score at all.
+
+**mypy went 14 → 12 by accident.** Threading a second array through `_detect_tiled` would have
+added a third `"None" has no attribute ...` error on `self._last_result`; annotating that field
+`Any` — as its own comment already described it — removed all three.
 
 ---
 

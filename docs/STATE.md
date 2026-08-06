@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-06 · **Branch:** `sci/empty-measurements-keep-their-schema` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-06 · **Branch:** `sci/yolo-confidence` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -27,12 +27,25 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 ## Current task
 
 **None selected.** **Every `critical` and every `high` defect in M3 is closed.** What remains is
-`medium`: **M3-T05** (YOLO confidence is discarded, D-09), **M3-T08** (`flatten_lines` must
-promote dtype like `flatten_plane`, D-13), **M3-T13** (typed error taxonomy, D-15) and
-**M3-T14** (one measurement schema across the four producers, D-16/D-17) — plus **M3-T15**, the
-evaluation harness, without which "the detector got better" is still not a measurable claim.
-**B6 → M3-T16** is the last operator answer waiting to be executed, and **B-040** goes last of
-everything because it rewrites every SHA above it.
+**M3-T08** (`flatten_lines` must promote dtype like `flatten_plane`, D-13), **M3-T13** (typed
+error taxonomy, D-15) and **M3-T14** (one measurement schema across the four producers, D-16/D-17
+— and the `bbox` default whose `type: ignore` is written to expire itself) — plus **M3-T15**, the
+evaluation harness, without which "the detector got better" is still not a measurable claim, and
+which three tasks have now had to write "not claimed" for. **B6 → M3-T16** is the last operator
+answer waiting to be executed, and **B-040** goes last of everything because it rewrites every
+SHA above it.
+
+**`M3-T05` done 2026-08-06 (ADR-0028)** — **D-09 fixed.** Both YOLO backends now pass their own
+per-box scores, and a length mismatch raises rather than being `zip`ped away. **`confidence` is
+`float | None`, defaulting to `None`**: `1.0` was a substitute value — the fifth this milestone
+has deleted — and it made the **LoG** detector claim certainty it never computed, which the audit
+had not said. No confidence is invented for LoG: its blob response is not a probability, and
+**M3-T15** is the only thing that could license one. Delta: **29 keys added, 0 values changed**,
+and the finding is that `default_detection_confidence` is *added*: the harness recorded the
+defaults of D-16's field and not of D-09's, one line below, **so the golden could never have
+caught this defect**. Third time in M3 that the harness was the blind spot. 7 tests; restoring
+the drop turns 6 red. **mypy 14 → 12**: threading a second array through would have added a third
+`_last_result` error, and annotating that field removed all three.
 
 **`M3-T12` done 2026-08-06 (ADR-0027)** — **D-08 fixed.** `pd.DataFrame([])` has zero columns, so
 a scan with nothing measurable answered every read by name with `KeyError`. The baseline schema
@@ -124,6 +137,17 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T05** ✅ (2026-08-06, **ADR-0028**) — **D-09 fixed: a detection carries its own score, or
+  none.** The model scores every box, `cfg.yolo_conf` filters on those scores, and the conversion
+  dropped them, so every YOLO detection reported 1.0. Both backends now pass theirs
+  (`boxes.conf`; `CombineDetections.filtered_confidences`, post-NMS); a length mismatch raises,
+  because a shifted score reads as a measurement of the wrong box; `0.0` survives, because it is
+  falsy and an `or` fallback would erase the least confident detection. `confidence` became
+  `float | None` defaulting to `None` — **LoG had been claiming 1.0 as well**, and its response
+  is not a probability. Delta: **29 keys added, 0 values changed**; the finding is that
+  `default_detection_confidence` had **never been recorded**, so the golden could not have caught
+  D-09. 7 tests; restoring the drop turns 6 red. **mypy 14 → 12.**
 
 - **M3-T12** ✅ (2026-08-06, **ADR-0027**) — **D-08 fixed: an empty measurement table keeps its
   columns.** Two ordinary outcomes drop a row — a mask past the image edge, a non-positive height
@@ -537,13 +561,13 @@ a `nan` image**, and its adaptive threshold now always lands in the interval it 
 against. **The noise filter runs for the first time** on the scans where it was floored away.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Thirteen branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+Fourteen branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 `sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
 `sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
 (M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
 `sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20) →
 `sci/spm-header-without-scan-size` (M3-T17) → `sci/empty-measurements-keep-their-schema`
-(M3-T12). **All eleven are pushed and all eleven are
+(M3-T12) → `sci/yolo-confidence` (M3-T05). **All eleven are pushed and all eleven are
 green on CI** — the seven that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s
 each, and M3-T20 followed as **#52**, every one `success`. CI on `main` is
 green: **216 s**, of which
@@ -592,7 +616,7 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **The `medium` tasks, in order: T05, T08, T13, T14.** Rewrite `docs/CURRENT_TASK.md` first,
+1. **The `medium` tasks, in order: T08, T13, T14.** Rewrite `docs/CURRENT_TASK.md` first,
    every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
    detection *quality* — M3-T03, T10 and T21 each had to say "not claimed" because it does not
    exist yet
@@ -619,12 +643,12 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **225, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **232, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
-| mypy errors | **14**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
+| mypy errors | **12**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
 | Open defects | **20** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
