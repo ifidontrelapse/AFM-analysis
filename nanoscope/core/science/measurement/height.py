@@ -24,6 +24,42 @@ from skimage.filters import threshold_otsu
 
 logger = logging.getLogger(__name__)
 
+#: The baseline measurement table, column by column, in the order the rows are
+#: built. It is declared rather than inferred so that a table with no rows has
+#: the same shape as one with rows — `pd.DataFrame([])` has **zero columns**, and
+#: every consumer reading by name got a `KeyError` instead of an empty column
+#: (audit D-08, ADR-0027). Dtypes are part of the promise: `df["height_nm"].mean()`
+#: on an empty `str` column is not the same answer as on an empty `float64` one.
+#:
+#: The first six keys are assembled in `measure_all_baseline`, the last six are
+#: `measure_height`'s return. One schema for the four producers is **M3-T14**;
+#: this is one producer writing down what it already emits.
+BASELINE_COLUMNS: dict[str, str] = {
+    "particle_id": "int64",
+    "x_px": "int64",
+    "y_px": "int64",
+    "sigma_px": "float64",
+    "radius_nm": "float64",
+    "method": "str",
+    "height_nm": "float64",
+    "mean_nm": "float64",
+    "baseline_nm": "float64",
+    "area_px": "int64",
+    "ring_px": "int64",
+    "baseline_source": "str",
+}
+
+
+def empty_baseline_table() -> pd.DataFrame:
+    """An empty measurement table with the full schema.
+
+    Returns:
+        A zero-row DataFrame carrying every column in `BASELINE_COLUMNS` with its
+        declared dtype, so `df["height_nm"]` is readable whether or not any
+        particle survived measurement.
+    """
+    return pd.DataFrame({name: pd.Series(dtype=dtype) for name, dtype in BASELINE_COLUMNS.items()})
+
 
 def create_circular_mask(shape: tuple, cy: int, cx: int, radius: float) -> np.ndarray:
     """
@@ -147,7 +183,10 @@ def measure_all_baseline(
         min_ring_px:     minimum ring pixels
 
     Returns:
-        DataFrame with one row per particle
+        DataFrame with one row per particle, carrying `BASELINE_COLUMNS` — the
+        same columns and dtypes when no particle survived as when they all did
+        (ADR-0027 / D-08). Rows are dropped for two ordinary reasons: a mask that
+        runs past the image edge, and a non-positive height.
     """
     # Substrate mask — computed once for the whole image. It accounts for ALL
     # particles, including the ones detection missed.
@@ -198,6 +237,11 @@ def measure_all_baseline(
             }
         )
 
-    df = pd.DataFrame(results)
+    if not results:
+        # Not an error and not a special case for the caller to detect: a scan
+        # can legitimately contain no measurable particle. The table says so in
+        # the same shape it would have used to say anything else (D-08).
+        logger.debug("no particle survived measurement; returning the empty table")
+        return empty_baseline_table()
 
-    return df
+    return pd.DataFrame(results)

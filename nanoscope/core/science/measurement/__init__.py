@@ -6,14 +6,18 @@ binary mask and therefore serves SEM and TEM too.
 
 from nanoscope.core.science.measurement.geometry import measure_geometry_from_mask
 from nanoscope.core.science.measurement.height import (
+    BASELINE_COLUMNS,
     create_circular_mask,
+    empty_baseline_table,
     get_clean_ring,
     measure_all_baseline,
     measure_height,
 )
 
 __all__ = [
+    "BASELINE_COLUMNS",
     "create_circular_mask",
+    "empty_baseline_table",
     "get_clean_ring",
     "measure_all_baseline",
     "measure_geometry_from_mask",

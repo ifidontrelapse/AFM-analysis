@@ -391,7 +391,7 @@ The result list stores NumPy masks (`mask`, optionally `mask_inner` and `ring`),
 
 File: `nanoscope/core/science/measurement/`.
 
-`measure_all_baseline` is available only for AFM + LoG through `run_pipeline`.
+`measure_all_baseline` is available only for AFM + LoG through `run_pipeline`. Its table carries `BASELINE_COLUMNS` — twelve columns with declared dtypes — **whether or not any particle survived** (M3-T12, ADR-0027); `pd.DataFrame([])` used to have zero columns, so an empty result answered every read by name with `KeyError`. `empty_baseline_table()` is exported for callers assembling results across scans. The other three producers still return zero-column frames when empty; that is M3-T14.
 
 For each LoG blob it creates a circular mask with `radius_px = sigma * sqrt(2)`, then:
 
@@ -693,8 +693,9 @@ number survived. The order below is `docs/Roadmap.md`'s, not a separate opinion.
 1. **All four `critical` defects are closed** — D-01 (M3-T01), D-03 (M3-T03), D-12 (M3-T10)
    and D-04 (M3-T02, ADR-0024). So are the five operator decisions that blocked them; **B6**
    (a real scan as a test fixture, M3-T16) is the last one outstanding.
-2. **M3-T12 is next** — D-08, empty measurements must return a schema-stable DataFrame, and
-   the last unblocked `high` task. D-07 is closed on all three of its faces (M3-T11, T20, T17).
+2. **Every `critical` and `high` defect is closed.** What remains in M3 is `medium`: T05, T08,
+   T13, T14 — and **M3-T15**, the evaluation harness, without which no claim about detection
+   quality is measurable.
 3. **B-040** — purge `node_modules` and the model weights from git history. Last of the
    repository-hygiene work, because it rewrites every SHA above it.
 4. **M3-T15** — an evaluation harness (precision/recall/localisation against phantom ground

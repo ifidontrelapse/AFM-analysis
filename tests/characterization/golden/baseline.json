@@ -242,7 +242,96 @@
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
-        "columns": [],
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "radius_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
         "n_rows": 0,
         "ok": true
       },
@@ -1188,7 +1277,96 @@
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
-        "columns": [],
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "radius_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
         "n_rows": 0,
         "ok": true
       },
@@ -2134,7 +2312,96 @@
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
-        "columns": [],
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "radius_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
         "n_rows": 0,
         "ok": true
       },
@@ -2851,12 +3118,190 @@
   "afm_sparse_low_snr": {
     "baseline_measurement": {
       "measure_all_baseline": {
-        "columns": [],
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "radius_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
         "n_rows": 0,
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
-        "columns": [],
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "radius_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
         "n_rows": 0,
         "ok": true
       },
@@ -3648,7 +4093,96 @@
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
-        "columns": [],
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "radius_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
         "n_rows": 0,
         "ok": true
       },

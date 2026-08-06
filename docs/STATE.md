@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-06 · **Branch:** `sci/spm-header-without-scan-size` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-06 · **Branch:** `sci/empty-measurements-keep-their-schema` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,11 +26,24 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **All four `critical` defects are closed**, **D-07 is closed on all three of
-its faces**, and so are all five operator decisions that were open when M3 started. The next task
-is **M3-T12** — D-08, the last unblocked `high` one: empty measurements must return a
-schema-stable DataFrame. **B6 → M3-T16** is the last operator answer waiting to be executed, and
-**B-040** goes last of everything because it rewrites every SHA above it.
+**None selected.** **Every `critical` and every `high` defect in M3 is closed.** What remains is
+`medium`: **M3-T05** (YOLO confidence is discarded, D-09), **M3-T08** (`flatten_lines` must
+promote dtype like `flatten_plane`, D-13), **M3-T13** (typed error taxonomy, D-15) and
+**M3-T14** (one measurement schema across the four producers, D-16/D-17) — plus **M3-T15**, the
+evaluation harness, without which "the detector got better" is still not a measurable claim.
+**B6 → M3-T16** is the last operator answer waiting to be executed, and **B-040** goes last of
+everything because it rewrites every SHA above it.
+
+**`M3-T12` done 2026-08-06 (ADR-0027)** — **D-08 fixed.** `pd.DataFrame([])` has zero columns, so
+a scan with nothing measurable answered every read by name with `KeyError`. The baseline schema
+is declared — twelve columns with dtypes — and returned whether or not a row survived, with a
+test proving the declaration still describes what the **populated** path emits. Delta: **78
+golden differences, all columns appearing where there were none, 0 values moved**. The finding is
+the sixth block: **`afm_sparse_low_snr` detects 0 blobs on its ordinary path**, so D-08 was live
+on a real phantom's normal run, and the golden had been recording `columns: []` for it since the
+baseline was taken. **Found while testing, filed not fixed: `nan <= 0` is `False`, so a NaN height
+reaches the table — B-059**, the same comparison ADR-0018 already ruled on. 7 tests; restoring
+`pd.DataFrame(results)` turns 3 red.
 
 **`M3-T17` done 2026-08-06 (ADR-0026)** — the SPM parser's `else` branch, written to tolerate a
 header with no `Scan Size`, divided `None` by `samps` on the very next line: **the fallback
@@ -111,6 +124,19 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T12** ✅ (2026-08-06, **ADR-0027**) — **D-08 fixed: an empty measurement table keeps its
+  columns.** Two ordinary outcomes drop a row — a mask past the image edge, a non-positive height
+  — and when they took the last one, "no particles" and "no such column" became the same object.
+  `BASELINE_COLUMNS` declares twelve columns and their dtypes; `empty_baseline_table()` returns
+  them with zero rows. Dtypes are part of the promise, and the drift guard is a test on the
+  **populated** path, because the golden's empty case has no columns to compare. Delta: **78
+  differences, 0 values moved** — and one of the six blocks is not the synthetic probe:
+  **`afm_sparse_low_snr` detects 0 blobs on its ordinary path**, so the defect was live on a real
+  phantom's normal run since the baseline. Left for M3-T14 with reasons: the two SAM2 producers
+  vary their columns *per row*, and detect mode's schema is modality-dependent. **B-059 filed**:
+  `nan <= 0` is `False`, so a NaN height reaches the table. 7 tests; restoring
+  `pd.DataFrame(results)` turns 3 red.
 
 - **M3-T17** ✅ (2026-08-06, **ADR-0026**) — **D-07's third face, and the last.** The SPM
   fallback for a header with no `Scan Size` set `scan_size_nm = None` and divided by `samps` on
@@ -511,12 +537,13 @@ a `nan` image**, and its adaptive threshold now always lands in the interval it 
 against. **The noise filter runs for the first time** on the scans where it was floored away.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Twelve branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+Thirteen branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 `sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
 `sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
 (M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
 `sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20) →
-`sci/spm-header-without-scan-size` (M3-T17). **All eleven are pushed and all eleven are
+`sci/spm-header-without-scan-size` (M3-T17) → `sci/empty-measurements-keep-their-schema`
+(M3-T12). **All eleven are pushed and all eleven are
 green on CI** — the seven that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s
 each, and M3-T20 followed as **#52**, every one `success`. CI on `main` is
 green: **216 s**, of which
@@ -565,8 +592,10 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Execute M3-T12** — D-08, the last unblocked `high` one. Rewrite `docs/CURRENT_TASK.md` for
-   it first. After that the `medium` ones in order: T05, T08, T13, T14
+1. **The `medium` tasks, in order: T05, T08, T13, T14.** Rewrite `docs/CURRENT_TASK.md` first,
+   every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
+   detection *quality* — M3-T03, T10 and T21 each had to say "not claimed" because it does not
+   exist yet
 2. **Every `critical` defect is closed and every decision except B6 is answered and executed.**
    What remains in M3 is engineering, in severity order: T20, T12, T17 are the `high` ones, then
    T05, T08, T13, T14. **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last
@@ -590,7 +619,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **218, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **225, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

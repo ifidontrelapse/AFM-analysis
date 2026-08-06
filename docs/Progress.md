@@ -7,6 +7,76 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-06 — M3-T12 · **D-08 fixed: an empty measurement table keeps its columns**
+
+**Task:** `M3-T12`. **Branch:** `sci/empty-measurements-keep-their-schema`.
+**ADR:** **ADR-0027**. **Defect:** D-08, high — the last unblocked `high` one.
+
+### The defect
+
+```python
+df = pd.DataFrame(results)     # results == [] -> a DataFrame with zero columns
+```
+
+Two ordinary outcomes drop a row: a mask running past the image edge, and a non-positive height.
+When they take the last one, "no particles" and "no such column" become the same object, and the
+caller cannot ask the first question without handling the second:
+
+```python
+>>> plot_pipeline_result(result_with_no_particles, z, scan)
+KeyError: 'height_nm'
+```
+
+### The delta — 78 differences, 0 values moved
+
+Twelve column names appear, plus `columns: length 0 -> 12`, in six places: the
+`measure_all_baseline_empty_blobs` probe on all five AFM phantoms, and — the entry worth reading
+— **`afm_sparse_low_snr`'s ordinary `measure_all_baseline` run**.
+
+**D-08 was live on a real phantom's normal path.** That phantom detects 0 blobs at the harness's
+threshold, so its measurement table was the zero-column one in the run the phantom exists to
+represent, not in a probe written to provoke the defect. The golden had been recording
+`columns: []` for it since the baseline was taken in M0, and nobody had read it as a defect —
+including the audit, which reproduced D-08 from the code rather than from the golden.
+
+No populated table changes. The four phantoms that measure particles keep every value and every
+column, which is the evidence that the **declared** schema is the one the code already emitted.
+
+### The declaration has to be checked, not asserted
+
+`BASELINE_COLUMNS` names twelve columns and their dtypes; `empty_baseline_table()` builds the
+zero-row frame from it. The schema now lives in two places — the declaration and the row literal
+— so the test that matters is the one on the **populated** path: the emitted columns and dtypes
+must equal the declaration. Without it, a future column added to the row dict would silently stop
+matching the empty table, and the golden could not catch it, because its empty case has no
+columns to compare against.
+
+Dtypes are part of the promise. `df["height_nm"].mean()` on an empty `str` column is not the
+answer it is on an empty `float64` one, and pandas 3 infers `str` rather than `object` for text —
+which the first draft of the declaration got wrong and the populated-path test caught immediately.
+
+### Found while testing, filed not fixed
+
+`if metrics["height_nm"] <= 0: continue` — and **`nan <= 0` is `False`**, so a NaN height reaches
+the table. Reachable on a constant map: `substrate_mask` is empty, `np.median` of nothing is
+`nan`, and `global_baseline` carries it into every height. **ADR-0018 already ruled on this exact
+comparison** — the guard has to be `not height > 0`, because that and `<= 0` differ precisely on
+`nan`. Filed as **B-059**; it moves a number, and ADR-0010 keeps one defect to one commit.
+
+### What was deliberately left
+
+The two SAM2 producers build each record with `if k in res`, so their columns vary **per row** —
+declaring a schema for them means deciding what it is, which is D-16/D-17 and **M3-T14**. Same
+for `run_pipeline`'s detect-mode empty frame, where the right columns depend on the modality.
+
+### Next
+
+**Every `critical` and `high` defect in M3 is now closed.** What remains is `medium`: T05
+(YOLO confidence), T08 (`flatten_lines` dtype promotion), T13 (error taxonomy), T14 (one
+measurement schema). **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last.
+
+---
+
 ## 2026-08-06 — M3-T17 · **D-07's third face: a header without a scan size parses**
 
 **Task:** `M3-T17`. **Branch:** `sci/spm-header-without-scan-size`. **ADR:** **ADR-0026**.

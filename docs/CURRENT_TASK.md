@@ -5,7 +5,8 @@
 **Milestone:** M3 — Numerical correctness, eleventh task
 **Defect:** **D-08** (high) · **ADR:** **ADR-0027**
 **Branch:** `sci/empty-measurements-keep-their-schema` (stacked on `sci/spm-header-without-scan-size`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next
+session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -72,12 +73,26 @@ Dtypes are part of the promise, not decoration: an empty frame with `object` col
 
 ## Definition of done
 
-- [ ] Zero surviving particles gives twelve columns, correct dtypes, zero rows
-- [ ] The populated path produces exactly the declared columns — proven, not assumed
-- [ ] `make check` green; delta quantified (expect the harness's `..._empty_blobs.columns`
-      to move from `[]` to the twelve names)
-- [ ] ADR-0027; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T12: an empty measurement table still has its columns`
+- [x] Zero surviving particles gives twelve columns, correct dtypes, zero rows
+- [x] The populated path produces exactly the declared columns — proven, and it **caught a
+      mistake**: pandas 3 infers `str`, not `object`, for the two text columns
+- [x] `make check` green — 225 tests; delta: **78 differences, 0 values moved**
+- [x] ADR-0027; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index, Backlog
+- [x] Commit: `M3-T12: an empty measurement table still has its columns`
+
+---
+
+## What it turned up
+
+**The defect was live on a real phantom, not only in the probe.** `afm_sparse_low_snr` detects
+**0 blobs** on its ordinary path, so `measure_all_baseline` — not
+`measure_all_baseline_empty_blobs` — returned the zero-column table, and the golden had been
+recording `columns: []` for it since M0. Six blocks moved, five of them the synthetic probe and
+one of them the real run.
+
+**A NaN height passes the non-positive filter** (`nan <= 0` is `False`) and reaches the table,
+reachable on a constant map through an empty substrate mask. ADR-0018 already ruled on this exact
+comparison. Filed as **B-059** rather than fixed here — ADR-0010, one defect per commit.
 
 ---
 
