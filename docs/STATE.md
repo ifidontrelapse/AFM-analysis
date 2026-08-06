@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-06 · **Branch:** `sci/yolo-confidence` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-06 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -565,29 +565,37 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 
 ## In progress
 
-**M2 is closed and M3 is well under way.** M3-T01, T02, T03, T04, T06, T07, T09, T10, T11 and
-T21 are done, plus B-058 — eleven defects closed in three sessions. **All four `critical`
-defects are closed** (D-01, D-03, D-04, D-12), and with M3-T02 the last of them is the one that
-had been open since M0 waiting on a decision.
+**M2 is closed and M3 is well under way.** Fifteen tasks done — M3-T01 to T05, T06, T07, T09
+to T12, T17, T18, T20, T21 — plus B-058, across four sessions. **Every `critical` and every
+`high` defect the audit reproduced is closed**, which is the first of M3's five exit criteria.
+What is left is `medium` and below: T08, T13, T14, plus T15 (the evaluation harness) and T16.
+
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
-to detection quality, which nothing in the gate can measure. **The LoG path no longer constructs
-a `nan` image**, and its adaptive threshold now always lands in the interval it is compared
-against. **The noise filter runs for the first time** on the scans where it was floored away.
+to detection quality, which nothing in the gate can measure; **M3-T15 is the task that would
+change that, and three ADRs have now had to write "not claimed" for want of it.** The LoG path no
+longer constructs a `nan` image, and its adaptive threshold always lands in the interval it is
+compared against. **The noise filter runs for the first time** on the scans where it was floored
+away. **An unknown scale is a state on all three of its routes**, and nothing fabricates a
+number to stand in for one — not a pixel size, not a minimum particle size, not a confidence, not
+an empty table's columns.
 
-**Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Fourteen branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
-`sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
-`sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
-(M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
-`sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20) →
-`sci/spm-header-without-scan-size` (M3-T17) → `sci/empty-measurements-keep-their-schema`
-(M3-T12) → `sci/yolo-confidence` (M3-T05). **All fourteen are pushed and all fourteen are
-green on CI** — the seven that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s
-each, then M3-T20 (**#52**), M3-T17 (**#54**), M3-T12 (**#55**) and M3-T05 (**#56**), every one
-`success`. CI on `main` is green: **216 s**, of which
-`make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
-green is green for the right reason.
+**Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01. All
+of M3's work lives on **one branch, `sci/m3-numerical-correctness`**, 21 commits ahead of `main`
+and pushed. **The 32 task branches were consolidated into it on 2026-08-06** at the operator's
+instruction: the stack was strictly linear, so every one of them was an ancestor of the tip and
+no commit was lost — that was verified branch by branch before anything was deleted, locally and
+on `origin`.
+
+**This is a declared deviation from PROJECT_RULES §7, "one task per branch."** Eleven tasks now
+share a branch. The rule's purpose — that a task's change be attributable on its own — is still
+served, because it never rested on the branch: each task is one commit, with its own ADR, its own
+golden update and its own quantified delta in `Progress.md`, which is what ADR-0010 actually
+requires. The branch was only ever a label. If the rule is meant to bind the branch too, it needs
+an amendment saying so; it is recorded here rather than left as a silent violation.
+
+All fourteen task branches were green on CI before they were deleted (#44–#50, #52, #54–#56), and
+the surviving branch is the same commit CI ran on as **#56**.
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
 rather than path-hacked.

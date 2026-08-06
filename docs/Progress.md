@@ -67,6 +67,16 @@ better.
 Runs **#54** (M3-T17), **#55** (M3-T12) and **#56** (M3-T05) — all `success`. Fourteen branches
 pushed, fourteen green.
 
+### Branch consolidation
+
+The 32 task branches were merged down to **one**, `sci/m3-numerical-correctness`, at the
+operator's instruction — the stack was strictly linear, so every branch was an ancestor of the
+tip and no commit was lost; that was verified branch by branch before anything was deleted,
+locally and on `origin`. All of them were green on CI first. **A declared deviation from
+PROJECT_RULES §7 ("one task per branch"), recorded in `STATE.md` rather than left silent:** what
+makes a task attributable is one commit with its own ADR, golden update and quantified delta —
+ADR-0010's requirement — not the branch it sat on.
+
 ### Session close, 2026-08-06
 
 Five tasks in one day: **M3-T02, T20, T17, T12, T05**, plus **M3-T18** closed as a side effect
