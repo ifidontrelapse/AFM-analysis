@@ -215,18 +215,42 @@ def test_spm_scan_size_units_are_converted_to_nanometres(
 # ── failure modes ─────────────────────────────────────────────────────────────
 
 
-def test_spm_without_scan_size_crashes_on_the_fallback_it_just_took(tmp_path, z_lsb) -> None:
-    """**M3-T17** — a defect, pinned so its fix is visible.
+def test_spm_without_scan_size_reports_an_unknown_scale(tmp_path, z_lsb) -> None:
+    """**M3-T17 / ADR-0026** — the defect this test used to pin.
 
     The `else` branch exists to handle a header with no `Scan Size:` field. It
-    sets `scan_size_nm = None` and the very next line divides by `samps`.
-    PROJECT_RULES §3 says an unknown scale is `None`, never a crash; when M3-T17
-    lands, this assertion flips to a returned `None` (and a `pixel_size_nm` of
-    `None`), which is the intended contract.
+    set `scan_size_nm = None` and the very next line divided by `samps`, so the
+    fallback crashed on the branch it had just taken. PROJECT_RULES §3 says an
+    unknown scale is `None`, never a crash — and since ADR-0025 that state has a
+    meaning everywhere downstream, so the height map is still usable.
     """
     path = _write_spm(tmp_path, z_lsb, scan_size_line=None)
 
-    with pytest.raises(TypeError):
+    data = load_afm(str(path), fmt="spm")
+
+    assert data.scan_size_nm is None
+    assert data.pixel_size_nm is None
+    assert data.z_raw.shape == (LINES, SAMPS)  # the array is unaffected
+    assert data.z_raw.dtype == np.float32
+
+
+def test_spm_with_a_zero_samps_per_line_is_rejected(tmp_path, z_lsb) -> None:
+    """The divisor on the same line. Zero is a malformed header rather than an
+    unknown scale, and it used to be a `ZeroDivisionError` out of the expression
+    M3-T17 fixes — an error that names nothing (ADR-0026, PROJECT_RULES §3)."""
+    path = _write_spm(tmp_path, z_lsb, samps=0)
+
+    with pytest.raises(ValueError, match="non-positive Samps/line"):
+        load_afm(str(path), fmt="spm")
+
+
+def test_spm_with_a_stated_scan_size_of_zero_is_rejected(tmp_path, z_lsb) -> None:
+    """Stated and impossible is not the same as absent: `Scan Size: 0 0 nm`
+    would make every physical value zero rather than unknown. Same rule as the
+    npy loader's (ADR-0025), so the two loaders agree."""
+    path = _write_spm(tmp_path, z_lsb, scan_size_line=r"\Scan Size: 0 0 nm")
+
+    with pytest.raises(ValueError, match="non-positive Scan Size"):
         load_afm(str(path), fmt="spm")
 
 

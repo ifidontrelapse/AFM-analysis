@@ -7,6 +7,56 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-06 — M3-T17 · **D-07's third face: a header without a scan size parses**
+
+**Task:** `M3-T17`. **Branch:** `sci/spm-header-without-scan-size`. **ADR:** **ADR-0026**.
+**Defect:** high, found by mypy in M1-T04.
+
+### The defect
+
+```python
+else:
+    scan_size_nm = None
+
+pixel_size_nm = scan_size_nm / samps      # TypeError, one line later
+```
+
+The `else` exists **specifically** to tolerate a header with no `Scan Size:`, and the next line
+divides by `samps` unconditionally. **The fallback crashed on the branch it had just taken**, and
+had done since the code was written.
+
+### The delta — none, and none was possible
+
+`afm_io` has no phantom: the characterization set is synthetic *arrays*, not synthetic *files*.
+Nothing this module does can move a golden number, so its 28 unit tests are the entire safety
+net. That is worth stating rather than leaving as a blank line in a table — it is also why the
+M1-T06 suite was validated by killing four mutants of this parser, and why this fix was found by
+that suite in the first place.
+
+**mypy 15 → 14, and the error that went was this defect's**: the function was annotated
+`-> np.ndarray` and returned a three-tuple. Third task in M3 where the static shadow of a defect
+was sitting in the tolerated baseline (M3-T09, M3-T11, this).
+
+### Two failure modes, one expression
+
+`samps` is the divisor, so `Samps/line: 0` was a `ZeroDivisionError` out of the same line — an
+error naming nothing. Both are now guarded, and a *stated* `Scan Size: 0` is rejected as well:
+**absent and wrong are different**, and only one of them is recoverable. That distinction is
+ADR-0025's, one commit old, now applied to the second loader so the two agree about what a scale
+is. A file is not a caller, but the principle transfers exactly.
+
+### D-07 is closed
+
+Three faces, three tasks, three ADRs: the detectors (M3-T11, ADR-0019), the npy loader (M3-T20,
+ADR-0025), the SPM header (this, ADR-0026). Every route to "no scale" now ends in the same state.
+
+### Next
+
+**M3-T12** — D-08, empty measurements must return a schema-stable DataFrame. Then the `medium`
+ones in order. **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last of all.
+
+---
+
 ## 2026-08-06 — M3-T20 · **D-07 closed on both sides: an unknown AFM scale is not a fabricated 1.0**
 
 **Task:** `M3-T20`. **Branch:** `sci/npy-no-invented-scale`. **ADR:** **ADR-0025**.

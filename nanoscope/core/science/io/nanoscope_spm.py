@@ -19,7 +19,24 @@ import re
 import numpy as np
 
 
-def _read_nanoscope_z(file_path: str) -> np.ndarray:
+def _read_nanoscope_z(file_path: str) -> tuple[float | None, float | None, np.ndarray]:
+    """Decode a Bruker Nanoscope file into a calibrated height map.
+
+    Args:
+        file_path: path to the `.spm` / `.000`-style file
+
+    Returns:
+        `(scan_size_nm, pixel_size_nm, z)`. The first two are **`None` together**
+        when the header states no `Scan Size` — an unknown scale is a state, not
+        a crash and not a substitute value (ADR-0019, ADR-0025, ADR-0026). `z` is
+        always a calibrated `float32` array in nanometres.
+
+    Raises:
+        ValueError: if the Ciao blocks, any required header field, the Z scale or
+            the Z sensitivity is missing; if `Samps/line` is not positive; if the
+            header states a non-positive `Scan Size`; or if the payload is
+            shorter than `lines * samps`.
+    """
     HEADER_READ_BYTES = 65536
 
     with open(file_path, "rb") as f:
@@ -53,6 +70,12 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
     if None in (data_offset, data_length, samps, lines, bpp):
         raise ValueError("Header fields missing in SPM file")
 
+    # `samps` is the divisor two dozen lines below, and the reshape's row width.
+    # Zero is a malformed header, and it used to surface as a ZeroDivisionError
+    # from the same expression this task fixes (ADR-0026).
+    if not samps > 0:
+        raise ValueError(f"header states a non-positive Samps/line: {samps}")
+
     # The number AFTER the parentheses is the real Z range of the scan, in volts
     zscale_match = re.search(r"@2:Z scale:[^\n]*\([^)]+\)\s*([\d.eE+-]+)\s*V", blk)
     if not zscale_match:
@@ -85,9 +108,16 @@ def _read_nanoscope_z(file_path: str) -> np.ndarray:
             scan_size_nm = scan_size * 1000  # µm -> nm
         else:
             scan_size_nm = scan_size  # already in nm
+        # Stated and impossible is not the same as absent: `Scan Size: 0 0 nm`
+        # would make every physical value zero rather than unknown (ADR-0026).
+        if not scan_size_nm > 0:
+            raise ValueError(f"header states a non-positive Scan Size: {scan_size_nm} nm")
     else:
         scan_size_nm = None
 
-    pixel_size_nm = scan_size_nm / samps  # nm per pixel
+    # The scale is unknown, which is a state the whole pipeline now carries
+    # (ADR-0025). This line used to divide `None` by `samps` — the fallback
+    # crashed on the branch it had just taken.
+    pixel_size_nm = None if scan_size_nm is None else scan_size_nm / samps
 
     return scan_size_nm, pixel_size_nm, z

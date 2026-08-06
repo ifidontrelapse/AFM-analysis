@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-06 · **Branch:** `sci/npy-no-invented-scale` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-06 · **Branch:** `sci/spm-header-without-scan-size` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,12 +26,22 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **All four `critical` defects are closed**, **D-07 is closed on both sides**,
-and so are all five operator decisions that were open when M3 started. The next task is
-**M3-T17** — the same unknown-scale state arriving from the SPM header, which now has a contract
-to satisfy (ADR-0025) instead of an open question. **M3-T12** is the other unblocked `high` one.
-**B6 → M3-T16** is the last operator answer waiting to be executed, and **B-040** goes last of
-everything because it rewrites every SHA above it.
+**None selected.** **All four `critical` defects are closed**, **D-07 is closed on all three of
+its faces**, and so are all five operator decisions that were open when M3 started. The next task
+is **M3-T12** — D-08, the last unblocked `high` one: empty measurements must return a
+schema-stable DataFrame. **B6 → M3-T16** is the last operator answer waiting to be executed, and
+**B-040** goes last of everything because it rewrites every SHA above it.
+
+**`M3-T17` done 2026-08-06 (ADR-0026)** — the SPM parser's `else` branch, written to tolerate a
+header with no `Scan Size`, divided `None` by `samps` on the very next line: **the fallback
+crashed on the branch it had just taken**. It now returns `(None, None, z)` — the height map
+decodes as always, only the metadata is absent, and ADR-0025 gave that state a meaning everywhere
+downstream one commit earlier. The same expression's other failure mode went with it
+(`Samps/line: 0` was a `ZeroDivisionError` naming nothing), and a *stated* non-positive
+`Scan Size` is rejected as well: **absent and wrong are different**. Delta: **0 golden
+differences, and none was possible** — `afm_io` has no phantom, so its 28 unit tests are the whole
+safety net. **mypy 15 → 14**, the removed error being this defect's own (`-> np.ndarray` on a
+function returning a three-tuple). 3 tests; restoring the division turns 3 red.
 
 **`M3-T20` done 2026-08-06 (ADR-0025)** — the npy loader no longer invents `1.0` nm/px and a scan
 size equal to the row count. `None` is unknown and passes through to the entity; a scale that
@@ -101,6 +111,16 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T17** ✅ (2026-08-06, **ADR-0026**) — **D-07's third face, and the last.** The SPM
+  fallback for a header with no `Scan Size` set `scan_size_nm = None` and divided by `samps` on
+  the next line. Now `(None, None, z)`: absent metadata, intact height map. `Samps/line: 0` and a
+  stated `Scan Size: 0` raise instead, each naming its field — ADR-0025's absent-versus-wrong
+  distinction, applied to the second loader so the two agree. **0 golden differences, and none
+  was possible**: `afm_io` has no phantom, and that is recorded rather than left blank.
+  **mypy 15 → 14** — the annotation `-> np.ndarray` on a function returning a three-tuple was
+  this defect's static shadow, in the baseline since M1-T04. 3 tests; restoring the division
+  turns 3 red.
 
 - **M3-T20** ✅ (2026-08-06, **ADR-0025**) — **the other half of D-07.** `load_afm(fmt="npy")`
   fabricated `pixel_size_nm=1.0` and `scan_size_nm=float(z.shape[0])`, so every `_nm` downstream
@@ -491,11 +511,12 @@ a `nan` image**, and its adaptive threshold now always lands in the interval it 
 against. **The noise filter runs for the first time** on the scans where it was floored away.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Eleven branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+Twelve branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 `sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
 `sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
 (M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
-`sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20). **All eleven are pushed and all eleven are
+`sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20) →
+`sci/spm-header-without-scan-size` (M3-T17). **All eleven are pushed and all eleven are
 green on CI** — the seven that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s
 each, and M3-T20 followed as **#52**, every one `success`. CI on `main` is
 green: **216 s**, of which
@@ -544,9 +565,8 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Push `sci/npy-no-invented-scale` and read CI**, then execute **M3-T17** — the unknown-scale
-   state arriving from the SPM header, which ADR-0025 has now given a contract. **M3-T12** is the
-   other unblocked `high` one. Rewrite `docs/CURRENT_TASK.md` for whichever is chosen
+1. **Execute M3-T12** — D-08, the last unblocked `high` one. Rewrite `docs/CURRENT_TASK.md` for
+   it first. After that the `medium` ones in order: T05, T08, T13, T14
 2. **Every `critical` defect is closed and every decision except B6 is answered and executed.**
    What remains in M3 is engineering, in severity order: T20, T12, T17 are the `high` ones, then
    T05, T08, T13, T14. **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last
@@ -570,12 +590,12 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **216, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **218, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
-| mypy errors | **15**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
+| mypy errors | **14**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
 | Open defects | **20** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |

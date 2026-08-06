@@ -33,6 +33,7 @@ Use `TEMPLATE.md` for new records.
 | [0023](ADR-0023-polarity-is-configured-with-a-per-modality-default.md) | Polarity is configured, with a per-modality default (B3) | Accepted | 2026-08-05 |
 | [0024](ADR-0024-the-minimum-particle-size-is-a-physical-size.md) | The minimum particle size is a physical size (B2) | Accepted | 2026-08-06 |
 | [0025](ADR-0025-an-unknown-afm-scale-is-not-a-fabricated-one.md) | An unknown AFM scale is not a fabricated 1.0 | Accepted | 2026-08-06 |
+| [0026](ADR-0026-a-header-without-a-scan-size-parses.md) | A header without a scan size parses | Accepted | 2026-08-06 |
 
 ## When to write one
 

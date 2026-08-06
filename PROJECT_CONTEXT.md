@@ -270,7 +270,7 @@ For SPM, `_read_nanoscope_z`:
 5. Extracts `@2:Z scale` in volts and `@Sens. Zsens` in nm/V.
 6. Reads signed 16-bit data for 2 bytes/pixel, otherwise signed 32-bit data.
 7. Calibrates raw values with `z_scale_v * nm_per_v / 65536` and reshapes to `(lines, samples)`.
-8. Extracts scan size and computes `pixel_size_nm = scan_size_nm / samples`.
+8. Extracts scan size and computes `pixel_size_nm = scan_size_nm / samples`. When the header states **no** `Scan Size`, both come back `None` — the array is unaffected (M3-T17, ADR-0026); the fallback used to divide `None` by the sample count. A *stated* non-positive `Scan Size`, or `Samps/line: 0`, is a malformed header and raises.
 
 `load_microscopy_image(path, modality, nm_per_pixel=None)` reads a grayscale image with OpenCV and returns `MicroscopyData`. Supported modality literals are `"sem"` and `"tem"`.
 
@@ -693,9 +693,8 @@ number survived. The order below is `docs/Roadmap.md`'s, not a separate opinion.
 1. **All four `critical` defects are closed** — D-01 (M3-T01), D-03 (M3-T03), D-12 (M3-T10)
    and D-04 (M3-T02, ADR-0024). So are the five operator decisions that blocked them; **B6**
    (a real scan as a test fixture, M3-T16) is the last one outstanding.
-2. **M3-T17 is next**, and M3-T12 is the other unblocked `high` one. T17 is the same
-   unknown-scale state arriving from the SPM header, and since M3-T20 (ADR-0025) that state has
-   a defined meaning everywhere downstream — the task is the parser, not the contract.
+2. **M3-T12 is next** — D-08, empty measurements must return a schema-stable DataFrame, and
+   the last unblocked `high` task. D-07 is closed on all three of its faces (M3-T11, T20, T17).
 3. **B-040** — purge `node_modules` and the model weights from git history. Last of the
    repository-hygiene work, because it rewrites every SHA above it.
 4. **M3-T15** — an evaluation harness (precision/recall/localisation against phantom ground

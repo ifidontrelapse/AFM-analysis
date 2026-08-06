@@ -5,7 +5,8 @@
 **Milestone:** M3 — Numerical correctness, tenth task
 **Defect:** **M3-T17** (high), found by mypy in M1-T04 · **ADR:** **ADR-0026**
 **Branch:** `sci/spm-header-without-scan-size` (stacked on `sci/npy-no-invented-scale`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next
+session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -70,13 +71,13 @@ ADR-0025 drew between "unknown" and "wrong".
 
 ## Definition of done
 
-- [ ] A header with no `Scan Size:` returns `(None, None, z)` and the array still loads
-- [ ] `Samps/line: 0` and a non-positive stated scan size raise, each naming its field
-- [ ] The annotation matches the return; mypy **15 → 14**
-- [ ] Tests, including the flip of `test_spm_without_scan_size_crashes_on_the_fallback_it_just_took`
-- [ ] `make check` green; delta quantified (expect **zero** — the golden has no SPM phantom)
-- [ ] ADR-0026; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T17: a header without a scan size parses`
+- [x] A header with no `Scan Size:` returns `(None, None, z)` and the array still loads
+- [x] `Samps/line: 0` and a non-positive stated scan size raise, each naming its field
+- [x] The annotation matches the return; mypy **15 → 14**
+- [x] Tests — 3, and restoring the division turns all 3 red
+- [x] `make check` green — 218 tests; **0 golden differences**, as expected
+- [x] ADR-0026; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T17: a header without a scan size parses`
 
 ---
 
