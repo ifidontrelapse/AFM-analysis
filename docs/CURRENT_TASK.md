@@ -1,32 +1,39 @@
 # CURRENT TASK
 
-**ID:** `M3-T02`
-**Title:** The minimum particle size is a physical size
-**Milestone:** M3 — Numerical correctness, eighth task
-**Defect:** **D-04** (critical) · **Decision:** **B2** · **ADR:** **ADR-0024**
-**Branch:** `sci/min-size-in-nm` (stacked on `sci/detection-polarity`)
-**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M3-T20`
+**Title:** An AFM scan without a scale is a state, not a fabricated 1.0
+**Milestone:** M3 — Numerical correctness, ninth task
+**Defect:** **M3-T20** (high), found by the M1-T06 tests · **ADR:** **ADR-0025**
+**Branch:** `sci/npy-no-invented-scale` (stacked on `sci/min-size-in-nm`)
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-D-04 is one of the two `critical` defects the audit left open, and the last one that needed an
-operator answer. B2 was answered on 2026-08-05: **filter in nanometres, delete the `int()`**.
-It goes after B3/M3-T10 because M3-T10 changes which pixels are particles and this one changes
-which particles are kept — measuring them in that order keeps the two deltas attributable.
+It is the other half of **D-07**. M3-T11 made `None` survivable in the detectors and said so:
 
-The defect, in one line:
+> *"`load_afm(fmt="npy")` fabricating a scale — that is M3-T20, and it is the reason `None`
+> rarely reaches the detectors from the AFM side today. This task makes `None` survivable;
+> M3-T20 makes it honest. In that order, because the reverse order introduces a `None` into a
+> path that still crashes on it."* — ADR-0019
+
+The path is now survivable, so the fabrication can go.
 
 ```python
-min_size_pixel = int(min_size_nm / pixel_size_nm)     # int(5 / 9.77) == 0
+pixel_size_nm=pixel_size_nm or 1.0,
+scan_size_nm=scan_size_nm or float(z.shape[0]),
 ```
 
-`pixel_size_nm` across the operator's 120 real scans: min 1.95, **median 9.77**, max 29.30. With
-the default `min_size_nm = 5`, **108 of 120 scans (90 %) get a threshold of 0**, so the noise
-filter in `estimate_radius_otsu` admits every connected component, single-pixel noise included.
-Those radii set `typical_radius_px`, which sets the opening radius *and* the LoG sigma range.
+Three defects in two lines:
+
+1. **A fabricated scale is indistinguishable from a real one.** Every downstream `_nm` becomes a
+   pixel count wearing nanometre units, and no consumer can tell — the exact failure the
+   invariant in PROJECT_RULES §3 exists to prevent.
+2. **`or` swallows an explicit `0.0`.** A caller who says `pixel_size_nm=0.0` — wrong, but
+   deliberate — is silently overruled with 1.0 rather than corrected.
+3. **`float(z.shape[0])` is not dimensionally a size.** A row count is used as a length in
+   nanometres.
 
 ---
 
@@ -34,89 +41,67 @@ Those radii set `typical_radius_px`, which sets the opening radius *and* the LoG
 
 **In scope**
 
-1. `estimate_radius_otsu` takes `min_size_nm` and compares `radii_nm >= min_size_nm`
-2. `estimate_rough_radius` takes `min_size_nm` and converts it to pixels **without** `int()`
-3. `build_substrate_map` passes its own `min_size_nm` through, unconverted, at all three sites
-4. The error message speaks nanometres, because the caller set a physical minimum (ADR-0017's
-   message, same shape, new units)
-5. The harness records `min_size_nm_used`, `min_size_px_equivalent` and `min_size_px_floored` —
-   the last one is the old arithmetic, kept as the measuring stick for what was lost
-6. **ADR-0024**
+1. `load_afm(fmt="npy")` passes through what it was given. Unknown stays `None`; a value that is
+   given must be positive, or it is a `ValueError` naming the parameter and its value
+2. `AFMRawData.pixel_size_nm` and `.scan_size_nm` become `float | None`, and
+   `PreprocessingResult` with them — the invariant has to hold at the entity, or the next loader
+   re-invents the default
+3. **The preprocessing chain accepts `None`**, which ADR-0019 assigned here explicitly: without a
+   scale there are no `radii_nm`, and `min_size_nm` cannot be applied. That is a **decision**,
+   and the ADR carries it: no scale → no physical filter, **warned**, never silent
+4. The harness records the no-scale preprocessing path, as M3-T11 did for the detectors
+5. **ADR-0025**
 
 **Out of scope**
 
-- `min_size_nm` as a `PipelineConfig` field. It is a `build_substrate_map` default (5) today and
-  promoting it is a config change, not a numerical one — M3-T13's neighbourhood
-- The GUI's spin box for it. There is no GUI yet
-- Any change to *how* radii are measured. `equivalent_diameter_area / 2` is untouched
+- **M3-T17** — `_read_nanoscope_z` dividing `None` by `samps` when the header has no `Scan Size`.
+  Same state arriving from the other loader, and it is its own task and commit. This task defines
+  the contract that one will satisfy
+- **Deriving `scan_size_nm` from `pixel_size_nm * z.shape[0]`.** Dimensionally sound, and still
+  not done here: the SPM path derives the pixel size from `samps` (**columns**), the old npy line
+  used `z.shape[0]` (**rows**), and nothing in the codebase settles that axis convention for a
+  non-square scan. Absent is better than confidently wrong on one axis
+- **Adopting `PixelScale` as the field type.** Its positivity guard is the rule this task
+  enforces at the boundary, but changing `AFMRawData.pixel_size_nm` from `float` to a value
+  object ripples through four layers and changes what `dataclasses.asdict` produces
+- `run_sam2_from_blobs`'s `if nm_per_pixel else None`, the same `or` family in a module this
+  task does not touch (ADR-0019 already filed it)
+
+---
+
+## The decision this task has to make
+
+`build_substrate_map` needs the scale for three things: `radii_nm`, the `min_size_nm` filter
+(M3-T02, one commit ago), and `estimate_rough_radius`'s floor. With no scale, none of the three
+can be expressed. The options:
+
+| | |
+|---|---|
+| **Refuse** — raise, an AFM scan must have a scale | Throws away pixel-space work that is correct, and contradicts ADR-0019's ruling that unknown scale is a supported state |
+| **Skip the filter silently** | Re-creates D-04 exactly: a noise filter that is off and says nothing |
+| **Skip the filter, loudly** ✅ | The substrate estimate is pixel-space and unaffected; the physical threshold is inapplicable, and the log says so at the moment it is dropped |
+
+Chosen: the third. `radii_nm` and `typical_radius_nm` come back `None`; `radii_px` and the
+opening radius are bit-identical to a scaled run, which is the property the tests pin.
 
 ---
 
 ## Definition of done
 
-- [x] No `int()` between `min_size_nm` and any comparison
-- [x] The threshold means the same physical thing at every pixel scale
-- [x] Unit tests, one per pixel-scale regime; restoring the `int()` turns 3 of 5 red
-- [x] `make check` green — 204 tests
-- [x] Delta quantified: **47 differences — 27 changed, 15 added, 5 removed**; mypy **15 → 15**
-- [x] ADR-0024; `STATE.md`, `Progress.md`, `TASKS.md`, `Roadmap.md`, `Architecture.md`,
-      `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T02: the minimum particle size is a physical size (B2)`
+- [ ] No fabricated scale anywhere in `load_afm`; an explicit non-positive value raises
+- [ ] `float | None` on both entities, and mypy strict is happy at the boundary
+- [ ] `build_substrate_map` returns pixel-space results with `None` in every `_nm` field
+- [ ] The dropped filter is warned, once, naming the value it could not apply
+- [ ] Tests, including: pixel-space output identical with and without a scale
+- [ ] `make check` green; delta quantified (expect **keys added, values unchanged** — every
+      phantom has a scale)
+- [ ] ADR-0025; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T20: an unknown AFM scale is not a fabricated 1.0`
 
 ---
 
-## The delta
+## Notes
 
-| phantom | nm/px | old | new | objects kept |
-|---|---|---|---|---|
-| `afm_flat_monodisperse` | 2.00 | 2 px | 2.5 px | 24 → 24 |
-| `afm_coarse_pixels` | 9.77 | **0 px** | 0.512 px | 14 → 14 |
-| `afm_dense_overlapping` | 2.00 | 2 px | 2.5 px | 51 → 51 |
-| `afm_tilted_polydisperse` | 2.00 | 2 px | 2.5 px | 29 → 29 |
-| `afm_sparse_low_snr` | 2.00 | 2 px | 2.5 px | **75 → 17** |
-
-No height moves anywhere: the final opening radius is 8 before and after on the one phantom whose
-radii change, so `substrate` and `z_above` are byte-identical.
-
----
-
-## What it turned up
-
-**The phantom built for D-04 does not move.** `afm_coarse_pixels` is the 9.77 nm/px case whose
-`min_size_pixel_used: 0` the characterization baseline records as the defect's fingerprint — and
-its numbers are unchanged, because the smallest object a labelling can produce is one pixel,
-whose equivalent radius is 5.51 nm there. Re-reading all 628 scan headers put a number on it:
-the zero threshold was **inconsequential on 58 % of the scans**, disabled a working filter on
-**32 %**, and the finest **10 %** were hurt by *truncation* rather than by the floor — which is
-`afm_sparse_low_snr`'s 2.5 px → 2 px, and 58 of its 75 objects.
-
-**mypy did not move**, for the first time in three numerical tasks. `int(float) -> int` is
-perfectly typed; a unit error has no static shadow, and the `_nm` / `_px` convention is the only
-check this class of defect has.
-
-**Three tests written earlier in this task were replaced.** Each asserted something the *old*
-code also satisfied — a test that cannot fail on the defect it names.
-
----
-
-## The duplicated `radii_nm`
-
-`radii_nm = radii_px * pixel_size_nm` was written twice in a row, identically — the audit's
-§Duplication entry, and deliberately untouched by M3-T01, M3-T06 and M3-T09 because their commits
-were numerical and ADR-0010 keeps tidying out of them. It is fixed **here** rather than in a
-tidying commit because this task *has* to move that line: the filter now needs `radii_nm` before
-it runs, so the assignment moves above the filter and the second copy has nowhere left to be.
-One line, forced by the change, not swept in beside it.
-
----
-
-## Notes for the next session
-
-Remaining from the operator's answers, in order:
-
-1. **B6 → M3-T16** — header-only SPM fixtures
-2. **B-040** — purge `node_modules` and the weights from git history. **Last**, because it
-   rewrites every SHA above
-
-Then the unblocked `high` ones: **M3-T20**, **M3-T12**, **M3-T17** (T17 and T20 are the same
-file and are worth reading together).
+`tests/unit/test_afm_io.py::test_npy_without_metadata_invents_a_scale_of_one_nm_per_pixel`
+characterizes the defect and says in its docstring that its assertions flip to `None` when this
+task lands. It is the test to rewrite first.
