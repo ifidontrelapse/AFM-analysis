@@ -98,6 +98,14 @@ Fixed here, after M3-T01, M3-T06 and M3-T09 each left it alone on purpose (ADR-0
 out of numerical commits). This change *forces* it: the filter needs `radii_nm` before it runs,
 so the assignment moves above the filter and the second copy has nowhere left to be.
 
+### CI: seven branches, seven greens
+
+The seven `sci/` branches that had never left this machine were pushed together and all seven
+passed — runs **#44–#50**, 139–459 s. That is the first CI reading of **M3-T07, T09, T10, T11,
+T21, T02 and B-058**, six of which move golden numbers, so the regenerated baselines are now
+confirmed reproducible on a machine that is not this one. Ten of ten branches are pushed and
+green.
+
 ### Next
 
 **B6 → M3-T16** (header-only SPM fixtures), then **B-040** last, because it rewrites every SHA

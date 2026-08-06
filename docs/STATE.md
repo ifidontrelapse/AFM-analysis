@@ -470,9 +470,10 @@ Ten branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 `sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
 `sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
 (M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
-`sci/min-size-in-nm` (M3-T02). The first three are pushed; the rest are committed locally and
-not yet pushed. Each is
-green locally; CI has not been read from this session. CI on `main` is green: **216 s**, of which
+`sci/min-size-in-nm` (M3-T02). **All ten are pushed and all ten are green on CI** — the seven
+that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s each, every one `success`.
+That is the first CI reading of M3-T07, T09, T10, T11, T21, T02 and B-058. CI on `main` is
+green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
 
