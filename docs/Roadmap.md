@@ -126,7 +126,11 @@ a measurable delta.
 harness that scores detection against phantom ground truth.
 
 **Exit criteria**
-- [ ] Every critical and high defect closed, each with its own commit + ADR + golden update
+- [x] Every critical and high defect closed, each with its own commit + ADR + golden update —
+      **2026-08-06.** Critical: D-01 (M3-T01), D-02 (ADR-0012, deleted), D-03 (M3-T03),
+      D-04 (M3-T02), D-19 (M1-T01). High: D-05/D-06 (M3-T06), D-07 (M3-T11, T20, T17 — three
+      faces), D-08 (M3-T12), D-12 (M3-T10), D-18 (M2-T09). What remains in M3 is `medium`
+      and below
 - [ ] Degenerate-input contract documented and tested for every numerical entry point
 - [ ] One measurement schema across all four producers
 - [ ] Evaluation harness reports precision/recall/localisation per phantom

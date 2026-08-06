@@ -11,6 +11,12 @@
 
 **M3 — Numerical correctness**
 
+**Every `critical` and `high` defect the audit reproduced is now closed** — the first of M3's
+five exit criteria, met 2026-08-06. Critical: D-01, D-02, D-03, D-04, D-19. High: D-05/D-06,
+D-07 (three faces: M3-T11, T20, T17), D-08, D-12, D-18. The four criteria still open are the
+degenerate-input contract (M3-T13), one measurement schema (M3-T14), the evaluation harness
+(M3-T15), and — met already — the operator sign-offs.
+
 Fix the defects the audit reproduced. **The rules change here:** every task gets its own
 commit, its own ADR, its own golden update, and a quantified before/after delta in
 `docs/Progress.md`. Never bundled (ADR-0010).
@@ -137,6 +143,15 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T18** ✅ (2026-08-06, **no ADR — a side effect of M3-T05**) — `YoloDetector._last_result`
+  was initialised to `None` and therefore *typed* `None`, so every attribute read off it was a
+  mypy error. M3-T05 needed a second array from it and would have added a third; the field is now
+  annotated `Any`, as its own comment already described it, and all three errors went. **No
+  runtime guard was added and none is needed** — every access is two lines below the assignment
+  in the same method, and the public `last_result` property returning `None` before the first
+  `detect()` is the documented meaning of the field. Recorded as done rather than as its own
+  commit, because that is what happened.
 
 - **M3-T05** ✅ (2026-08-06, **ADR-0028**) — **D-09 fixed: a detection carries its own score, or
   none.** The model scores every box, `cfg.yolo_conf` filters on those scores, and the conversion
@@ -567,10 +582,10 @@ Fourteen branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 (M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
 `sci/min-size-in-nm` (M3-T02) → `sci/npy-no-invented-scale` (M3-T20) →
 `sci/spm-header-without-scan-size` (M3-T17) → `sci/empty-measurements-keep-their-schema`
-(M3-T12) → `sci/yolo-confidence` (M3-T05). **All eleven are pushed and all eleven are
+(M3-T12) → `sci/yolo-confidence` (M3-T05). **All fourteen are pushed and all fourteen are
 green on CI** — the seven that had never been pushed ran as #44–#50 on 2026-08-06, 139–459 s
-each, and M3-T20 followed as **#52**, every one `success`. CI on `main` is
-green: **216 s**, of which
+each, then M3-T20 (**#52**), M3-T17 (**#54**), M3-T12 (**#55**) and M3-T05 (**#56**), every one
+`success`. CI on `main` is green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
 

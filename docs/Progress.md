@@ -62,6 +62,23 @@ described, and which is honest because both possible result types live in option
 dependencies — removed all three. A change that would have made the baseline worse made it
 better.
 
+### CI
+
+Runs **#54** (M3-T17), **#55** (M3-T12) and **#56** (M3-T05) — all `success`. Fourteen branches
+pushed, fourteen green.
+
+### Session close, 2026-08-06
+
+Five tasks in one day: **M3-T02, T20, T17, T12, T05**, plus **M3-T18** closed as a side effect
+and **B-059** filed. **Every `critical` and `high` defect the audit reproduced is now closed**,
+which is the first of M3's five exit criteria. mypy 15 → 12; 199 → 232 tests.
+
+Three of the five turned up something the plan did not have. D-04's "90 % of scans" costs nothing
+on 58 % of them. Losing the pixel scale means losing the size filter, which reaches the substrate.
+And D-09 was invisible to the golden, because the harness recorded the defaults of the field next
+to it and not of the field itself — the third time this milestone that **the harness, not the
+code, was the blind spot**.
+
 ### Next
 
 **M3-T08** (`flatten_lines` dtype promotion, D-13), then **M3-T13** (error taxonomy) and
