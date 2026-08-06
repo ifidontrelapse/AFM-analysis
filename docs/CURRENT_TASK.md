@@ -1,32 +1,34 @@
 # CURRENT TASK
 
-**ID:** `M3-T17`
-**Title:** A header without a scan size parses; it does not divide by `None`
-**Milestone:** M3 — Numerical correctness, tenth task
-**Defect:** **M3-T17** (high), found by mypy in M1-T04 · **ADR:** **ADR-0026**
-**Branch:** `sci/spm-header-without-scan-size` (stacked on `sci/npy-no-invented-scale`)
-**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next
-session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M3-T12`
+**Title:** An empty measurement table still has its columns
+**Milestone:** M3 — Numerical correctness, eleventh task
+**Defect:** **D-08** (high) · **ADR:** **ADR-0027**
+**Branch:** `sci/empty-measurements-keep-their-schema` (stacked on `sci/spm-header-without-scan-size`)
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-It is the third and last face of D-07, and the only one left where the unknown-scale state is
-still a crash. ADR-0025 gave that state a meaning everywhere downstream one commit ago, so this
-task is the parser, not the contract.
+It is the last unblocked `high` defect. Every other one in M3 is `medium`.
 
 ```python
-else:
-    scan_size_nm = None
-
-pixel_size_nm = scan_size_nm / samps      # TypeError, on the line after the fallback
+df = pd.DataFrame(results)     # results == [] -> a DataFrame with zero columns
 ```
 
-The `else` exists **specifically** to handle a header with no `Scan Size:` field, and then the
-next line divides by `samps` unconditionally. The fallback has never worked; mypy has reported
-the surrounding signature since M1-T04 (`nanoscope_spm.py:93`), because the function is annotated
-`-> np.ndarray` and returns a three-tuple.
+`measure_all_baseline` drops a particle when its mask runs past the image edge (`mask.sum() < 4`)
+and when its height comes out non-positive. Both are ordinary outcomes, and when they take the
+last row the function returns a table with **no columns at all**, so every consumer that reads by
+name raises `KeyError` instead of seeing an empty column:
+
+```python
+>>> plot_pipeline_result(result_with_no_particles, z, scan)
+KeyError: 'height_nm'
+```
+
+The harness already records the reproduction — `measure_all_baseline_empty_blobs` — with
+`columns: []`. That entry is the delta this task moves.
 
 ---
 
@@ -34,55 +36,53 @@ the surrounding signature since M1-T04 (`nanoscope_spm.py:93`), because the func
 
 **In scope**
 
-1. `pixel_size_nm` is `None` when `scan_size_nm` is — no division, no crash
-2. The return annotation stops lying: `tuple[float | None, float | None, np.ndarray]`
-3. The **divisor** is validated, because it is the same line: `Samps/line: 0` is a malformed
-   header, not a scan, and today it is a `ZeroDivisionError` from the same expression
-4. A header that *states* a non-positive scan size is malformed too — the rule ADR-0025 set for
-   the npy loader, applied to the other loader so the two agree
-5. **ADR-0026**
+1. The baseline measurement schema is **declared**: twelve columns, each with a dtype
+2. `measure_all_baseline` returns it whether or not any particle survived — same columns, same
+   dtypes, zero rows
+3. A test that the declared schema and the schema of a **non-empty** result are the same thing,
+   so the two paths cannot drift
+4. **ADR-0027**
 
 **Out of scope**
 
-- The parser's shape. It still takes a path and opens the file twice; the module docstring
-  explains why that is left alone until the `ImageLoader` port (M2-T08's successor)
-- `lines`. An empty array from `Number of lines: 0` is a degenerate-input question, not a
-  division; the characterization already owns degenerate inputs
-- Any change to how `Scan Size` is *matched*. The regex, the unit table and the `~m` spelling
-  are untouched — this task changes what happens after the match fails, not the match
+- **The other three producers' schemas.** `run_sam2_from_blobs` and `run_sam2_from_boxes` build
+  each record with `if k in res`, so their column set varies *per row* — that is **D-16/D-17**,
+  and unifying it is **M3-T14**. Declaring a stable schema for a producer whose schema is not yet
+  decided would have to be undone by that task
+- **`run_pipeline`'s detect-mode `pd.DataFrame()`.** Same zero-column defect, but which schema is
+  correct there depends on the modality (AFM heights vs SEM/TEM geometry), and that is exactly
+  what M3-T14 decides. Filed, not fixed
+- Column *renaming* or reordering. The declared schema is the one the code already produces,
+  written down — this task changes the empty case, not the populated one
 
 ---
 
 ## The decision
 
-Three ways to treat a header with no scan size:
-
 | | |
 |---|---|
-| **Raise** — a scan without a scale is unusable | Contradicts ADR-0019 and ADR-0025 twice over, and throws away a height map that is perfectly good in pixel space |
-| **Default the scale** — 1 nm/px, or the sample count | The defect ADR-0025 deleted from the npy loader, re-entered through the SPM one |
-| **Return `None` for both** ✅ | The state now has a defined meaning end to end: `AFMRawData` carries it, `build_substrate_map` accepts it, both detectors report absent nanometres |
+| Leave `pd.DataFrame([])` and make consumers guard | Pushes an invariant onto every reader, and the readers are notebooks and a GUI that does not exist yet |
+| Return `None` when nothing survived | A second empty-ish value to check, and `None.empty` is an `AttributeError` one call later |
+| **Declare the schema and always return it** ✅ | One shape for both paths; `df.empty` stays the way to ask, and every column is readable |
 
-A *stated* scan size of `0`, however, is not the same thing as an absent one, and neither is
-`Samps/line: 0`. Those are malformed headers and they raise, naming the field — the distinction
-ADR-0025 drew between "unknown" and "wrong".
+Dtypes are part of the promise, not decoration: an empty frame with `object` columns answers
+`df["height_nm"].mean()` differently from a `float64` one.
 
 ---
 
 ## Definition of done
 
-- [x] A header with no `Scan Size:` returns `(None, None, z)` and the array still loads
-- [x] `Samps/line: 0` and a non-positive stated scan size raise, each naming its field
-- [x] The annotation matches the return; mypy **15 → 14**
-- [x] Tests — 3, and restoring the division turns all 3 red
-- [x] `make check` green — 218 tests; **0 golden differences**, as expected
-- [x] ADR-0026; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T17: a header without a scan size parses`
+- [ ] Zero surviving particles gives twelve columns, correct dtypes, zero rows
+- [ ] The populated path produces exactly the declared columns — proven, not assumed
+- [ ] `make check` green; delta quantified (expect the harness's `..._empty_blobs.columns`
+      to move from `[]` to the twelve names)
+- [ ] ADR-0027; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T12: an empty measurement table still has its columns`
 
 ---
 
 ## Notes
 
-`test_spm_without_scan_size_crashes_on_the_fallback_it_just_took` pins the defect and says its
-assertion flips here. The golden cannot see this module at all — `afm_io` has no phantom — so the
-unit tests are the whole of the evidence, which is why they are written first.
+`measure_all_baseline` is the only one of the four producers whose record shape is fixed today —
+it builds every row from the same dict literal plus `measure_height`'s six keys. That is why it
+can have a declared schema now and the SAM2 pair cannot.
