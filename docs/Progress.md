@@ -77,6 +77,10 @@ regenerated golden said otherwise on one phantom in five, and the ADR now says w
 10, of which 6 turn red if `pixel_size_nm or 1.0` comes back. The end-to-end one is
 `run_preprocessing` on a bare `.npy` — the route the defect actually travels.
 
+### CI
+
+Run **#52**, `success`. Eleven branches pushed, eleven green.
+
 ### Next
 
 **M3-T17** — the same state arriving from the SPM header, and the contract for it now exists.
