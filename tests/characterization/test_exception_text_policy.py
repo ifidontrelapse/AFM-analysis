@@ -72,8 +72,8 @@ class TestTheComparatorHonoursIt:
         assert diffs == []
 
     def test_a_reworded_message_of_ours_is_drift(self) -> None:
-        old = {"ok": False, "error_type": "ValueError", "error_message": "min_size_pixel=5 px"}
-        new = {"ok": False, "error_type": "ValueError", "error_message": "min_size_pixel=6 px"}
+        old = {"ok": False, "error_type": "ValueError", "error_message": "min_size_nm=5 nm"}
+        new = {"ok": False, "error_type": "ValueError", "error_message": "min_size_nm=6 nm"}
         diffs: list[str] = []
         capture.compare(new, old, "x", diffs)
         assert len(diffs) == 1

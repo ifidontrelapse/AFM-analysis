@@ -130,7 +130,8 @@ harness that scores detection against phantom ground truth.
 - [ ] Degenerate-input contract documented and tested for every numerical entry point
 - [ ] One measurement schema across all four producers
 - [ ] Evaluation harness reports precision/recall/localisation per phantom
-- [ ] Operator has signed off on D-04 semantics and D-12 polarity
+- [x] Operator has signed off on D-04 semantics (**B2**, ADR-0024) and D-12 polarity
+      (**B3**, ADR-0023) — answered 2026-08-05, both executed
 
 **Risk to scientific output:** intentional and quantified. One defect per commit, never
 bundled with restructuring.

@@ -44,9 +44,9 @@ def test_a_flat_image_warns_instead_of_printing(caplog: pytest.LogCaptureFixture
     """The substrate fallback path: no objects found, so a default radius is used."""
     flat = np.zeros((32, 32), dtype=np.float32)
     with caplog.at_level(logging.WARNING, logger="nanoscope.core.science.preprocessing.substrate"):
-        radius = estimate_rough_radius(flat, pixel_size_nm=1.0, min_size_pixel=2)
+        radius = estimate_rough_radius(flat, pixel_size_nm=1.0, min_size_nm=2)
 
-    assert radius == pytest.approx(2)  # the min_size_pixel floor, unchanged by M2-T11
+    assert radius == pytest.approx(2)  # the minimum-size floor, unchanged by M2-T11
     assert "too" in caplog.text and "flat" in caplog.text
     assert caplog.records[0].levelno == logging.WARNING
 
@@ -76,5 +76,5 @@ def test_nothing_is_emitted_when_the_caller_does_not_ask(
     """A library must not configure logging; silence is the default (D-23)."""
     flat = np.zeros((32, 32), dtype=np.float32)
     with caplog.at_level(logging.CRITICAL):
-        estimate_rough_radius(flat, pixel_size_nm=1.0, min_size_pixel=2)
+        estimate_rough_radius(flat, pixel_size_nm=1.0, min_size_nm=2)
     assert caplog.records == []

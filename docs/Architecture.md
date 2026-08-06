@@ -310,10 +310,12 @@ Tracked in `docs/STATE.md` under *Blocked / needs decision*:
 
 1. ~~**Package name**~~ — **closed 2026-08-04**: `nanoscope`, confirmed by the operator.
    (ADR-0011, Accepted.) The distribution is renamed with the package in M2-T01.
-2. **`min_size_nm` semantics** (D-04) — what *should* the minimum particle size mean
-   when a pixel is 9.77 nm? Requires the operator, not the engineer.
-3. **Detection polarity** (D-12) — explicit configuration, or auto-detected from the
-   image? TEM currently detects the background.
+2. ~~**`min_size_nm` semantics** (D-04)~~ — **closed 2026-08-05**: filter in nanometres,
+   no pixel conversion. (ADR-0024, M3-T02.) At 9.77 nm/px a single pixel is already 5.5 nm,
+   so a 5 nm minimum removes nothing there — and that is the correct answer, not a disabled
+   filter.
+3. ~~**Detection polarity** (D-12)~~ — **closed 2026-08-05**: configured, with a per-modality
+   default. (ADR-0023, M3-T10.)
 4. ~~**Fate of `frontend/`, `preprocess_batch.py`, and the committed notebooks**~~ —
    **closed 2026-08-04.** Notebooks kept and stripped (M1-T09); the other two deleted
    (ADR-0012).

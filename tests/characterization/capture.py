@@ -205,7 +205,12 @@ def capture_preprocessing(ph: phantoms.Phantom) -> dict:
                 "otsu_threshold": _num(sizes["otsu_threshold"]),
                 "radii_px": _array_digest(sizes["radii_px"]),
             },
-            "min_size_pixel_used": int(5 / ph.pixel_size_nm),
+            # D-04's measuring stick (ADR-0024). `min_size_px_floored` is what
+            # the code used to compute — 0 whenever the scan is coarser than the
+            # minimum — beside the physical threshold that replaced it.
+            "min_size_nm_used": 5,
+            "min_size_px_equivalent": _num(5 / ph.pixel_size_nm),
+            "min_size_px_floored": int(5 / ph.pixel_size_nm),
         }
     else:
         out["build_substrate_map"] = r

@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-05 · **Branch:** `sci/detection-polarity` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-06 · **Branch:** `sci/min-size-in-nm` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -26,11 +26,26 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** The next task is **M3-T20** — it is the other half of D-07: this session made
-`None` survivable, and M3-T20 stops the npy loader inventing `1.0` in its place. **M3-T12** and
-**M3-T17** are the other unblocked `high` ones. **M3-T21** stays **blocked on decision B7**: its fix is not
-"make tiling work", it is "decide what tiling should mean on a 512 px scan", and that is a
-physics-and-cost trade-off, not an engineering one.
+**None selected.** **All four `critical` defects are closed** and so are all five operator
+decisions that were open when M3 started. What is left in M3 is unblocked engineering: the next
+task is **M3-T20** — the other half of D-07, stopping the npy loader from inventing `1.0` where
+M3-T11 made `None` survivable — with **M3-T12** and **M3-T17** the other `high` ones (T17 and
+T20 are the same file). **B6 → M3-T16** is the last operator answer waiting to be executed, and
+**B-040** goes last of everything because it rewrites every SHA above it.
+
+**`M3-T02` done 2026-08-06 (ADR-0024, decision B2)** — **D-04 fixed, the last `critical`.**
+`int(min_size_nm / pixel_size_nm)` is gone; the filter compares `radii_nm >= min_size_nm`, so a
+physical minimum stays physical. Delta: **47 differences — 27 changed, 15 added, 5 removed**.
+`afm_sparse_low_snr` drops **75 objects to 17** and everything derived from its radii moves with
+it; the other four AFM phantoms are byte-identical and **no measured height moves anywhere**,
+because the final opening radius is 8 on both sides. **Re-measuring all 628 scan headers**
+reproduces the audit's 90 % (568/628) and adds what it did not measure: the zero threshold cost
+**nothing** on the 365 scans (58 %) coarser than 8.86 nm/px, where one pixel is already 5.5 nm;
+it disabled the filter on the 203 (32 %) in the 5–8.86 band; and the finest 60 (10 %) were hurt
+by **truncation**, not by the floor — `afm_sparse_low_snr`'s 2.5 px threshold became 2 px, and 58
+of its 75 "objects" were noise living in that half-pixel. **mypy unchanged at 15**: a unit error
+has no static shadow, which is why the suffix convention is the only check this class has.
+5 tests; restoring the `int()` turns 3 red.
 
 **`M3-T07` done 2026-08-05 (ADR-0018)** — D-11 fixed: `z_above / z_above.max()` at two sites
 never checked its divisor. A flat map made every pixel `nan` and the code blamed the threshold;
@@ -64,10 +79,10 @@ levels of 256 and came out **anti-correlated** (−0.499) with a correctly prepa
 **This does not mean detections improved** — the weights were trained on images the old path
 produced; see the ADR's Consequences.
 
-**All five operator decisions were answered on 2026-08-05** — B2, B3, B4, B6, B7 — and are being
-executed in order. B4/M3-T09 and B7/M3-T21 are done; B3/M3-T10, B2/M3-T02 and B6/M3-T16 remain,
-plus **B-058** (an ADR for the golden storing CPython exception text) and **B-040** (purging
-`node_modules` and the weights from git history), which goes last because it rewrites every SHA.
+**All five operator decisions were answered on 2026-08-05** — B2, B3, B4, B6, B7 — and four are
+executed: B4/M3-T09, B7/M3-T21, B3/M3-T10 and B2/M3-T02. **B6/M3-T16** is the one left, plus
+**B-040** (purging `node_modules` and the weights from git history), which goes last because it
+rewrites every SHA. **B-058** is done (ADR-0022).
 **B-054** is closed: the operator deferred the two oversized README figures to the M9-T01 rewrite.
 
 ---
@@ -75,6 +90,23 @@ plus **B-058** (an ADR for the golden storing CPython exception text) and **B-04
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T02** ✅ (2026-08-06, **ADR-0024**, decision **B2**) — **D-04 fixed: the minimum particle
+  size is a physical size.** `min_size_nm` was converted to pixels with `int()` at three sites,
+  compared against `radii_px`, and then — three lines later, twice, identically — `radii_px` was
+  converted back to nanometres for the result. The comparison now happens where the parameter was
+  always stated: `radii_nm >= min_size_nm`. B2 answered **filter in nanometres**; a "floor of at
+  least 1 px", the other candidate, was rejected because at 29.3 nm/px it would discard
+  everything under 29.3 nm. Delta: **47 differences — 27 changed, 15 added, 5 removed**;
+  `afm_sparse_low_snr` **75 → 17** objects, the other four AFM phantoms **byte-identical**, and
+  **no height moves anywhere** (the final opening radius is 8 before and after, so `substrate`
+  and `z_above` are unchanged). **The phantom built for D-04 does not move**, which is the
+  finding: at 9.77 nm/px a single pixel is already 5.5 nm, so the broken filter and the correct
+  one agree. Re-read of all **628** scan headers: 90 % floored to zero (568), of which **365
+  (58 %) had nothing to remove**, **203 (32 %)** lost a working noise filter, and the finest
+  **60 (10 %)** were hurt by truncation rather than the floor. **mypy unchanged at 15** — a unit
+  error is invisible to a type checker. 5 tests; restoring the `int()` turns 3 red. The
+  duplicated `radii_nm` assignment went with it: the change forced the line to move.
 
 - **M3-T10** ✅ (2026-08-05, **ADR-0023**, decision **B3**) — **D-12 fixed: TEM finds 22 of 22
   where it found 0.** Both detectors kept the bright side unconditionally — the LoG one by
@@ -423,19 +455,23 @@ plus **B-058** (an ADR for the golden storing CPython exception text) and **B-04
 
 ## In progress
 
-**M2 is closed and M3 has started.** M3-T01, T03, T04, T06, T07 and T11 are done — six defects
-closed in two sessions. Two of the four
-critical defects are closed; the other two (D-04, D-12) wait on operator decisions B2 and B3.
-**The YOLO input path is now correct in both respects** — the data survives preparation and
-the sample keeps its shape — and neither claim extends to detection quality, which nothing in
-the gate can measure. **The LoG path no longer constructs a `nan` image**, and its adaptive
-threshold now always lands in the interval it is compared against.
+**M2 is closed and M3 is well under way.** M3-T01, T02, T03, T04, T06, T07, T09, T10, T11 and
+T21 are done, plus B-058 — eleven defects closed in three sessions. **All four `critical`
+defects are closed** (D-01, D-03, D-04, D-12), and with M3-T02 the last of them is the one that
+had been open since M0 waiting on a decision.
+**The YOLO input path is now correct in three respects** — the data survives preparation, the
+sample keeps its shape, and the polarity matches the modality — and none of those claims extends
+to detection quality, which nothing in the gate can measure. **The LoG path no longer constructs
+a `nan` image**, and its adaptive threshold now always lands in the interval it is compared
+against. **The noise filter runs for the first time** on the scans where it was floored away.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01.
-Five branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
+Ten branches stack in order: `sci/yolo-normalise-then-cast` (M3-T03) →
 `sci/yolo-letterbox` (M3-T04) → `sci/otsu-sizing` (M3-T06) → `sci/log-zero-max` (M3-T07) →
-`sci/unknown-scale` (M3-T11). The first three are pushed; the last two are committed locally
-and not yet pushed. Each is
+`sci/unknown-scale` (M3-T11) → `sci/opening-radius-ceil` (M3-T09) → `sci/tiling-default`
+(M3-T21) → `sci/golden-exception-text` (B-058) → `sci/detection-polarity` (M3-T10) →
+`sci/min-size-in-nm` (M3-T02). The first three are pushed; the rest are committed locally and
+not yet pushed. Each is
 green locally; CI has not been read from this session. CI on `main` is green: **216 s**, of which
 `make test` is 194 s, and the environment assertion (Python 3.12 + CPU-only) passes, so the
 green is green for the right reason.
@@ -458,11 +494,15 @@ Decisions only the operator can make. Each blocks a specific task.
 
 | # | Question | Blocks | Why it needs the operator |
 |---|---|---|---|
-| B2 | **`min_size_nm` semantics (D-04).** `int(5 / 9.77) == 0` disables the noise filter on 90% of your scans. What *should* the minimum particle size mean at coarse pixel scales — a floor of 1 px, a rounded value, or an error? | M3-T02 | It defines what counts as a particle; that is physics, not engineering |
-| B3 | **Detection polarity (D-12).** TEM particles are dark on bright; the detector keeps the bright side and finds 0 of 22. Explicit configuration per modality, or auto-detection? | M3-T10 | Determines whether TEM support is a setting or a heuristic |
-| B4 | **Opening-radius rounding (D-10).** Half-integer radii produce an even-sized structuring element with no centre pixel, shifting `z_result` by half a pixel. Round up, round to nearest odd, or floor? | M3-T09 | Changes substrate estimation on real data |
-| B7 | **What should tiling mean on a 512 px scan (M3-T21)?** `use_tiling=True` produces exactly one crop today, so it has never tiled. Making it tile requires either upsampling the scan to ≥ 1120 px before tiling (the model then sees interpolated pixels), using crops smaller than 640 (each is upscaled by the model instead), or accepting that tiling is pointless at this resolution and dropping the backend. | M3-T21 | It trades inference cost against whether small particles are resolvable, and the answer depends on what your scans actually contain |
 | B6 | **Real sample data in git.** `data/` holds 628 SPM scans and is ignored. Should one small representative scan be committed as a test fixture? | M3-T16 | Data ownership and repository size |
+
+**Answered 2026-08-05 by the operator, and all now executed:**
+
+- **B4 → round up.** M3-T09, ADR-0020.
+- **B7 → keep the tiled backend, stop defaulting to it.** M3-T21, ADR-0021.
+- **B3 → polarity is configured, with a per-modality default.** M3-T10, ADR-0023.
+- **B2 → filter in nanometres, delete the `int()`.** M3-T02, ADR-0024. The floor-of-1-px
+  alternative was rejected in the ADR: at 29.3 nm/px it discards everything under 29.3 nm.
 
 **Closed 2026-08-04 by the operator:**
 
@@ -478,14 +518,14 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Push the two unpushed branches and read CI**, then execute **M3-T20** — the other half of
+1. **Push the stacked `sci/` branches and read CI**, then execute **M3-T20** — the other half of
    D-07, now that `None` is survivable. **M3-T12**, **M3-T17** are the other unblocked `high`
-   ones, and T17/T20 are the same file, worth reading together. Rewrite `docs/CURRENT_TASK.md` for it. M3-T21
-   remains blocked on **B7**
-2. **The two remaining critical defects need operator answers, not engineering.** B2 (D-04)
-   and B3 (D-12) have been open since M0; every session that passes without them is a
-   session M3 cannot finish. Everything else in M3 is unblocked and can be worked in
-   severity order: T12, T17, T20 are the `high` ones left
+   ones, and T17/T20 are the same file, worth reading together. Rewrite `docs/CURRENT_TASK.md`
+   for it
+2. **Every `critical` defect is closed and every decision except B6 is answered and executed.**
+   What remains in M3 is engineering, in severity order: T20, T12, T17 are the `high` ones, then
+   T05, T08, T13, T14. **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last
+   of all, because it rewrites every SHA above it
 3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
    exit criteria. `src/` is gone, so the only thing left is the 20 errors that arrived
    inside the moved science; they belong to M3 and M2-T12
@@ -505,7 +545,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **199, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **204, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

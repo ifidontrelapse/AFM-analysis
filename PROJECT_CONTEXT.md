@@ -302,7 +302,7 @@ manual path:
   -> substrate, z_above
 ```
 
-`estimate_radius_otsu` thresholds with `threshold_otsu`, labels connected components, converts each component area to an equivalent circular radius, and removes radii below `min_size_pixel`. It returns `typical_radius_px`, `typical_radius_nm`, arrays of radii, `n_objects`, and the Otsu threshold. Since M3-T06 (ADR-0017) `n_objects` is the **post-filter** count — the same length as `radii_px` — and the function raises `ValueError` when the filter removes every object, instead of returning `nan` radii that failed further downstream.
+`estimate_radius_otsu` thresholds with `threshold_otsu`, labels connected components, converts each component area to an equivalent circular radius, and removes radii below `min_size_nm`. It returns `typical_radius_px`, `typical_radius_nm`, arrays of radii, `n_objects`, and the Otsu threshold. Since M3-T06 (ADR-0017) `n_objects` is the **post-filter** count — the same length as `radii_px` — and the function raises `ValueError` when the filter removes every object, instead of returning `nan` radii that failed further downstream. Since M3-T02 (ADR-0024) the filter compares **nanometres with nanometres**: `min_size_nm` reaches both `estimate_radius_otsu` and `estimate_rough_radius` unconverted, and the `int(min_size_nm / pixel_size_nm)` that floored the threshold to 0 on 90% of real scans (D-04) is gone.
 
 The `sizes` dictionary is later used to determine the LoG sigma range.
 
@@ -688,15 +688,13 @@ Before implementing a change:
 M2 is complete: the domain is extracted, the layout is enforced by tests, and every golden
 number survived. The order below is `docs/Roadmap.md`'s, not a separate opinion.
 
-1. **M3-T01** — fix `build_substrate_map(manual_radius_px=...)` (D-01, `UnboundLocalError`
-   on 100% of calls). First numerical fix in the project.
-2. **M3-T03** — YOLO input: normalise *then* cast. Only 12.6% of the dynamic range
-   currently survives the conversion (D-03).
-3. **Three defects need an operator decision before they can be fixed**, and each blocks a
-   task: `min_size_nm` semantics (B2/M3-T02), opening-radius rounding (B4/M3-T09),
-   detection polarity for TEM (B3/M3-T10). They are physics questions, not engineering ones.
-4. **B-058** — the golden compares CPython exception text, so a Python upgrade reads as
-   drift. Needs an ADR before anyone upgrades.
-5. **M3-T15** — an evaluation harness (precision/recall/localisation against phantom ground
+1. **All four `critical` defects are closed** — D-01 (M3-T01), D-03 (M3-T03), D-12 (M3-T10)
+   and D-04 (M3-T02, ADR-0024). So are the five operator decisions that blocked them; **B6**
+   (a real scan as a test fixture, M3-T16) is the last one outstanding.
+2. **The unblocked `high` tasks are M3-T20, M3-T12 and M3-T17.** T17 and T20 are the same
+   file (`nanoscope/core/science/io/`) and are worth reading together.
+3. **B-040** — purge `node_modules` and the model weights from git history. Last of the
+   repository-hygiene work, because it rewrites every SHA above it.
+4. **M3-T15** — an evaluation harness (precision/recall/localisation against phantom ground
    truth). Until it exists, "the detector got better" is not a measurable claim.
-6. Refresh `README.md` and `project.md`, which still carry pre-M2 claims (M9-T01).
+5. Refresh `README.md` and `project.md`, which still carry pre-M2 claims (M9-T01).

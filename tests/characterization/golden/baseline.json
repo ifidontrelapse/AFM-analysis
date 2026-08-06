@@ -619,7 +619,9 @@
     },
     "preprocessing": {
       "build_substrate_map": {
-        "min_size_pixel_used": 0,
+        "min_size_nm_used": 5,
+        "min_size_px_equivalent": 0.5117707267144319,
+        "min_size_px_floored": 0,
         "ok": true,
         "opening_radius": 11,
         "opening_radius_type": "int",
@@ -747,7 +749,7 @@
         }
       },
       "estimate_radius_otsu_all_filtered": {
-        "error_message": "Otsu found 14 objects, none with a radius of at least min_size_pixel=500 px (the largest is 4.37 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_message": "Otsu found 14 objects, none with a radius of at least min_size_nm=500 nm (the largest is 42.7 nm). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_radius_otsu"
@@ -1489,7 +1491,9 @@
     },
     "preprocessing": {
       "build_substrate_map": {
-        "min_size_pixel_used": 2,
+        "min_size_nm_used": 5,
+        "min_size_px_equivalent": 2.5,
+        "min_size_px_floored": 2,
         "ok": true,
         "opening_radius": 16,
         "opening_radius_type": "int",
@@ -1617,7 +1621,7 @@
         }
       },
       "estimate_radius_otsu_all_filtered": {
-        "error_message": "Otsu found 46 objects, none with a radius of at least min_size_pixel=500 px (the largest is 14.5 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_message": "Otsu found 46 objects, none with a radius of at least min_size_nm=500 nm (the largest is 29 nm). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_radius_otsu"
@@ -2359,7 +2363,9 @@
     },
     "preprocessing": {
       "build_substrate_map": {
-        "min_size_pixel_used": 2,
+        "min_size_nm_used": 5,
+        "min_size_px_equivalent": 2.5,
+        "min_size_px_floored": 2,
         "ok": true,
         "opening_radius": 19,
         "opening_radius_type": "int",
@@ -2487,7 +2493,7 @@
         }
       },
       "estimate_radius_otsu_all_filtered": {
-        "error_message": "Otsu found 24 objects, none with a radius of at least min_size_pixel=500 px (the largest is 7.53 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_message": "Otsu found 24 objects, none with a radius of at least min_size_nm=500 nm (the largest is 15.1 nm). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_radius_otsu"
@@ -2837,13 +2843,13 @@
         }
       },
       "estimate_log_params": {
-        "max_sigma": 86.78622313985586,
+        "max_sigma": 132.26365609980985,
         "min_sigma": 1.0,
         "ok": true
       },
       "estimate_log_threshold_adaptive_p20": {
         "ok": true,
-        "value": 0.46192802261515536
+        "value": 0.46366172913140274
       },
       "estimate_log_threshold_static": {
         "value": 0.2589625791453541
@@ -2851,36 +2857,38 @@
     },
     "preprocessing": {
       "build_substrate_map": {
-        "min_size_pixel_used": 2,
+        "min_size_nm_used": 5,
+        "min_size_px_equivalent": 2.5,
+        "min_size_px_floored": 2,
         "ok": true,
         "opening_radius": 8,
         "opening_radius_type": "int",
         "sizes": {
-          "n_objects_reported": 75,
-          "n_radii_kept": 75,
-          "otsu_threshold": 1.1680029663783884,
+          "n_objects_reported": 17,
+          "n_radii_kept": 17,
+          "otsu_threshold": 1.459176516615998,
           "radii_px": {
             "dtype": "float64",
-            "max": 61.367126895760954,
-            "mean": 4.919630333518497,
-            "min": 2.0342144725641096,
+            "max": 93.52452813270102,
+            "mean": 8.840807274367286,
+            "min": 2.5231325220201604,
             "n_nonfinite": 0,
             "percentiles_10_25_50_75_90": [
-              2.1850968611841584,
-              2.4592453796829674,
-              2.876813695875796,
-              4.495816329731717,
-              5.4583514986041255
+              2.5231325220201604,
+              2.6462837142006137,
+              2.985410660720923,
+              3.9088200952233594,
+              7.051163441236516
             ],
             "shape": [
-              75
+              17
             ],
-            "size": 75,
-            "std": 8.970521743700441,
-            "sum": 368.97227501388727
+            "size": 17,
+            "std": 21.216524626993632,
+            "sum": 150.29372366424386
           },
-          "typical_radius_nm": 5.753627391751592,
-          "typical_radius_px": 2.876813695875796
+          "typical_radius_nm": 5.970821321441846,
+          "typical_radius_px": 2.985410660720923
         },
         "substrate": {
           "dtype": "float32",
@@ -2931,9 +2939,9 @@
         "opening_radius": 15,
         "opening_radius_type": "int",
         "sizes": {
-          "n_radii_kept": 28,
+          "n_radii_kept": 17,
           "otsu_threshold": 2.6197190821409313,
-          "typical_radius_px": 2.614445355961583
+          "typical_radius_px": 3.141274657157109
         },
         "substrate": {
           "dtype": "float32",
@@ -2979,7 +2987,7 @@
         }
       },
       "estimate_radius_otsu_all_filtered": {
-        "error_message": "Otsu found 243 objects, none with a radius of at least min_size_pixel=500 px (the largest is 102 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_message": "Otsu found 243 objects, none with a radius of at least min_size_nm=500 nm (the largest is 204 nm). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_radius_otsu"
@@ -3721,7 +3729,9 @@
     },
     "preprocessing": {
       "build_substrate_map": {
-        "min_size_pixel_used": 2,
+        "min_size_nm_used": 5,
+        "min_size_px_equivalent": 2.5,
+        "min_size_px_floored": 2,
         "ok": true,
         "opening_radius": 18,
         "opening_radius_type": "int",
@@ -3849,7 +3859,7 @@
         }
       },
       "estimate_radius_otsu_all_filtered": {
-        "error_message": "Otsu found 29 objects, none with a radius of at least min_size_pixel=500 px (the largest is 13.1 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_message": "Otsu found 29 objects, none with a radius of at least min_size_nm=500 nm (the largest is 26.2 nm). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_radius_otsu"
@@ -4270,7 +4280,7 @@
     },
     "extreme_aspect": {
       "build_substrate_map": {
-        "error_message": "Otsu found 804 objects, none with a radius of at least min_size_pixel=5 px (the largest is 3.48 px). Lower the minimum size, or check the preprocessing and the image quality.",
+        "error_message": "Otsu found 804 objects, none with a radius of at least min_size_nm=5 nm (the largest is 3.48 nm). Lower the minimum size, or check the preprocessing and the image quality.",
         "error_type": "ValueError",
         "ok": false,
         "raised_in": "estimate_radius_otsu"

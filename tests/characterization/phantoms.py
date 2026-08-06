@@ -232,8 +232,10 @@ def afm_coarse_pixels(
     seed: int = 4,
 ) -> Phantom:
     """Coarse pixel scale, matching the median of the operator's real scans
-    (~9.8 nm/px). At this scale ``int(min_size_nm / pixel_size_nm)`` floors to
-    zero and the minimum-particle-size noise filter silently disengages."""
+    (~9.8 nm/px). At this scale ``int(min_size_nm / pixel_size_nm)`` floored to
+    zero and the minimum-particle-size noise filter silently disengaged — D-04,
+    fixed in M3-T02 (ADR-0024) by comparing nanometres with nanometres. The
+    phantom stays: it is the scale at which the two arithmetics disagree."""
     rng = np.random.default_rng(seed)
     centres = _poisson_disc_centres(
         (size, size), n, min_sep_px=radius_px * 3.5, margin_px=radius_px * 2.5, rng=rng
@@ -250,7 +252,7 @@ def afm_coarse_pixels(
         centres_yx_px=centres,
         radii_px=radii,
         heights_nm=heights,
-        notes="pixel_size_nm > min_size_nm -> min_size_pixel floors to 0 (defect D-08).",
+        notes="pixel_size_nm > min_size_nm: the old int() floored the filter to 0 (D-04).",
     )
 
 

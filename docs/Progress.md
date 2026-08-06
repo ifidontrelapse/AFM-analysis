@@ -7,6 +7,104 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-06 — M3-T02 · **D-04 fixed: the minimum particle size is a physical size (B2)**
+
+**Task:** `M3-T02`. **Branch:** `sci/min-size-in-nm`. **ADR:** **ADR-0024**.
+**Defect:** D-04, critical — the last of the four. **Decision:** B2 — filter in nanometres,
+delete the `int()`.
+
+### The defect
+
+```python
+min_size_pixel = int(min_size_nm / pixel_size_nm)      # three call sites
+radii_px = radii_px[radii_px >= min_size_pixel]        # one comparison
+```
+
+`int(5 / 9.77) == 0`, and 9.77 nm/px is the median of the operator's scans. A threshold of zero
+admits every connected component Otsu produced — including single-pixel noise, whose radii then
+set the opening radius and the LoG sigma range.
+
+The unit trail is the whole story: `min_size_nm` was converted **to** pixels to be compared
+against `radii_px`, and three lines later `radii_px` was converted **back** to `radii_nm` for the
+result — twice, identically, the audit's §Duplication entry. The nanometre values the comparison
+wanted already existed.
+
+### The delta — 47 differences: 27 changed, 15 added, 5 removed
+
+| phantom | nm/px | old | new | objects kept | typical radius px |
+|---|---|---|---|---|---|
+| `afm_flat_monodisperse` | 2.00 | 2 px | 2.5 px | 24 → 24 | 7.203 → 7.203 |
+| `afm_coarse_pixels` | 9.77 | **0 px** | 0.512 px | 14 → 14 | 4.009 → 4.009 |
+| `afm_dense_overlapping` | 2.00 | 2 px | 2.5 px | 51 → 51 | 6.024 → 6.024 |
+| `afm_tilted_polydisperse` | 2.00 | 2 px | 2.5 px | 29 → 29 | 6.887 → 6.887 |
+| `afm_sparse_low_snr` | 2.00 | 2 px | 2.5 px | **75 → 17** | 2.877 → **2.985** |
+
+Everything else that moves follows from those 58 removals: the radius distribution
+(`min` 2.03 → 2.52 px, `sum` 369 → 150), the rough stage's Otsu threshold (1.168 → 1.459), and
+`max_sigma` downstream (86.8 → 132.3). The final opening radius is **8 on both sides**, so
+`substrate` and `z_above` are byte-identical and **no measured height moves on any phantom**.
+Five keys removed and fifteen added are the harness swapping `min_size_pixel_used` for the
+physical threshold, its pixel equivalent, and the floored value — the arithmetic this commit
+deletes, kept as the measuring stick.
+
+### What the delta turned up: the phantom built for D-04 does not move
+
+`afm_coarse_pixels` exists *because* `int(5 / 9.77) == 0`. Its numbers are unchanged. The
+smallest object a labelling can produce is one pixel, equivalent radius `sqrt(4/π)/2 = 0.564 px`
+— **5.51 nm at that scale**, already above the 5 nm minimum. The broken filter and the correct
+one agree there because there is nothing either could remove.
+
+So the headline was re-measured, on all **628** scan headers in `data/` rather than the audit's
+120 sample. The 90 % reproduces exactly (**568 / 628**), and splits into three regimes:
+
+| pixel scale | scans | what the `int()` did | what the fix changes at the 5 nm default |
+|---|---|---|---|
+| ≥ 8.86 nm/px | **365 (58 %)** | floored to 0 | nothing — one pixel is already over 5 nm |
+| 5 – 8.86 nm/px | **203 (32 %)** | floored to 0 | the filter starts working |
+| ≤ 5 nm/px | 60 (10 %) | quantised down | the filter stops being lenient |
+
+**The finest 10 % were harmed by a mechanism the audit did not name.** Not the floor to zero —
+truncation. `afm_sparse_low_snr` is in that band: at 2 nm/px `int()` turned a 2.5 px threshold
+into 2 px, and **58 of its 75 "objects" were noise living in that half-pixel**. The other three
+2 nm/px phantoms are clean, so nothing of theirs sits between 2 and 2.5 px and nothing of theirs
+moves.
+
+D-04's honest size: real on 90 % of scans, worth nothing on 58 % of them, and worth **77 % of the
+object count** where it bit.
+
+### mypy is unchanged at 15, and that is the point
+
+M3-T09 and M3-T11 each removed mypy errors that were their defect's static shadow. This one has
+none: `int(float) -> int` is impeccably typed. **A unit error is invisible to a type checker that
+cannot tell a nanometre from a pixel** — the `_nm` / `_px` suffix convention in PROJECT_RULES §3
+is the only checker this class of defect has, and it is read by people, which is exactly how this
+one was found.
+
+### Tests
+
+5 new, over a fixture of three blocks with **exact** pixel areas (64, 16, 1 px²), so the
+equivalent radii are arithmetic rather than an artefact of a Gaussian's tail meeting Otsu. One
+test per regime above, plus the scale-invariance of the stated threshold and the error message's
+units. **Restoring the `int()` turns 3 of the 5 red**; the two that stay green document regimes
+where the two arithmetics agree, and say so.
+
+Three tests written earlier in this task were replaced rather than kept: each asserted something
+the *old* code also satisfied. A test that cannot fail on the defect it names is documentation
+with an assert in it.
+
+### The duplicated `radii_nm`
+
+Fixed here, after M3-T01, M3-T06 and M3-T09 each left it alone on purpose (ADR-0010 keeps tidying
+out of numerical commits). This change *forces* it: the filter needs `radii_nm` before it runs,
+so the assignment moves above the filter and the second copy has nowhere left to be.
+
+### Next
+
+**B6 → M3-T16** (header-only SPM fixtures), then **B-040** last, because it rewrites every SHA
+above it. The unblocked `high` tasks are **M3-T20**, **M3-T12** and **M3-T17**.
+
+---
+
 ## 2026-08-05 — M3-T10 · **D-12 fixed: TEM finds 22 of 22 instead of 0 (B3)**
 
 **Task:** `M3-T10`. **Branch:** `sci/detection-polarity`. **ADR:** **ADR-0023**.

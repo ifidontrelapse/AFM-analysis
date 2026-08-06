@@ -31,6 +31,7 @@ Use `TEMPLATE.md` for new records.
 | [0021](ADR-0021-the-tiled-backend-is-not-the-default.md) | The tiled YOLO backend is not the default (B7) | Accepted | 2026-08-05 |
 | [0022](ADR-0022-the-golden-compares-messages-we-wrote.md) | The golden compares the messages we wrote, and only those | Accepted | 2026-08-05 |
 | [0023](ADR-0023-polarity-is-configured-with-a-per-modality-default.md) | Polarity is configured, with a per-modality default (B3) | Accepted | 2026-08-05 |
+| [0024](ADR-0024-the-minimum-particle-size-is-a-physical-size.md) | The minimum particle size is a physical size (B2) | Accepted | 2026-08-06 |
 
 ## When to write one
 

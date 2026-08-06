@@ -3,21 +3,14 @@
 Moved verbatim from `src/preprocess.py` in M2-T03. Same algorithms, same
 constants, same order; the golden is the proof. Only whitespace changed.
 
-Two known defects still travel with this code and are deliberately **not** fixed
-here, because each moves a number the golden records:
-
-- `min_size_pixel=int(min_size_nm / pixel_size_nm)` is 0 for any scan coarser than
-  5 nm/px, which disables the noise filter — audit **D-04**, open decision **B2**.
-  Note what that means for the filter below: on most real scans it currently
-  removes nothing, so the empty-after-filter error is reachable mainly through an
-  explicit `min_size_nm`.
-- `radii_nm` is assigned twice in a row, identically (audit §Duplication). Left
-  alone on purpose: this file's commits are numerical, and ADR-0010 keeps tidying
-  out of them.
-
-Closed here: **D-01** (M3-T01, ADR-0014), **D-05 / D-06** (M3-T06, ADR-0017) and
-**D-10** (M3-T09, ADR-0020) — every radius reaching `disk()` is now an integer,
-rounded up, and `estimate_rough_radius` no longer lies about its return type.
+Closed here: **D-01** (M3-T01, ADR-0014), **D-05 / D-06** (M3-T06, ADR-0017),
+**D-10** (M3-T09, ADR-0020) — every radius reaching `disk()` is an integer,
+rounded up, and `estimate_rough_radius` no longer lies about its return type —
+and **D-04** (M3-T02, ADR-0024): the minimum particle size is compared in
+nanometres, so `int(min_size_nm / pixel_size_nm)`, which was 0 on 90 % of real
+scans and disabled the noise filter, is gone. The duplicated `radii_nm`
+assignment (audit §Duplication) went with it: the second line was the one that
+had to move above the filter.
 """
 
 from __future__ import annotations
@@ -62,7 +55,7 @@ def get_substrate_map(z: np.ndarray, radius_px: float) -> np.ndarray:
     return morph_opening(z, disk(_integer_radius(radius_px))).astype(np.float32)
 
 
-def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pixel: float) -> dict:
+def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_nm: float) -> dict:
     """
     Estimate the typical particle radius by Otsu thresholding.
 
@@ -72,11 +65,13 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pix
     Args:
         z_above:       z - substrate (particles above the substrate)
         pixel_size_nm: nm per pixel = scan_size_nm / z.shape[0]
-        min_size_pixel:   minimum particle size in pixels
+        min_size_nm:   minimum particle radius, in nanometres. Compared against
+            the radii **in nanometres** (ADR-0024 / D-04); there is no pixel
+            conversion and therefore no floor to zero on a coarse scan.
 
     Returns:
         dict with the typical radius, the range, and `n_objects` — the number of
-        objects that **survived** the `min_size_pixel` filter, which is the same
+        objects that **survived** the `min_size_nm` filter, which is the same
         length as `radii_px` (ADR-0017 / D-06).
 
     Raises:
@@ -93,20 +88,21 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pix
         raise ValueError("Otsu found no objects. Check the preprocessing and the image quality.")
 
     radii_px = np.array([p.equivalent_diameter_area / 2 for p in props])
+    radii_nm = radii_px * pixel_size_nm
 
-    n_found, largest = len(radii_px), float(radii_px.max())
-    # Filter noise immediately — anything smaller than min_size_pixel is not a particle
-    radii_px = radii_px[radii_px >= min_size_pixel]
+    n_found, largest_nm = len(radii_px), float(radii_nm.max())
+    # Filter noise immediately, comparing nanometres with nanometres: the old
+    # `int(min_size_nm / pixel_size_nm)` was 0 on 90% of real scans and disabled
+    # the filter entirely (ADR-0024 / D-04).
+    keep = radii_nm >= min_size_nm
+    radii_px, radii_nm = radii_px[keep], radii_nm[keep]
 
     if radii_px.size == 0:
         raise ValueError(
             f"Otsu found {n_found} objects, none with a radius of at least "
-            f"min_size_pixel={min_size_pixel} px (the largest is {largest:.3g} px). "
+            f"min_size_nm={min_size_nm} nm (the largest is {largest_nm:.3g} nm). "
             "Lower the minimum size, or check the preprocessing and the image quality."
         )
-
-    radii_nm = radii_px * pixel_size_nm
-    radii_nm = radii_px * pixel_size_nm
 
     typical_radius_px = float(np.median(radii_px))
     typical_radius_nm = float(np.median(radii_nm))
@@ -122,7 +118,7 @@ def estimate_radius_otsu(z_above: np.ndarray, pixel_size_nm: float, min_size_pix
 
 
 def estimate_rough_radius(
-    z: np.ndarray, pixel_size_nm: float, min_size_pixel: float, scale: float = 1.7
+    z: np.ndarray, pixel_size_nm: float, min_size_nm: float, scale: float = 1.7
 ) -> int:
     """
     Estimate a starting radius from the image itself, with no hard-coded constants.
@@ -133,13 +129,17 @@ def estimate_rough_radius(
     Args:
         z:              the source image
         pixel_size_nm:  nm per pixel = scan_size_nm / z.shape[0]
-        min_size_pixel: minimum particle size in pixels — the floor for the estimate
+        min_size_nm:    minimum particle radius in nm — the floor for the
+                        estimate. Converted to pixels here, and **not** floored
+                        to an integer on the way (ADR-0024)
         scale:          radius multiplier, so the disk is safely larger than a
                         particle (default 1.7)
 
     Returns:
         int: rough radius in pixels for the morphological opening
     """
+    min_size_px = min_size_nm / pixel_size_nm
+
     z_flat = z.flatten()
     thresh = np.median(z_flat) + z_flat.std()
     binary = z > thresh
@@ -152,14 +152,14 @@ def estimate_rough_radius(
             "no objects found for radius estimation — the image is probably too "
             "flat or too noisy; falling back to 1% of the image width"
         )
-        return _integer_radius(max(z.shape[1] * 0.01, min_size_pixel))
+        return _integer_radius(max(z.shape[1] * 0.01, min_size_px))
 
     # Median area -> equivalent radius
     median_area = np.median([p.area for p in props])
     radius_px = int(np.sqrt(median_area / np.pi))
 
     # Scale up so the disk is safely larger than a particle
-    rough_radius = max(radius_px * scale, min_size_pixel)
+    rough_radius = max(radius_px * scale, min_size_px)
 
     return _integer_radius(rough_radius)
 
@@ -174,9 +174,9 @@ def build_substrate_map(
     Args:
         z: sample topography
         pixel_size_nm: nm per pixel = scan_size_nm / z.shape[0]
-        min_size_nm: minimum particle size in nm — the floor for the estimate
-        manual_radius_px: opening radius, skipping the automatic estimate
-        min_radius_px: minimum particle radius in pixels
+        min_size_nm: minimum particle radius in nm — the floor for the estimate,
+            and the noise filter in `estimate_radius_otsu`. Since ADR-0024 it is
+            used as a physical size at both sites; nothing converts it with `int()`
 
     Returns:
         substrate:      the substrate map (float32)
@@ -193,23 +193,17 @@ def build_substrate_map(
         opening_radius = _integer_radius(manual_radius_px)
         substrate = get_substrate_map(z, opening_radius)
         z_above = z - substrate
-        sizes = estimate_radius_otsu(
-            z_above, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm)
-        )
+        sizes = estimate_radius_otsu(z_above, pixel_size_nm, min_size_nm=min_size_nm)
     # Two-stage estimate: rough approximation -> Otsu, floored by the minimum
-    # particle size (5 nm by default)
+    # particle radius (5 nm by default)
     else:
         # Rough radius approximation
-        rough_radius = estimate_rough_radius(
-            z, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm)
-        )
+        rough_radius = estimate_rough_radius(z, pixel_size_nm, min_size_nm=min_size_nm)
         rough_substrate = get_substrate_map(z, radius_px=rough_radius)
         z_above_rough = z - rough_substrate
 
         # Refine the radius with Otsu
-        sizes = estimate_radius_otsu(
-            z_above_rough, pixel_size_nm, min_size_pixel=int(min_size_nm / pixel_size_nm)
-        )
+        sizes = estimate_radius_otsu(z_above_rough, pixel_size_nm, min_size_nm=min_size_nm)
         opening_radius = max(_integer_radius(sizes["typical_radius_px"] * 2.5), 5)
 
         # Final topography with the substrate subtracted

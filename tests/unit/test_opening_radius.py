@@ -45,14 +45,14 @@ def test_rounding_is_up_never_down() -> None:
 def test_the_rough_estimate_returns_the_int_it_promises() -> None:
     """It was annotated `-> int` and returned a float — the return-type lie the
     audit recorded alongside the centring bug."""
-    radius = estimate_rough_radius(_particles(), 1.0, min_size_pixel=2)
+    radius = estimate_rough_radius(_particles(), 1.0, min_size_nm=2)
     assert isinstance(radius, int)
 
 
 def test_a_flat_image_falls_back_to_an_integer_too() -> None:
     """The other exit from the same function, which used to floor `width * 0.01`
     while the main exit did not round at all."""
-    radius = estimate_rough_radius(np.zeros((256, 256), dtype=np.float32), 1.0, min_size_pixel=1)
+    radius = estimate_rough_radius(np.zeros((256, 256), dtype=np.float32), 1.0, min_size_nm=1)
     assert isinstance(radius, int)
     assert radius == 3  # ceil(256 * 0.01)
 
