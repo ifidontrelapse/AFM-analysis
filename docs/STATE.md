@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-07 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-08 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -34,11 +34,26 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 ## Current task
 
 **None selected.** **Every numerical defect the audit reproduced is closed, detection quality is
-measured, and B-059 and B-061 are closed with them.** What remains in M3 is **M3-T16**, blocked on
-**B6**, and **M3-T19**, a `low` mypy finding. **B-040** goes last of everything because it
-rewrites every SHA above it. Two findings are open: **B-062** (recall 0.000, wants an operator's
-view of the sensitivity trade-off) and **B-063** (an `int()` truncation whose delta reaches every
-phantom).
+measured, and B-059, B-061 and B-063 are closed with them.** Inside M3's task list only
+**M3-T16** (blocked on **B6**) and **M3-T19** (`low`) remain. Three findings need their own task:
+**B-060** (masked levelling), **B-062** (recall 0.000 — **wants an operator's view**) and
+**B-064** (the provenance of `1.7` and `2.5`). **B-040** goes last of everything because it
+rewrites every SHA above it.
+
+**`M3-T24` done 2026-08-08 (ADR-0035)** — **B-063 closed.** Two roundings in three lines, in
+opposite directions, only one documented. **Not an operator decision:** ADR-0020 already made
+`_integer_radius` the one funnel and the direction *up*, ADR-0024 deleted this exact `int()` as
+D-04's mechanism, and the parameter's own docstring calls `scale=1.7` a multiplier making the disk
+*safely larger* — the truncation made it smaller, from the day both lines were written. Delta:
+**730 differences across four phantoms**, large in count and small in magnitude — 320 under 1 %,
+mean measured height **≤ 0.09 %**, largest meaningful move 2.5 % at one 90th percentile. **The
+plan predicted ~70× less, and the correction is the finding:** the two-stage design absorbs the
+rough radius for the *final* radius (moves on 1 of 5), but `sizes` also feeds
+`estimate_log_params`, so the LoG **sigma range** shifts wherever the rough radius did — 379 of
+the differences are `log_detection`, and **`afm_dense_overlapping` detects one more particle with
+a byte-identical substrate**. Quality, checkable for the first time: **recall unchanged
+everywhere**; radius error −6 %, localisation +0.3 % in the mean on the one phantom that moved —
+**a wash, reported as one**. 18 tests; restoring `int()` turns 11 red. **B-064** filed.
 
 **`M3-T23` done 2026-08-07 (ADR-0034)** — **B-061 closed.** `estimate_rough_radius` could return
 **0**, and `disk(0)` makes the opening the **identity**: the substrate came back equal to the
@@ -236,6 +251,28 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T24** ✅ (2026-08-08, **ADR-0035**) — **B-063 closed: the rough estimate stops truncating
+  its own radius.** `radius_px = int(np.sqrt(median_area / np.pi))` was a second, undeclared
+  rounding, downward, three lines above the declared one that rounds up. **The rule had already
+  been decided three times:** ADR-0020 (one funnel, direction up), ADR-0024 (this exact `int()`,
+  deleted as D-04's mechanism), and the parameter's own March-2026 docstring — `scale=1.7` is *"a
+  multiplier so the disk is safely larger than a particle"*, and the truncation made it smaller.
+  Applying an existing rule, not making a new one, which is why it did not need the operator.
+  Delta: **730 differences on four phantoms** — 320 under 1 %, mean measured height **≤ 0.09 %**,
+  the largest meaningful move 2.5 % at one phantom's 90th height percentile. **The plan predicted
+  ~70× less and the correction is the finding:** both of its specific predictions held, but it
+  modelled only what `build_substrate_map` *returns* — `sizes` also feeds `estimate_log_params`,
+  so the LoG **sigma range** moves wherever the rough radius did. 379 differences are
+  `log_detection`, and **`afm_dense_overlapping` gains a detected particle (59 → 60) with a
+  byte-identical substrate**, which isolates the mechanism. The lesson is about the two-stage
+  design: the second stage is robust to the first, but the *diagnostics* the first emits are wired
+  straight into the detector and nothing says so. **Detection quality, answerable for the first
+  time (M3-T15): recall unchanged on every phantom**; on the one that moved, radius error 0.765 →
+  0.718 px and localisation 0.6137 → 0.6156 px — **a wash, and reported as one**. 18 tests;
+  restoring `int()` turns 11 red. One of them caught my own overstatement mid-draft: at an
+  equivalent radius of 3.432 truncation and the correct value are both 6, and the test now says so
+  rather than glossing it. **B-064** filed — the constants themselves, now measurable.
 
 - **M3-T23** ✅ (2026-08-07, **ADR-0034**) — **B-061 closed: a rough radius below one pixel is not
   an estimate.** `estimate_rough_radius` could return **0**; `disk(0)` is a single pixel, so the
@@ -815,9 +852,11 @@ perfect; one finds nothing at all, which is **B-062**.
 **And no `NaN` reaches a measurement table** (M3-T22) — the third site of ADR-0018's `not x > 0`,
 and the last defect carried over from an earlier task in this milestone.
 
-**And the rough opening is always an opening** (M3-T23). A substrate identical to the image is no
-longer reachable through the automatic path, and the cost ADR-0025 attributed entirely to the
-missing size filter turns out to have been four fifths this.
+**And the rough opening is always an opening** (M3-T23), and it no longer rounds itself down
+first (M3-T24). A substrate identical to the image is unreachable through the automatic path, the
+cost ADR-0025 attributed entirely to the missing size filter turns out to have been four fifths
+the collapsed radius, and `_integer_radius` is finally the only rounding a radius gets — which is
+what ADR-0020 said in the first place.
 
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
@@ -912,12 +951,12 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **121** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **123** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **434, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **452, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

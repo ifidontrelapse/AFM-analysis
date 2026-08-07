@@ -224,9 +224,13 @@ def estimate_rough_radius(
         )
         return _fallback_radius(z, min_size_px)
 
-    # Median area -> equivalent radius
+    # Median area -> equivalent radius. **Not** truncated: `_integer_radius` is
+    # the one rounding a radius gets (ADR-0020), and this used to be a second,
+    # undeclared one going the other way — downward, ahead of the `* scale` that
+    # amplifies it, inside a parameter whose documented purpose is a margin
+    # making the disk *larger* than a particle (B-063, ADR-0035).
     median_area = np.median([p.area for p in props])
-    radius_px = int(np.sqrt(median_area / np.pi))
+    radius_px = float(np.sqrt(median_area / np.pi))
 
     # Scale up so the disk is safely larger than a particle
     rough_radius = max(radius_px * scale, min_size_px)

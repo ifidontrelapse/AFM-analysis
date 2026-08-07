@@ -6,7 +6,8 @@
 **Defect:** **B-063** (filed by M3-T23, which fixed its consequence) · **ADR:** **ADR-0035**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-08.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -79,6 +80,11 @@ plainly: this task is not an improvement to detection, it is the removal of an u
 rounding that contradicts an accepted ADR. **The first task in this project able to say that with
 a number rather than an assumption** — which is what M3-T15 was built for.
 
+> **Refined by the golden, which records more than this table sampled.** Recall is indeed
+> unchanged everywhere, but on `afm_tilted_polydisperse` the **radius** error improves 6 %
+> (0.765 → 0.718 px, signed −0.704 → −0.669) while localisation degrades 0.3 % in the mean and
+> improves in the median. Still a wash — but "no measurable change" was one metric short.
+
 ---
 
 ## The decision this task has to make
@@ -117,13 +123,31 @@ which makes it a real task rather than a preference. **Filed as B-064.**
 
 ## Definition of done
 
-- [ ] `int()` gone; `_integer_radius` is the only rounding in the function
-- [ ] Tests, including a case where truncation and ceiling disagree by a whole pixel
-- [ ] `make check` green; delta quantified against the table above, and the detection-quality
-      block re-recorded with it
-- [ ] ADR-0035; **B-064 filed**; `Backlog.md` (B-063 → done, and its overstated estimate
-      corrected), `STATE.md`, `Progress.md`, `TASKS.md`, ADR index
-- [ ] Commit: `M3-T24: the rough estimate stops truncating its own radius`
+- [x] `int()` gone; `_integer_radius` is the only rounding in the function
+- [x] Tests — **18**; restoring `int()` turns 11 red
+- [x] `make check` green — 452 tests; delta **730 differences**, quantified by magnitude
+- [x] ADR-0035; **B-064 filed**; `Backlog.md` (B-063 → done, and its overstated estimate
+      corrected), `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T24: the rough estimate stops truncating its own radius`
+
+---
+
+## What it turned up
+
+**This plan's blast-radius estimate was ~70× too small, and both of its specific predictions were
+right.** It said the substrate moves on one phantom and the heights on one — both true. What it
+modelled was what `build_substrate_map` *returns*; what it missed is that `sizes` also feeds
+`estimate_log_params`, so the LoG **sigma range** shifts wherever the rough radius did. 379 of the
+730 differences are `log_detection`. **`afm_dense_overlapping` gains a detected particle with a
+byte-identical substrate**, which isolates it cleanly.
+
+The lesson belongs to the two-stage design rather than to this defect: the second stage is robust
+to the first — the final radius moved on one phantom of five — but the *diagnostics* the first
+stage emits are wired into the detector, and nothing in the code says so.
+
+**A test caught an overstatement in its own docstring.** The first draft asserted that truncation
+and the correct value differ on every radius tried; at an equivalent radius of 3.432 both give 6.
+That case is now a named test, because it is also the reason the defect was hard to see.
 
 ---
 

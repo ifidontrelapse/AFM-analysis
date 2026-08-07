@@ -42,6 +42,7 @@ Use `TEMPLATE.md` for new records.
 | [0032](ADR-0032-scoring-a-detector-against-ground-truth.md) | Scoring a detector against ground truth | Accepted | 2026-08-07 |
 | [0033](ADR-0033-a-nan-height-is-not-a-measurement.md) | A height that is not a number is not a measurement | Accepted | 2026-08-07 |
 | [0034](ADR-0034-a-sub-pixel-rough-radius-is-not-an-estimate.md) | A rough radius below one pixel is not an estimate | Accepted | 2026-08-07 |
+| [0035](ADR-0035-the-rough-estimate-does-not-round-itself.md) | The rough estimate does not round its own radius | Accepted | 2026-08-08 |
 
 ## When to write one
 

@@ -7,6 +7,86 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-08 — M3-T24 · **B-063 closed: the rough estimate stops truncating its own radius**
+
+**Task:** `M3-T24`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0035**.
+**Defect:** B-063 — filed by M3-T23, which fixed its consequence and left the cause.
+
+### Why it was engineering rather than an operator decision
+
+The rule was decided three times before this task existed. **ADR-0020**: `_integer_radius` is the
+one funnel and radii round *up*. **ADR-0024**: this exact `int()` pattern, deleted as D-04's
+mechanism. And the parameter's own docstring, from the March 2026 commit that introduced both the
+truncation and `scale=1.7` — *"a multiplier so the disk is safely **larger** than a particle"*.
+The truncation makes it smaller. It contradicted the line below it from the day both were written.
+
+### The delta — 730 differences, and why the plan said ~10
+
+Four phantoms. 320 of the differences are under 1 %, 301 between 1 and 5 %, 21 over 20 % (baseline
+percentiles near zero, where a small absolute move is a large relative one). **Mean measured
+height moves ≤ 0.09 %**; the largest scientifically meaningful move is 2.5 %, at one phantom's
+90th height percentile.
+
+**The plan predicted "one phantom's substrate and heights" and was wrong by ~70×.** Both of its
+specific predictions held — the substrate moves on one phantom, the heights on one — but the
+simulation modelled only what `build_substrate_map` *returns*. What it missed is that `sizes`
+travels onward:
+
+```
+rough radius → Otsu on the roughly-opened map → sizes
+                                                  ├→ final radius   (absorbed: moves on 1 of 5)
+                                                  └→ estimate_log_params → sigma range → every blob
+```
+
+379 of the 730 differences are `log_detection`. **`afm_dense_overlapping` detects one more
+particle (59 → 60) with a byte-identical substrate** — the clean demonstration that the sigma
+range, not the topography, is what moved.
+
+The lesson is about the two-stage design, not about this defect: the second stage is robust to the
+first, but the *diagnostics* the first stage emits are wired straight into the detector, and
+nothing in the code says so.
+
+### Detection quality, answerable for the first time
+
+**Recall unchanged on every phantom.** On `afm_tilted_polydisperse`, the only one whose substrate
+moved: mean radius error 0.765 → **0.718 px**, signed −0.704 → **−0.669 px**, mean localisation
+0.6137 → 0.6156 px, median localisation 0.4802 → **0.4770 px**.
+
+Radius error improves 6 %, localisation degrades 0.3 % in the mean and improves in the median.
+**A wash, and reported as one.** The signed error moving toward zero is consistent with the
+mechanism — a larger opening leaves slightly more of each particle above the substrate — but 6 %
+on one phantom is not evidence, and no claim is made. Before M3-T15 this paragraph could not have
+been written at all.
+
+### Filed, not fixed
+
+**B-064 — the provenance of `1.7` and `2.5`.** Neither is derived anywhere, and both were chosen
+*with* the truncation in place, so whatever tuning they got was done against an estimate that was
+systematically small: the effective margin was `1.7 × int(r)/r`, which at r = 4.9 is **1.39**, not
+1.7. What makes it a task rather than a preference is that M3-T15 can now score a candidate
+against ground truth. Its honest scope includes asking whether one constant per image is right at
+all — a polydisperse sample arguably needs the margin to track the largest particle, not the
+median.
+
+### Gate
+
+`make check` green — **452 tests** (18 new), 730 declared golden differences and nothing else.
+Restoring `int()` turns 11 of the 18 new tests red. mypy unchanged at 12.
+
+**One test caught my own overstatement while I was writing it:** the first draft asserted that
+truncation and the correct value differ on every radius tried. At an equivalent radius of 3.432
+they are both 6 — the fraction was too small to cross an integer. The test now says so explicitly,
+because that is also why the defect was hard to see.
+
+### What is next
+
+M3 has one blocked task and three open findings. **B6** blocks `M3-T16`; **B-062** wants an
+operator's view of a sensitivity trade-off; **B-060** and **B-064** are engineering with their own
+ADRs to write. `M3-T19` is a `low` typing finding and is the only unblocked item left inside the
+milestone's task list.
+
+---
+
 ## 2026-08-07 — M3-T23 · **B-061 closed: a rough radius below one pixel is not an estimate**
 
 **Task:** `M3-T23`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0034**.
