@@ -6,7 +6,8 @@
 **Defect:** **D-13** (medium) · **ADR:** **ADR-0029**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -117,16 +118,37 @@ were written `z - trend` instead of assigned into a pre-allocated buffer.
 
 ## Definition of done
 
-- [ ] `flatten_lines` allocates with `np.promote_types(z.dtype, np.float64)`; the docstring says
+- [x] `flatten_lines` allocates with `np.promote_types(z.dtype, np.float64)`; the docstring says
       so and says why
-- [ ] Harness records levelling for `uint8` / `int32` / `bool` / `float32` / `float64` inputs of
+- [x] Harness records levelling for `uint8` / `int32` / `bool` / `float32` / `float64` inputs of
       one real phantom image, both functions, dtype included
-- [ ] Tests: an integer input keeps its residuals; a bool input is not a mask; both functions
-      agree on dtype for every input dtype; float64 is bit-identical to before; restoring
-      `np.empty_like(z)` turns them red
-- [ ] `make check` green; delta quantified in `Progress.md`, key by key
-- [ ] ADR-0029; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T08: flatten_lines promotes the way flatten_plane does`
+- [x] Tests — 17; restoring `np.empty_like(z)` turns **14** red, the three survivors being the
+      float64 cases, which never had the defect
+- [x] `make check` green — 249 tests; delta: **13 differences — 8 dtypes, 4 sums, 1 added group**;
+      mypy unchanged at 12
+- [x] ADR-0029; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T08: flatten_lines promotes the way flatten_plane does`
+
+---
+
+## What it turned up
+
+**The audit understated the defect in two directions.** It measured a `uint8` ramp whose
+residuals were all under 1, got "all zeros", and filed it as truncation. On an image with real
+structure the residuals are tens of nanometres and **an integer output wraps the negative ones** —
+`uint8(-47.34)` is 209. On the newly recorded 8-bit phantom **100 % of pixels are wrong, by up to
+257**, and every pit came back rendered as a peak. That is not a degraded map; it is features that
+are not there. And **boolean input was never measured at all**: levelling a mask returned a mask
+of where the residual was non-zero.
+
+**The four moved sums are the fix as a physical property.** A least-squares residual sums to zero
+over the range it was fitted on — that is what "the trend was removed" means. Storing it in
+float32 left the sum at **1e-6**; it now lands at float64 round-off. The fit never changed, only
+where the answer was written down.
+
+**mypy is unchanged at 12, and that is the second time this milestone.** A dtype that is correct
+for one input and wrong for another has no static shadow, exactly as M3-T02's unit error had none.
+Between them they mark the class of defect the type checker cannot be the guard for.
 
 ---
 

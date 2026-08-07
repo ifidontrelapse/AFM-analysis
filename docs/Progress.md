@@ -7,6 +7,100 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-07 — M3-T08 · **D-13 fixed: levelling returns the residuals it computed**
+
+**Task:** `M3-T08`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0029**.
+**Defect:** D-13, medium — the first of the three `medium` tasks `STATE.md` named as next.
+
+Session note: this was worked from a laptop with **no model weights and no `data/`**, so the
+task was chosen to be one nothing outside the gate could verify. `flatten_lines` is pure
+NumPy/SciPy; the CI-shaped environment (`uv sync --only-group ci`, Python 3.12, no torch)
+reproduces the golden here exactly, which was confirmed *before* anything was edited.
+
+### The defect
+
+```python
+result = np.empty_like(z)                      # keeps the input's dtype
+result[i] = row - np.polyval(coeffs, xi)       # float64 residual, cast on assignment
+```
+
+The quantity being stored is what is left of a row after its *own* best fit is removed, so it is
+fractional by construction. An array that cannot hold fractions rounds every value away.
+`flatten_plane` never had this — it returns `z - plane` and lets NumPy promote — so the two halves
+of "flattening" disagreed about the dtype of the same map.
+
+### The delta — 13 differences, and not one of them under a phantom
+
+8 dtype changes (`float32` → `float64`) and 4 sums in `degenerate_inputs`, plus the added
+`flatten_dtypes` group. **No phantom moves**, because `flatten_plane` hands `flatten_lines`
+float64 on every recorded chain — which is exactly why the golden could not see this defect, and
+why the audit's own remediation note said *"golden covers float; add an integer case"*. This
+commit adds it.
+
+**The four sums are the fix as a physical property.** A least-squares residual sums to zero over
+the range it was fitted on; that is what "the trend was removed" means. Stored in float32 the sum
+sat at **1e-6**; it now lands at float64 round-off, 1e-13. The fit never changed — only where the
+answer was written down.
+
+Thirteen is what the *comparison* saw. The storage error touches every value in those eight
+arrays, and at `rtol=1e-6` the harness correctly judged `min`, `max`, `std` and the percentiles
+unchanged — 7.3e-06 on values of order 100. It surfaces in `sum` alone because the true sum is
+zero, where any absolute error is an infinite relative one. `_meta.python` also moves
+3.12.13 → 3.12.0, this laptop's interpreter; it is recorded and never compared, and the numbers
+are comparable because **the golden was verified stable here before anything was edited** — same
+numpy, scipy and scikit-image, zero drift.
+
+### The audit understated it, in two directions
+
+The audit measured a `uint8` ramp whose residuals were all under 1, got "all zeros", and filed it
+as truncation. Truncation is the small case. On an image with real structure the residuals are
+tens of nanometres and **an integer output wraps the negative ones**: on the newly recorded 8-bit
+phantom the levelled map is wrong by up to **257**, 100 % of pixels differ, and every pit came
+back rendered as a peak. A reader looking at that map would not have seen a degraded result; they
+would have seen features that are not there.
+
+**Boolean input the audit did not measure at all.** `result[i] = <float array>` into a `bool`
+array stores `!= 0`, so levelling a mask returned *a mask of where the residual was non-zero* —
+65 % of pixels wrong, max error 1.44, and the array still has the shape and the name of
+topography.
+
+### Who was actually exposed
+
+Not the documented chain. **`load_microscopy_image` returns `uint8`** — it is `cv2.imread(...,
+IMREAD_GRAYSCALE)` and the only file entry point SEM/TEM has — so the exposed caller is the
+modality the project has been fixing all week (D-12/M3-T10 was the last one). `load_afm(fmt="npy")`
+passes through whatever the file holds, and three documents advertise `flatten_lines` as a
+function you may call on its own.
+
+### The decision, which is smaller than it looks
+
+`np.promote_types(z.dtype, np.float64)` rather than a hardcoded `float64`. For every dtype
+`np.polyfit` accepts today the two are the same expression, so this is a choice about which *rule*
+is stated: the hardcoded one agrees with `flatten_plane` by coincidence, and one rule in both
+halves of flattening is what D-13 is about. float32 in becomes float64 out — declared drift, and
+already what `flatten_plane` does with the same input.
+
+**Deferred on purpose:** every rejection. `np.promote_types` raises its own `TypeError` on a
+string array one line earlier than `np.polyfit` did, and neither names the parameter. Non-numeric
+dtypes, 1-D, 3-D and NaN are **M3-T13**, which takes all the entry points in one pass — a taxonomy
+of one is not a taxonomy. The three degenerate inputs that raise today raise exactly what they
+raised before.
+
+### Gate
+
+`make check` green — 249 tests (17 new), golden 13 declared differences and nothing else, ruff
+clean, format clean. **mypy unchanged at 12**: a dtype that is right for one input and wrong for
+another has no static shadow, which is the second time this milestone that a real defect was
+invisible to the type checker (M3-T02 was the first, a unit error).
+
+### What is next
+
+**M3-T13** and **M3-T14**, the two remaining `medium` tasks, both of which touch every entry
+point — and **M3-T15**, the evaluation harness, which four ADRs have now had to write "not
+claimed" for.
+
+---
+
 ## 2026-08-06 — M3-T05 · **D-09 fixed: a detection carries its own score, or none**
 
 **Task:** `M3-T05`. **Branch:** `sci/yolo-confidence`. **ADR:** **ADR-0028**.

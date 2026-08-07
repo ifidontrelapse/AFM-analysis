@@ -281,6 +281,8 @@ For SPM, `_read_nanoscope_z`:
 
 These functions preserve the array shape and operate on the numeric map; they do not change the physical pixel scale.
 
+Both return `np.promote_types(z.dtype, np.float64)` — for an integer or boolean input, float64. Until M3-T08 (ADR-0029) only `flatten_plane` did: `flatten_lines` pre-allocated with `np.empty_like(z)`, so the fractional residuals were cast back into the input dtype on assignment and an 8-bit image — which is what `load_microscopy_image` returns — levelled to **all zeros** (D-13). A float32 input now comes back float64, as it already did from `flatten_plane`.
+
 ### 6.3 Substrate estimation
 
 `get_substrate_map(z, radius_px)` applies grayscale morphological opening with a disk structuring element. The intended assumption is that `radius_px` is larger than the largest particle radius, allowing the opening to preserve the substrate and remove particle peaks.

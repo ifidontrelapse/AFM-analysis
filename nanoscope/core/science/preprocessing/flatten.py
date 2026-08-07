@@ -1,11 +1,10 @@
 """Levelling: remove the instrument's tilt and per-line drift from a height map.
 
-Moved verbatim from `src/preprocess.py` in M2-T03 — the algorithms, constants and
-order of operations are byte-identical, and the characterization golden is what
-proves it. Only whitespace changed, by `ruff format`.
-
-The Russian docstrings come across untranslated on purpose: M2-T12 owns that, and
-mixing a translation into a move would make a red golden ambiguous.
+Moved from `src/preprocess.py` in M2-T03, verbatim at the time — the algorithms,
+constants and order of operations were byte-identical, and the characterization
+golden is what proved it. Two things have changed since, each in its own commit:
+M2-T12 translated the docstrings, and **M3-T08 (ADR-0029)** made `flatten_lines`
+allocate its result at the width it computes in.
 """
 
 from __future__ import annotations
@@ -41,9 +40,15 @@ def flatten_lines(z: np.ndarray, poly_order: int = 1) -> np.ndarray:
         z: sample topography
         poly_order: polynomial degree (default 1 — a linear trend)
     Returns:
-        result: levelled topography
+        result: levelled topography, in `z`'s dtype promoted with float64 —
+            `flatten_plane`'s own promotion rule (D-13, ADR-0029). The residuals
+            `polyfit`/`polyval` produce are fractional by construction, so an
+            output array narrower than float64 rounds them away — to zeros where
+            they were sub-unit, and to *wrapped* values where they were not, a
+            negative residual becoming a bright one. A boolean input came back as
+            a mask of where the residual was non-zero.
     """
-    result = np.empty_like(z)
+    result = np.empty_like(z, dtype=np.promote_types(z.dtype, np.float64))
     xi = np.arange(z.shape[1])
     for i, row in enumerate(z):
         coeffs = np.polyfit(xi, row, poly_order)

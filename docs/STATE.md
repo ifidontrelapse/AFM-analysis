@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-06 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-07 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -32,14 +32,29 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **Every `critical` and every `high` defect in M3 is closed.** What remains is
-**M3-T08** (`flatten_lines` must promote dtype like `flatten_plane`, D-13), **M3-T13** (typed
-error taxonomy, D-15) and **M3-T14** (one measurement schema across the four producers, D-16/D-17
-— and the `bbox` default whose `type: ignore` is written to expire itself) — plus **M3-T15**, the
-evaluation harness, without which "the detector got better" is still not a measurable claim, and
-which three tasks have now had to write "not claimed" for. **B6 → M3-T16** is the last operator
-answer waiting to be executed, and **B-040** goes last of everything because it rewrites every
-SHA above it.
+**None selected.** **Every `critical` and every `high` defect in M3 is closed, and D-13 with
+them.** What remains is **M3-T13** (typed error taxonomy, D-15) and **M3-T14** (one measurement
+schema across the four producers, D-16/D-17 — and the `bbox` default whose `type: ignore` is
+written to expire itself) — plus **M3-T15**, the evaluation harness, without which "the detector
+got better" is still not a measurable claim, and which four tasks have now had to write "not
+claimed" for. **B6 → M3-T16** is the last operator answer waiting to be executed, and **B-040**
+goes last of everything because it rewrites every SHA above it.
+
+**`M3-T08` done 2026-08-07 (ADR-0029)** — **D-13 fixed: levelling returns the residuals it
+computed.** `np.empty_like(z)` kept the input's dtype, so float64 residuals were cast back on
+assignment; the allocation now promotes with `np.promote_types(z.dtype, np.float64)`, which is
+`flatten_plane`'s own rule rather than a hardcoded float64 that would agree with it by
+coincidence. Delta: **13 differences — 8 dtypes, 4 sums, 1 added group — and no phantom moves**,
+because `flatten_plane` hands float64 on in every recorded chain. **The audit understated the
+defect in two directions:** it measured a ramp with sub-1 residuals and called it truncation, but
+an integer output **wraps** a negative residual — on the newly recorded 8-bit phantom the levelled
+map is wrong by up to **257** and every pit comes back as a peak; and boolean input, unmeasured,
+returned a *mask* of where the residual was non-zero. The exposed caller is
+`load_microscopy_image`, which returns `uint8` from `cv2.imread` and is the only file entry point
+SEM/TEM has. The four moved sums are the fix as a physical property: a least-squares residual sums
+to zero, and float32 storage left it at 1e-6 instead of 1e-13. 17 tests; restoring
+`np.empty_like(z)` turns **14** red, the three survivors being the float64 cases. **mypy unchanged
+at 12** — a dtype right for one input and wrong for another has no static shadow.
 
 **`M3-T05` done 2026-08-06 (ADR-0028)** — **D-09 fixed.** Both YOLO backends now pass their own
 per-box scores, and a length mismatch raises rather than being `zip`ped away. **`confidence` is
@@ -143,6 +158,26 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T08** ✅ (2026-08-07, **ADR-0029**) — **D-13 fixed: levelling returns the residuals it
+  computed.** `flatten_lines` pre-allocated with `np.empty_like(z)`, and the residual of a row's
+  own fit is fractional by construction, so an output array narrower than float64 rounded every
+  value away. The allocation promotes with `np.promote_types(z.dtype, np.float64)` — the rule
+  `flatten_plane` has always followed by letting NumPy promote `z - plane`; a hardcoded float64
+  would have matched it by coincidence and diverged on the one dtype `flatten_plane` keeps wide.
+  Delta: **13 differences — 8 dtypes `float32 -> float64`, 4 sums, 1 added group; no phantom
+  moves**, since every recorded chain is float64 before `flatten_lines` sees it — which is why
+  the golden never caught this and why the audit's R9 asked for an integer case. **It understated
+  the defect twice.** An integer output does not truncate a negative residual, it **wraps** it: on
+  the newly recorded 8-bit phantom 100 % of pixels are wrong, by up to **257**, and every pit is
+  rendered as a peak — a reader would have seen features that are not there rather than a
+  degraded map. And boolean input, unmeasured, came back as a *mask* of where the residual was
+  non-zero. The exposed caller is **`load_microscopy_image`**, `uint8` from `cv2.imread` and the
+  only file entry point SEM/TEM has. The four moved sums are the fix as a physical property: a
+  least-squares residual sums to zero, and float32 storage was leaving it at 1e-6 instead of
+  1e-13. Every rejection deferred to **M3-T13**, deliberately — the three degenerate inputs that
+  raise still raise exactly what they raised before. 17 tests; restoring `np.empty_like(z)` turns
+  **14** red, the three survivors being the float64 cases. **mypy unchanged at 12.**
 
 - **M3-T18** ✅ (2026-08-06, **no ADR — a side effect of M3-T05**) — `YoloDetector._last_result`
   was initialised to `None` and therefore *typed* `None`, so every attribute read off it was a
@@ -565,10 +600,14 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 
 ## In progress
 
-**M2 is closed and M3 is well under way.** Fifteen tasks done — M3-T01 to T05, T06, T07, T09
-to T12, T17, T18, T20, T21 — plus B-058, across four sessions. **Every `critical` and every
-`high` defect the audit reproduced is closed**, which is the first of M3's five exit criteria.
-What is left is `medium` and below: T08, T13, T14, plus T15 (the evaluation harness) and T16.
+**M2 is closed and M3 is well under way.** Sixteen tasks done — M3-T01 to T12, T17, T18, T20,
+T21 — plus B-058, across five sessions. **Every `critical` and every `high` defect the audit
+reproduced is closed**, which is the first of M3's five exit criteria, and **D-13 went with
+them**. What is left is `medium` and below: T13, T14, plus T15 (the evaluation harness) and T16.
+
+**Levelling now agrees with itself about dtype** (M3-T08). Both halves promote the way NumPy
+does, so an 8-bit image — which is what the SEM/TEM loader returns — levels to its residuals
+rather than to a wrapped integer map.
 
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
@@ -581,8 +620,7 @@ number to stand in for one — not a pixel size, not a minimum particle size, no
 an empty table's columns.
 
 **Repository state:** `main` is at `aceb5c7` and carries all of M0, M1, M2 and M3-T01. All
-of M3's work lives on **one branch, `sci/m3-numerical-correctness`**, 21 commits ahead of `main`
-and pushed. **The 32 task branches were consolidated into it on 2026-08-06** at the operator's
+of M3's work lives on **one branch, `sci/m3-numerical-correctness`**, 24 commits ahead of `main`. **The 32 task branches were consolidated into it on 2026-08-06** at the operator's
 instruction: the stack was strictly linear, so every one of them was an ancestor of the tip and
 no commit was lost — that was verified branch by branch before anything was deleted, locally and
 on `origin`.
@@ -639,16 +677,17 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **The `medium` tasks, in order: T08, T13, T14.** Rewrite `docs/CURRENT_TASK.md` first,
+1. **The two `medium` tasks left, in order: T13, T14.** Rewrite `docs/CURRENT_TASK.md` first,
    every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
-   detection *quality* — M3-T03, T10 and T21 each had to say "not claimed" because it does not
-   exist yet
-2. **Every `critical` defect is closed and every decision except B6 is answered and executed.**
-   What remains in M3 is engineering, in severity order: T20, T12, T17 are the `high` ones, then
-   T05, T08, T13, T14. **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last
-   of all, because it rewrites every SHA above it
+   detection *quality* — M3-T03, T10, T21 and now T08 each had to say "not claimed" because it
+   does not exist yet
+2. **M3-T13 inherits a list.** Four tasks have now deferred a rejection to it by name: the
+   degenerate inputs the harness records with whatever error NumPy happens to raise (T07, T08),
+   the loaders' absent-versus-wrong distinction (T20, T17), and the empty-after-filter case that
+   already raises properly (T06) — which is the shape the rest should take. **B6 → M3-T16** is the
+   last operator answer waiting; **B-040** goes last of all, because it rewrites every SHA above it
 3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
-   exit criteria. `src/` is gone, so the only thing left is the 20 errors that arrived
+   exit criteria. `src/` is gone, so the only thing left is the 12 errors that arrived
    inside the moved science; they belong to M3 and M2-T12
 4. **B-058 is done (ADR-0022)** — a Python upgrade no longer reads as drift, so the 3.12 pin in
    CI is now a choice rather than a constraint
@@ -661,19 +700,19 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **105** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **107** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **232, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **249, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **12**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **20** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **19** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12, D-13 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

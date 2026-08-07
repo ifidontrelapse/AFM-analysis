@@ -562,6 +562,33 @@ def capture_contracts() -> dict:
     }
 
 
+def capture_flatten_dtypes() -> dict:
+    """Levelling, per input dtype (D-13, M3-T08).
+
+    The audit's remediation note for this defect reads "golden covers float; add
+    an integer case", and it was right: every phantom chain hands `flatten_lines`
+    the float64 that `flatten_plane` returns, so the one dtype the harness
+    exercised was the one dtype that worked. An 8-bit input is not exotic —
+    `load_microscopy_image` returns exactly that from `cv2.imread`.
+    """
+    from nanoscope.core.science.preprocessing import flatten_lines, flatten_plane
+
+    # A real phantom rather than a synthetic ramp, rescaled to 0..255 so the
+    # integer casts keep their structure instead of clipping it away.
+    image = phantoms.afm_tilted_polydisperse().image
+    scaled = 255.0 * (image - image.min()) / (image.max() - image.min())
+
+    out: dict[str, Any] = {}
+    for dtype in ("uint8", "int32", "bool", "float32", "float64"):
+        z = scaled > 128 if dtype == "bool" else scaled.astype(dtype)
+        entry: dict[str, Any] = {"input": _array_digest(z)}
+        for label, fn in (("flatten_plane", flatten_plane), ("flatten_lines", flatten_lines)):
+            r = _record(fn, z)
+            entry[label] = {**r, "value": _array_digest(r["value"]) if r["ok"] else None}
+        out[dtype] = entry
+    return out
+
+
 # ── driver ────────────────────────────────────────────────────────────────────
 
 
@@ -615,6 +642,7 @@ def build_all() -> dict:
             r["value"] = _array_digest(np.asarray(r["value"]))
 
     snapshot["degenerate_inputs"] = capture_degenerate()
+    snapshot["flatten_dtypes"] = capture_flatten_dtypes()
     snapshot["contracts"] = capture_contracts()
     return snapshot
 
