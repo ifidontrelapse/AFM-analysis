@@ -550,8 +550,12 @@ def capture_contracts() -> dict:
         serializable = False
         err = f"{type(exc).__name__}: {str(exc)[:120]}"
     return {
-        "default_detection_bbox": list(det.bbox),
-        "default_detection_bbox_len": len(det.bbox),
+        # `None` since M3-T14 (ADR-0031), and the harness had to learn the same
+        # lesson the code did: `list(det.bbox)` assumed a tuple was always there.
+        # The `_len` key is kept rather than deleted — 0 was the defect (D-16),
+        # `None` is the absence that replaced it, and the two read differently.
+        "default_detection_bbox": None if det.bbox is None else list(det.bbox),
+        "default_detection_bbox_len": None if det.bbox is None else len(det.bbox),
         # Was 1.0 until M3-T05 (D-09, ADR-0028): a detector that computes no
         # score reports none, rather than reporting certainty.
         "default_detection_confidence": _num(det.confidence),

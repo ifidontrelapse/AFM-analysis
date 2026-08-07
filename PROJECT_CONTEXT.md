@@ -399,7 +399,7 @@ The result list stores NumPy masks (`mask`, optionally `mask_inner` and `ring`),
 
 File: `nanoscope/core/science/measurement/`.
 
-`measure_all_baseline` is available only for AFM + LoG through `run_pipeline`. Its table carries `BASELINE_COLUMNS` — twelve columns with declared dtypes — **whether or not any particle survived** (M3-T12, ADR-0027); `pd.DataFrame([])` used to have zero columns, so an empty result answered every read by name with `KeyError`. `empty_baseline_table()` is exported for callers assembling results across scans. The other three producers still return zero-column frames when empty; that is M3-T14.
+`measure_all_baseline` is available only for AFM + LoG through `run_pipeline`. Since M3-T14 (ADR-0031) **all four producers emit one schema**, declared in `nanoscope/core/science/measurement/schema.py`: a core (`particle_id x_px y_px area_px method`) plus blocks that are present in full or absent in full — `DETECTOR_COLUMNS` (a detection prompted the measurement), `HEIGHT_COLUMNS` (AFM), `GEOMETRY_COLUMNS` (a real mask was measured), `SEGMENTATION_COLUMNS` (a segmenter scored it). `method` names the producer, so a reader knows which blocks to expect. One name per quantity: `mask_score` (was `score`/`sam_score`), `area_px` (was also `mask_area_px`), and `detector_radius_nm` (where we looked) versus `radius_nm` (what we found) — those two used to share a name across producers. Every table keeps its columns whether or not a particle survived (M3-T12, ADR-0027), and `run_pipeline`'s detect mode returns `empty_measurement_table(**blocks_for(modality))` rather than a zero-column frame.
 
 For each LoG blob it creates a circular mask with `radius_px = sigma * sqrt(2)`, then:
 

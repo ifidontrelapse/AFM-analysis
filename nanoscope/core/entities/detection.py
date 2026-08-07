@@ -2,15 +2,16 @@
 
 Moved verbatim from `src/types.py` in M2-T02.
 
-`bbox`'s `default_factory=tuple` produces an **empty** tuple, not the four values
-the annotation promises. That is audit defect **D-16**, fixed in M3; the golden
-records it as `default_detection_bbox_len: 0`, so changing it here would read as
-drift from a task that is supposed to move nothing.
+`bbox` is `None` when the detector produced no box, which is the LoG path. It
+used to be `field(default_factory=tuple)` — an **empty** tuple where the
+annotation promised four ints (audit **D-16**), a four-element promise broken
+silently. M3-T14 (ADR-0031) made it absent instead, the sixth substitute value
+this milestone has deleted.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -30,10 +31,9 @@ class Detection:
     # — including a YOLO box that only just cleared the threshold — reported
     # certainty (audit D-09, M3-T05, ADR-0028). Absent, never a substitute value.
     confidence: float | None = None
-    # `type: ignore` and not a fix: `default_factory=tuple` genuinely disagrees
-    # with the annotation, and mypy saying so *is* D-16. Correcting it changes
-    # `default_detection_bbox_len`, which the golden records, so it belongs to M3
-    # with a declared numerical delta — not to a move that must shift nothing.
-    # `warn_unused_ignores = true`, so this line becomes an error the moment M3
-    # fixes the defect. It expires itself.
-    bbox: tuple[int, int, int, int] = field(default_factory=tuple)  # type: ignore[assignment]  # D-16
+    # `None`, not `()`: a LoG detection has no bounding box, and an empty tuple
+    # is a `tuple[int, int, int, int]` that is not one — the annotation was a
+    # promise the default broke (D-16, ADR-0031). The `type: ignore` that used to
+    # sit here was written in M2-T02 to expire itself; `warn_unused_ignores`
+    # collected it the moment this line stopped needing it.
+    bbox: tuple[int, int, int, int] | None = None

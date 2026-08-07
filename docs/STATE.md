@@ -33,13 +33,29 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **Every `critical` and every `high` defect in M3 is closed, and D-13 and D-15
-with them.** What remains is **M3-T14** (one measurement schema across the four producers,
-D-16/D-17 — and the `bbox` default whose `type: ignore` is written to expire itself) — plus
-**M3-T15**, the evaluation harness, without which "the detector got better" is still not a
-measurable claim, and which four tasks have now had to write "not claimed" for. **B6 → M3-T16**
-is the last operator answer waiting to be executed, and **B-040** goes last of everything because
-it rewrites every SHA above it.
+**None selected.** **Every numerical defect the audit reproduced is now closed** — D-01 to D-22,
+across nineteen tasks. What remains in M3 is **M3-T15**, the evaluation harness, without which
+"the detector got better" is still not a measurable claim and which five tasks have now had to
+write "not claimed" for; **M3-T16**, blocked on **B6**; and **M3-T19**, a `low` mypy finding.
+**B-040** goes last of everything because it rewrites every SHA above it.
+
+**`M3-T14` done 2026-08-07 (ADR-0031)** — **D-16 and D-17 fixed: one measurement schema.**
+`schema.py` declares a **core** every producer emits plus **blocks present in full or absent in
+full** (detector, height, geometry, segmentation), with `method` naming the producer so a reader
+knows which blocks to expect — not one wide table with NaN, because SEM/TEM does not have heights
+that are all missing, it has no heights. Reading the producers found **three** faults where the
+audit named one: two names for one quantity (`score`/`sam_score`, `mask_area_px`/`area_px`),
+columns that varied **per row** (`if k in res`), and — the one the audit missed, and the worst —
+**`radius_nm` was two quantities under one name**, so concatenating the baseline table with the
+SEM/TEM one produced a column holding two different measurements. Now `detector_radius_nm` and
+`radius_nm`. `bbox` is `| None`, and the `type: ignore` M2-T02 wrote to expire itself expired.
+Delta: **62 differences — names, dtypes and added columns; 35 column digests unchanged, 0
+changed**, and the renamed column's digest is byte-identical to the one it replaced. **The
+harness needed the same fix the code did**: `list(det.bbox)` is a `TypeError` once a bbox can be
+absent — D-16's assumption living inside the tool meant to catch it. 31 tests over five tables,
+the SAM2 pair driven by a **stub predictor**, because there are no weights here or in CI — which
+is also why their golden delta is zero *by construction* and the tests are the whole safety net.
+mypy unchanged at 12.
 
 **`M3-T13` done 2026-08-07 (ADR-0030)** — **D-15 fixed: one answer to "this input cannot be
 used".** Seven classes in `core/errors.py`, **each also inheriting the builtin it replaced at its
@@ -177,6 +193,31 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T14** ✅ (2026-08-07, **ADR-0031**) — **D-16 and D-17 fixed: one measurement schema, and a
+  `bbox` that means something.** Four producers had four column sets; the fix is a **core** —
+  `particle_id x_px y_px area_px method` — plus blocks that are present in full or absent in full,
+  with `method` naming the producer so a consumer knows which to expect. **Not** one superset with
+  NaN: that says SEM/TEM has heights and they are all missing, and this milestone has spent six
+  ADRs on absent versus substituted. Reading the four producers found three faults where the audit
+  named one. One quantity under two names — `score`/`sam_score` (the audit caught it),
+  `mask_area_px`/`area_px` (it did not). Columns that varied **per row**, because both SAM2
+  producers assembled records with `if k in res`. And **two quantities under one name**:
+  `radius_nm` was the detector's blob radius in the baseline table and the measured mask's radius
+  in the SEM/TEM one, so concatenating them silently averaged two different measurements — now
+  `detector_radius_nm` (where we looked) and `radius_nm` (what we found). `bbox` became
+  `tuple[int, int, int, int] | None`, the sixth substitute value deleted this milestone, and the
+  `type: ignore` M2-T02 wrote to expire itself expired on schedule. Detect mode returns the
+  modality's empty table — the case ADR-0027 named and left open. Delta: **62 differences, all of
+  them names, dtypes or added columns; 35 column digests unchanged and 0 changed**, with the
+  renamed column's digest byte-identical to its predecessor and `peak_nm == height_nm +
+  baseline_nm` on every phantom. **The harness had the same bug the code did** — `list(det.bbox)`
+  assumed the tuple was always there, which is D-16 living inside the tool built to detect it. 31
+  tests over five tables; the two SAM2 producers run against a **stub predictor** returning three
+  candidate masks and their scores, because there are no weights here or in CI — so their golden
+  delta is zero *by construction*, stated rather than implied. **mypy unchanged at 12**: two new
+  errors appeared and were fixed, one of them a comparison that could only be False, in code
+  written minutes earlier.
 
 - **M3-T13** ✅ (2026-08-07, **ADR-0030**) — **D-15 fixed: the library has one way of saying no.**
   The audit's table was five inputs and five behaviours; the harness's own matrix was worse —
@@ -659,6 +700,10 @@ seven exception classes that each also *are* the builtin they replaced. The thin
 scientific rather than cosmetic is closed with it: `detect_particles` can no longer answer a NaN
 map, a 1-D array or a 3-D array with "no particles found".
 
+**And one way of reporting what it measured** (M3-T14). Four producers, one schema, one name per
+quantity — and, more importantly, one quantity per name: `radius_nm` used to mean the detector's
+radius in one table and the measured mask's in another.
+
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
 to detection quality, which nothing in the gate can measure; **M3-T15 is the task that would
@@ -683,7 +728,7 @@ requires. The branch was only ever a label. If the rule is meant to bind the bra
 an amendment saying so; it is recorded here rather than left as a silent violation.
 
 All fourteen task branches were green on CI before they were deleted (#44–#50, #52, #54–#56), and
-the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s).
+the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s) and **M3-T13 as #63**.
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
 rather than path-hacked.
@@ -727,7 +772,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **One `medium` task left: T14.** Rewrite `docs/CURRENT_TASK.md` first, every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
+1. **M3-T15, the evaluation harness.** It is what remains, and it is the one that unblocks every
+   claim about detection *quality*: M3-T03, T10, T21, T05 and T14 have each had to write "not
+   claimed" for want of it. Rewrite `docs/CURRENT_TASK.md` first, as every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
    detection *quality* — M3-T03, T10, T21 and now T08 each had to say "not claimed" because it
    does not exist yet
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
@@ -749,19 +796,19 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **111** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **114** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **359, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **392, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **12**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **18** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12, D-13, D-15 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **16** (was 28) — every reproduced numerical defect is closed; what is left is documentation (D-24 → M9) and the new M3-T19 | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

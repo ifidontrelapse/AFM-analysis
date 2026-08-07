@@ -59,6 +59,26 @@
             "ring": 14
           }
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "max": 36.565362090303864,
+          "mean": 36.56536209030388,
+          "min": 36.565362090303864,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            36.565362090303864,
+            36.565362090303864,
+            36.565362090303864,
+            36.565362090303864,
+            36.565362090303864
+          ],
+          "shape": [
+            14
+          ],
+          "size": 14,
+          "std": 1.4210854715202004e-14,
+          "sum": 511.91506926425427
+        },
         "col::height_nm": {
           "dtype": "float64",
           "max": 19.522324545210704,
@@ -124,25 +144,25 @@
           "std": 4.031128874149275,
           "sum": 91.0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
-          "max": 36.565362090303864,
-          "mean": 36.56536209030388,
-          "min": 36.565362090303864,
+          "max": 18.66825590100101,
+          "mean": 17.160953452507933,
+          "min": 14.623294414163965,
           "n_nonfinite": 0,
           "percentiles_10_25_50_75_90": [
-            36.565362090303864,
-            36.565362090303864,
-            36.565362090303864,
-            36.565362090303864,
-            36.565362090303864
+            15.851253088804262,
+            16.58020908728524,
+            17.34444089243838,
+            18.016172749651822,
+            18.329771055705617
           ],
           "shape": [
             14
           ],
           "size": 14,
-          "std": 1.4210854715202004e-14,
-          "sum": 511.91506926425427
+          "std": 1.0962168195943451,
+          "sum": 240.25334833511107
         },
         "col::ring_px": {
           "dtype": "int64",
@@ -185,7 +205,7 @@
           "sum": 37.050011961958575
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 114.0,
           "mean": 65.78571428571429,
           "min": 19.0,
@@ -205,7 +225,7 @@
           "sum": 921.0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 116.0,
           "mean": 80.57142857142857,
           "min": 29.0,
@@ -228,11 +248,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -259,6 +280,13 @@
         "col::baseline_source": {
           "value_counts": {}
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
         "col::height_nm": {
           "dtype": "float64",
           "shape": [
@@ -283,7 +311,7 @@
           ],
           "size": 0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
           "shape": [
             0
@@ -305,14 +333,14 @@
           "size": 0
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
           "size": 0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
@@ -322,11 +350,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -1115,6 +1144,26 @@
             "ring": 59
           }
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "max": 19.373619817795817,
+          "mean": 11.124917508043781,
+          "min": 7.282354320271096,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            10.305170694652276,
+            10.305170694652276,
+            10.305170694652276,
+            10.305170694652276,
+            13.9325503439097
+          ],
+          "shape": [
+            59
+          ],
+          "size": 59,
+          "std": 2.1432793457605057,
+          "sum": 656.370132974583
+        },
         "col::height_nm": {
           "dtype": "float64",
           "max": 16.83362083791256,
@@ -1180,25 +1229,25 @@
           "std": 17.029386365926403,
           "sum": 1711.0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
-          "max": 19.373619817795817,
-          "mean": 11.124917508043781,
-          "min": 7.282354320271096,
+          "max": 16.595201572495178,
+          "mean": 12.55995923225723,
+          "min": 8.706628054522492,
           "n_nonfinite": 0,
           "percentiles_10_25_50_75_90": [
-            10.305170694652276,
-            10.305170694652276,
-            10.305170694652276,
-            10.305170694652276,
-            13.9325503439097
+            10.947212143699373,
+            11.67565210414676,
+            12.703230633534707,
+            13.495557213105037,
+            13.963465112006103
           ],
           "shape": [
             59
           ],
           "size": 59,
-          "std": 2.1432793457605057,
-          "sum": 656.370132974583
+          "std": 1.3822559401541272,
+          "sum": 741.0375947031765
         },
         "col::ring_px": {
           "dtype": "int64",
@@ -1241,7 +1290,7 @@
           "sum": 232.06188599732184
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 238.0,
           "mean": 119.38983050847457,
           "min": 14.0,
@@ -1261,7 +1310,7 @@
           "sum": 7044.0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 240.0,
           "mean": 136.38983050847457,
           "min": 17.0,
@@ -1284,11 +1333,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -1315,6 +1365,13 @@
         "col::baseline_source": {
           "value_counts": {}
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
         "col::height_nm": {
           "dtype": "float64",
           "shape": [
@@ -1339,7 +1396,7 @@
           ],
           "size": 0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
           "shape": [
             0
@@ -1361,14 +1418,14 @@
           "size": 0
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
           "size": 0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
@@ -1378,11 +1435,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -2171,6 +2229,26 @@
             "ring": 24
           }
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "max": 13.21573496042401,
+          "mean": 13.143249858470346,
+          "min": 11.476092513536086,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            13.21573496042401,
+            13.21573496042401,
+            13.21573496042401,
+            13.21573496042401,
+            13.21573496042401
+          ],
+          "shape": [
+            24
+          ],
+          "size": 24,
+          "std": 0.3476263369199158,
+          "sum": 315.4379966032883
+        },
         "col::height_nm": {
           "dtype": "float64",
           "max": 17.43670712951384,
@@ -2236,25 +2314,25 @@
           "std": 6.922186552431729,
           "sum": 276.0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
-          "max": 13.21573496042401,
-          "mean": 13.143249858470346,
-          "min": 11.476092513536086,
+          "max": 17.052634313578025,
+          "mean": 15.953227240629468,
+          "min": 13.85099480909738,
           "n_nonfinite": 0,
           "percentiles_10_25_50_75_90": [
-            13.21573496042401,
-            13.21573496042401,
-            13.21573496042401,
-            13.21573496042401,
-            13.21573496042401
+            15.33686978139774,
+            15.520702461846195,
+            15.996920964766266,
+            16.53501667341862,
+            16.820000941302506
           ],
           "shape": [
             24
           ],
           "size": 24,
-          "std": 0.3476263369199158,
-          "sum": 315.4379966032883
+          "std": 0.7581765122820967,
+          "sum": 382.87745377510726
         },
         "col::ring_px": {
           "dtype": "int64",
@@ -2297,7 +2375,7 @@
           "sum": 111.52417322104215
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 234.0,
           "mean": 131.625,
           "min": 18.0,
@@ -2317,7 +2395,7 @@
           "sum": 3159.0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 238.0,
           "mean": 121.33333333333333,
           "min": 24.0,
@@ -2340,11 +2418,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -2371,6 +2450,13 @@
         "col::baseline_source": {
           "value_counts": {}
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
         "col::height_nm": {
           "dtype": "float64",
           "shape": [
@@ -2395,7 +2481,7 @@
           ],
           "size": 0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
           "shape": [
             0
@@ -2417,14 +2503,14 @@
           "size": 0
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
           "size": 0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
@@ -2434,11 +2520,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -3198,6 +3285,13 @@
         "col::baseline_source": {
           "value_counts": {}
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
         "col::height_nm": {
           "dtype": "float64",
           "shape": [
@@ -3222,7 +3316,7 @@
           ],
           "size": 0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
           "shape": [
             0
@@ -3244,14 +3338,14 @@
           "size": 0
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
           "size": 0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
@@ -3261,11 +3355,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -3292,6 +3387,13 @@
         "col::baseline_source": {
           "value_counts": {}
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
         "col::height_nm": {
           "dtype": "float64",
           "shape": [
@@ -3316,7 +3418,7 @@
           ],
           "size": 0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
           "shape": [
             0
@@ -3338,14 +3440,14 @@
           "size": 0
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
           "size": 0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
@@ -3355,11 +3457,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -3994,6 +4097,26 @@
             "ring": 30
           }
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "max": 22.469256847794576,
+          "mean": 15.258527397992937,
+          "min": 9.592954258863077,
+          "n_nonfinite": 0,
+          "percentiles_10_25_50_75_90": [
+            9.592954258863077,
+            12.168214776649378,
+            14.743475294435678,
+            19.2501812005617,
+            19.893996330008274
+          ],
+          "shape": [
+            30
+          ],
+          "size": 30,
+          "std": 3.8999115858844133,
+          "sum": 457.7558219397881
+        },
         "col::height_nm": {
           "dtype": "float64",
           "max": 24.77708468984418,
@@ -4059,25 +4182,25 @@
           "std": 8.65544144839919,
           "sum": 435.0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
-          "max": 22.469256847794576,
-          "mean": 15.258527397992937,
-          "min": 9.592954258863077,
+          "max": 24.42316334338961,
+          "mean": 15.845467863582178,
+          "min": 3.794903107837243,
           "n_nonfinite": 0,
           "percentiles_10_25_50_75_90": [
-            9.592954258863077,
-            12.168214776649378,
-            14.743475294435678,
-            19.2501812005617,
-            19.893996330008274
+            8.913880812132835,
+            11.423463139132489,
+            15.85118212085324,
+            20.29811394801508,
+            22.851173199913077
           ],
           "shape": [
             30
           ],
           "size": 30,
-          "std": 3.8999115858844133,
-          "sum": 457.7558219397881
+          "std": 5.365564109855981,
+          "sum": 475.36403590746534
         },
         "col::ring_px": {
           "dtype": "int64",
@@ -4120,7 +4243,7 @@
           "sum": 161.84112291062294
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 228.0,
           "mean": 122.1,
           "min": 27.0,
@@ -4140,7 +4263,7 @@
           "sum": 3663.0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "max": 230.0,
           "mean": 129.2,
           "min": 30.0,
@@ -4163,11 +4286,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -4194,6 +4318,13 @@
         "col::baseline_source": {
           "value_counts": {}
         },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
         "col::height_nm": {
           "dtype": "float64",
           "shape": [
@@ -4218,7 +4349,7 @@
           ],
           "size": 0
         },
-        "col::radius_nm": {
+        "col::peak_nm": {
           "dtype": "float64",
           "shape": [
             0
@@ -4240,14 +4371,14 @@
           "size": 0
         },
         "col::x_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
           "size": 0
         },
         "col::y_px": {
-          "dtype": "int64",
+          "dtype": "float64",
           "shape": [
             0
           ],
@@ -4257,11 +4388,12 @@
           "area_px",
           "baseline_nm",
           "baseline_source",
+          "detector_radius_nm",
           "height_nm",
           "mean_nm",
           "method",
           "particle_id",
-          "radius_nm",
+          "peak_nm",
           "ring_px",
           "sigma_px",
           "x_px",
@@ -5017,8 +5149,8 @@
       "yolo_model_path",
       "yolo_use_tiling"
     ],
-    "default_detection_bbox": [],
-    "default_detection_bbox_len": 0,
+    "default_detection_bbox": null,
+    "default_detection_bbox_len": null,
     "default_detection_confidence": null,
     "pipeline_result_json_error": "TypeError: Object of type ndarray is not JSON serializable",
     "pipeline_result_json_serializable": false,

@@ -25,6 +25,7 @@ from skimage.filters import threshold_otsu
 # `infrastructure.imaging` in the same commit — ruff caught the dangling
 # reference (F821) before the tests ran, which is the argument for keeping
 # `ruff check` blocking on moved code instead of excluding it like `src/`.
+from nanoscope.core.science.measurement.schema import empty_measurement_table, measurement_columns
 from nanoscope.infrastructure.imaging import afm_to_rgb
 
 
@@ -78,11 +79,22 @@ def _run_sam2_single(
             "mask": mask,
             "mask_inner": mask_inner,
             "ring": ring,
-            "score": score,
+            # `mask_score`, not `score`: since ADR-0028 this project has two
+            # scores, and `Detection.confidence` is the detector's. This one is
+            # SAM2's predicted IoU for the mask it just produced (ADR-0031).
+            "mask_score": score,
             "height_nm": peak - baseline,
             "baseline_nm": baseline,
             "peak_nm": peak,
-            "mask_area_px": int(mask.sum()),
+            "mean_nm": float(z_flat[mask_inner].mean()) - baseline,
+            # The ring is the only baseline this path has: a particle whose ring
+            # is too small is skipped above rather than falling back to a global
+            # median, which is where it differs from `measure_all_baseline`.
+            "baseline_source": "ring",
+            "ring_px": int(ring.sum()),
+            # Was `mask_area_px`. The same count of pixels the baseline producer
+            # calls `area_px` (D-17).
+            "area_px": int(mask.sum()),
         }
 
     # ── SEM/TEM: geometry from mask ───────────────────────────────────────
@@ -94,7 +106,7 @@ def _run_sam2_single(
         "x_px": cx,
         "y_px": cy,
         "mask": mask,
-        "score": score,
+        "mask_score": score,
         **geom,
     }
 
@@ -126,7 +138,18 @@ def run_sam2_from_blobs(
     predictor.set_image(z_rgb)
     substrate_mask = (image < threshold_otsu(image)).astype(bool) if z_flat is not None else None
 
-    records, masks = [], []
+    # A LoG blob prompted this, so the detector block is available; the height
+    # block needs a z map and the geometry block needs a real mask to measure.
+    blocks = {
+        "detector": True,
+        "segmentation": True,
+        "height": z_flat is not None,
+        "geometry": z_flat is None,
+    }
+    columns = measurement_columns(**blocks)
+
+    records: list[dict] = []
+    masks: list[dict] = []
 
     for cy, cx, sigma, r_nm in blobs:
         r = sigma * np.sqrt(2)
@@ -145,36 +168,28 @@ def run_sam2_from_blobs(
         if res is None:
             continue
 
-        record = {"x_px": res["x_px"], "y_px": res["y_px"], "score": res["score"]}
-        for k in (
-            "height_nm",
-            "baseline_nm",
-            "peak_nm",
-            "mask_area_px",
-            "area_nm2",
-            "radius_nm",
-            "circularity",
-            "aspect_ratio",
-            "area_px",
-        ):
-            if k in res:
-                record[k] = res[k]
-        if z_flat is not None:
-            record["log_radius_nm"] = r * nm_per_pixel if nm_per_pixel else None
-        records.append(record)
+        # Built from the declared block, not with `if k in res`: that was how
+        # two particles in one call ended up with different columns (D-17).
+        res["particle_id"] = len(records)
+        res["method"] = "sam2_blobs"
+        res["sigma_px"] = float(sigma)
+        res["detector_radius_nm"] = r * nm_per_pixel if nm_per_pixel else None
+        records.append({name: res[name] for name in columns})
 
         mask_entry = {
             "x_px": res["x_px"],
             "y_px": res["y_px"],
             "mask": res["mask"],
-            "score": res["score"],
+            "mask_score": res["mask_score"],
         }
         if "mask_inner" in res:
             mask_entry["mask_inner"] = res["mask_inner"]
             mask_entry["ring"] = res["ring"]
         masks.append(mask_entry)
 
-    return pd.DataFrame(records), masks
+    if not records:
+        return empty_measurement_table(**blocks), masks
+    return pd.DataFrame(records)[list(columns)], masks
 
 
 def run_sam2_from_boxes(
@@ -204,7 +219,17 @@ def run_sam2_from_boxes(
     predictor.set_image(z_rgb)
     substrate_mask = (image < threshold_otsu(image)).astype(bool) if z_flat is not None else None
 
-    records, masks = [], []
+    # No detector block: a box has a size but no sigma, and half a block is what
+    # the `if k in res` assembly used to produce (ADR-0031).
+    blocks = {
+        "segmentation": True,
+        "height": z_flat is not None,
+        "geometry": z_flat is None,
+    }
+    columns = measurement_columns(**blocks)
+
+    records: list[dict] = []
+    masks: list[dict] = []
 
     for box in boxes_xyxy:
         x1, y1, x2, y2 = box
@@ -223,27 +248,15 @@ def run_sam2_from_boxes(
         if res is None:
             continue
 
-        record = {"x_px": res["x_px"], "y_px": res["y_px"], "sam_score": res["score"]}
-        for k in (
-            "height_nm",
-            "baseline_nm",
-            "peak_nm",
-            "mask_area_px",
-            "area_nm2",
-            "radius_nm",
-            "circularity",
-            "aspect_ratio",
-            "area_px",
-        ):
-            if k in res:
-                record[k] = res[k]
-        records.append(record)
+        res["particle_id"] = len(records)
+        res["method"] = "sam2_boxes"
+        records.append({name: res[name] for name in columns})
 
         mask_entry = {
             "x_px": res["x_px"],
             "y_px": res["y_px"],
             "mask": res["mask"],
-            "score": res["score"],
+            "mask_score": res["mask_score"],
             "box": box,
         }
         if "mask_inner" in res:
@@ -251,4 +264,6 @@ def run_sam2_from_boxes(
             mask_entry["ring"] = res["ring"]
         masks.append(mask_entry)
 
-    return pd.DataFrame(records), masks
+    if not records:
+        return empty_measurement_table(**blocks), masks
+    return pd.DataFrame(records)[list(columns)], masks

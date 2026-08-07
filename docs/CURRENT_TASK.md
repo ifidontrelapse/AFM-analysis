@@ -6,7 +6,8 @@
 **Defects:** **D-16**, **D-17** (medium) · **ADR:** **ADR-0031**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -123,18 +124,34 @@ geometry, both with zero rows.
 
 ## Definition of done
 
-- [ ] One schema module; every producer emits from it, and no producer builds a row with
+- [x] One schema module; every producer emits from it, and no producer builds a row with
       `if k in res`
-- [ ] `mask_score`, `area_px`, `detector_radius_nm` / `radius_nm` — one name per quantity across
+- [x] `mask_score`, `area_px`, `detector_radius_nm` / `radius_nm` — one name per quantity across
       all four
-- [ ] `Detection.bbox` is `| None`; the `type: ignore` is gone and mypy is happy without it
-- [ ] Detect mode returns the modality's empty table
-- [ ] Tests: the declaration matches what each populated path emits (the drift guard ADR-0027
-      established), both SAM2 producers driven by a stub predictor, `pd.concat` of two producers'
-      tables has no duplicated-meaning column
-- [ ] `make check` green; delta quantified, **and no measured value moved**
-- [ ] ADR-0031; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T14: one measurement schema, and a bbox that means something`
+- [x] `Detection.bbox` is `| None`; the `type: ignore` is gone and mypy is happy without it
+- [x] Detect mode returns the modality's empty table
+- [x] Tests — **31** over five tables, the SAM2 pair driven by a stub predictor
+- [x] `make check` green — 392 tests; delta **62 differences, 35 column digests unchanged and 0
+      changed**, and the renamed column's digest is byte-identical to its predecessor
+- [x] ADR-0031; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T14: one measurement schema, and a bbox that means something`
+
+---
+
+## What it turned up
+
+**The harness had the same bug the code did.** `capture_contracts` called `list(det.bbox)`, which
+is a `TypeError` the moment a bbox can be absent — D-16's assumption living inside the tool built
+to catch D-16. Fourth time this milestone that the harness was part of the finding.
+
+**The audit missed the worse half of D-17.** It listed each producer's columns against a
+TypeScript interface that ADR-0012 has since deleted, which surfaces *missing* and *extra* columns
+but not **two quantities sharing a name**. `radius_nm` meaning two different measurements is the
+fault that silently corrupts an aggregate, and no column count can see it.
+
+**mypy caught a dead comparison in code written minutes earlier** — `cfg.mode == "segment"` inside
+the branch that only runs for `"detect"`. Two errors appeared in this change and both were fixed
+rather than annotated.
 
 ---
 

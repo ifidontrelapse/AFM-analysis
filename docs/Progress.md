@@ -7,6 +7,77 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-07 — M3-T14 · **D-16 and D-17 fixed: one measurement schema**
+
+**Task:** `M3-T14`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0031**.
+**Defects:** D-16, D-17, medium — the last two the audit reproduced.
+
+### Three faults where the audit named one
+
+The audit counted columns and found four producers with four schemas. Reading them found:
+
+1. **One quantity under two names.** `score`/`sam_score` — the copy-paste drift the audit did
+   catch — and `mask_area_px`/`area_px`, which it did not.
+2. **Two quantities under one name**, which is worse. `radius_nm` was the *detector's blob radius*
+   in `measure_all_baseline` and the *measured mask's* equivalent radius in the SEM/TEM SAM2 path.
+   The first fault makes a consumer write more code; this one makes it compute the wrong number,
+   silently, the moment it concatenates two tables.
+3. **Columns that varied per row**, because both SAM2 producers assembled records with
+   `if k in res`, so two particles in one call could disagree about what was measured.
+
+### The shape that replaced it
+
+A **core** every producer emits, plus **blocks present in full or absent in full**, with `method`
+naming the producer so a reader knows which blocks to expect. Not one wide table with NaN where a
+producer cannot fill a column: that says SEM/TEM *has* heights and they are all missing. It has no
+heights. Six ADRs this milestone have turned on absent versus substituted, and a column of NaN is
+a substitution with better manners.
+
+`detector_radius_nm` is where we looked; `radius_nm` is what we found.
+
+### The delta — 62 differences, and the rename is provably a rename
+
+Sixty in the baseline table (five phantoms × the populated run and the empty probe × six
+differences each) and two in the `Detection` defaults. Comparing the two golden files column by
+column: **`col::radius_nm`'s digest before equals `col::detector_radius_nm`'s digest after** on all
+five phantoms; `x_px`/`y_px` are identical in every statistic with only the dtype moving;
+**35 column digests unchanged, 0 changed**. `peak_nm`, the one added number, satisfies
+`peak_nm == height_nm + baseline_nm` — the definition `height_nm` was already computed from.
+
+**The SAM2 producers contribute zero differences, and that is not evidence.** There are no weights
+here or in CI, so the golden cannot execute either of them; their delta is zero *by construction*.
+The 31 tests, driven by a stub predictor that returns three candidate masks and their scores the
+way `SAM2ImagePredictor` does, are the entire safety net for that half of D-17.
+
+### The harness had the same bug the code did
+
+`capture_contracts` did `list(det.bbox)` — a `TypeError` the moment a bbox can be absent. **That is
+D-16's assumption living inside the tool built to catch D-16.** It now records `None`, and
+`default_detection_bbox_len` is kept rather than deleted: `0` was the defect, `None` is the absence
+that replaced it, and the two should read differently in the file.
+
+Fourth time in M3 the harness itself was part of the finding, after M3-T07's `"non-array"`,
+M3-T12's `columns: []` and M3-T05's never-recorded field.
+
+### mypy caught a comparison written five minutes earlier
+
+Adding the detect-mode empty table, I wrote `segmentation=cfg.mode == "segment"` inside the branch
+that only runs when `cfg.mode == "detect"`. mypy called it a non-overlapping equality check —
+correct, and it can only ever be False. Two new errors appeared in this change and both were fixed
+rather than annotated; the count is unchanged at 12.
+
+### Gate
+
+`make check` green — **392 tests** (31 new), 62 declared golden differences and nothing else.
+
+### What is next
+
+**M3-T15**, the evaluation harness — precision, recall and localisation against phantom ground
+truth. It is all that is left of M3's numerical work, and **five tasks have now had to write "not
+claimed"** for want of it.
+
+---
+
 ## 2026-08-07 — M3-T13 · **D-15 fixed: one answer to "this input cannot be used"**
 
 **Task:** `M3-T13`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0030**.

@@ -15,7 +15,6 @@ choosing.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 from nanoscope.application.capabilities import validate_request
 from nanoscope.core.entities import (
@@ -27,6 +26,7 @@ from nanoscope.core.entities import (
 from nanoscope.core.errors import InvalidInputError, UnsupportedRequestError
 from nanoscope.core.science.detection import LogDetector
 from nanoscope.core.science.measurement import measure_all_baseline
+from nanoscope.core.science.measurement.schema import blocks_for, empty_measurement_table
 from nanoscope.core.values import default_polarity
 from nanoscope.infrastructure.models import (
     YoloDetector,
@@ -119,7 +119,14 @@ def run_pipeline(
         return PipelineResult(
             detections=detections,
             masks=[],
-            measurements=pd.DataFrame(),
+            # Nothing was measured, by design — but "nothing" still has a shape.
+            # `pd.DataFrame()` has zero columns, which is D-08 again in the one
+            # place ADR-0027 left open on purpose: the schema here depends on the
+            # modality, and that was M3-T14's decision to make (ADR-0031).
+            # No `segmentation` block: this is the detect branch, so nothing
+            # segmented anything. mypy said so first — `cfg.mode == "segment"`
+            # here is a comparison that can only be False.
+            measurements=empty_measurement_table(**blocks_for(modality)),
             pixel_size_nm=nm_per_pixel,
             detector_name=cfg.detector,
             mode=cfg.mode,

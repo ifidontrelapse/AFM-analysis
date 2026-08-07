@@ -23,34 +23,22 @@ from scipy.ndimage import binary_dilation
 from skimage.filters import threshold_otsu
 
 from nanoscope.core.errors import InvalidImageError
+from nanoscope.core.science.measurement.schema import empty_measurement_table, measurement_columns
 from nanoscope.core.validation import ensure_height_map, ensure_mask
 
 logger = logging.getLogger(__name__)
 
-#: The baseline measurement table, column by column, in the order the rows are
-#: built. It is declared rather than inferred so that a table with no rows has
-#: the same shape as one with rows — `pd.DataFrame([])` has **zero columns**, and
+#: The baseline producer's columns: the core, the detector block (it is prompted
+#: by a LoG blob, so the sigma and the radius that produced the mask are known)
+#: and the height block. Derived from `schema.py` since M3-T14 (ADR-0031) rather
+#: than written out here — four producers had four hand-written column sets, and
+#: that is D-17.
+#:
+#: Declared, not inferred, because `pd.DataFrame([])` has **zero columns** and
 #: every consumer reading by name got a `KeyError` instead of an empty column
 #: (audit D-08, ADR-0027). Dtypes are part of the promise: `df["height_nm"].mean()`
 #: on an empty `str` column is not the same answer as on an empty `float64` one.
-#:
-#: The first six keys are assembled in `measure_all_baseline`, the last six are
-#: `measure_height`'s return. One schema for the four producers is **M3-T14**;
-#: this is one producer writing down what it already emits.
-BASELINE_COLUMNS: dict[str, str] = {
-    "particle_id": "int64",
-    "x_px": "int64",
-    "y_px": "int64",
-    "sigma_px": "float64",
-    "radius_nm": "float64",
-    "method": "str",
-    "height_nm": "float64",
-    "mean_nm": "float64",
-    "baseline_nm": "float64",
-    "area_px": "int64",
-    "ring_px": "int64",
-    "baseline_source": "str",
-}
+BASELINE_COLUMNS: dict[str, str] = measurement_columns(detector=True, height=True)
 
 
 def empty_baseline_table() -> pd.DataFrame:
@@ -61,7 +49,7 @@ def empty_baseline_table() -> pd.DataFrame:
         declared dtype, so `df["height_nm"]` is readable whether or not any
         particle survived measurement.
     """
-    return pd.DataFrame({name: pd.Series(dtype=dtype) for name, dtype in BASELINE_COLUMNS.items()})
+    return empty_measurement_table(detector=True, height=True)
 
 
 def create_circular_mask(shape: tuple, cy: int, cx: int, radius: float) -> np.ndarray:
@@ -155,12 +143,17 @@ def measure_height(
         baseline_source = "global"
 
     z_in_mask = z_flat[mask_particle]
-    height = float(z_in_mask.max() - baseline)
+    peak = float(z_in_mask.max())
 
     return {
-        "height_nm": height,
+        "height_nm": peak - baseline,
         "mean_nm": float(z_in_mask.mean() - baseline),
         "baseline_nm": baseline,
+        # Added in M3-T14: the height block is all-or-nothing, and the SAM2
+        # producers have always reported the peak. It is `height_nm + baseline_nm`
+        # by construction, which is exactly why reporting it costs nothing and
+        # saves every consumer the reconstruction.
+        "peak_nm": peak,
         "area_px": int(mask_particle.sum()),
         "ring_px": int(clean_ring.sum()),
         "baseline_source": baseline_source,
@@ -263,10 +256,18 @@ def measure_all_baseline(
         results.append(
             {
                 "particle_id": i,
-                "x_px": x_i,
-                "y_px": y_i,
+                # The rounded centre, as a float: the mask was built at `x_i`, so
+                # that is where the measurement happened and reporting the
+                # unrounded blob centre would misplace it. The dtype is the
+                # schema's, shared with three producers that always had subpixel
+                # centres (ADR-0031).
+                "x_px": float(x_i),
+                "y_px": float(y_i),
                 "sigma_px": float(sigma),
-                "radius_nm": float(radius_nm),
+                # Was `radius_nm`, which is also the name the SAM2 SEM/TEM path
+                # uses for the radius of the mask it *measured*. This one is the
+                # radius of the blob that prompted the measurement (D-17).
+                "detector_radius_nm": float(radius_nm),
                 "method": "baseline_circle",
                 **metrics,
             }
@@ -279,4 +280,6 @@ def measure_all_baseline(
         logger.debug("no particle survived measurement; returning the empty table")
         return empty_baseline_table()
 
-    return pd.DataFrame(results)
+    # Column order is the declaration's, not the dict literal's: two tables of
+    # the same kind have to concatenate and compare without reordering.
+    return pd.DataFrame(results)[list(BASELINE_COLUMNS)]
