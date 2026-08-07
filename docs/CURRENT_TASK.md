@@ -1,86 +1,100 @@
 # CURRENT TASK
 
-**ID:** `M3-T23`
-**Title:** A rough radius that lands below one pixel is not an estimate
-**Milestone:** M3 — Numerical correctness, twenty-first task
-**Defect:** **B-061** (filed by M3-T13, which found it by being too strict) · **ADR:** **ADR-0034**
+**ID:** `M3-T24`
+**Title:** The rough estimate stops truncating its own radius
+**Milestone:** M3 — Numerical correctness, twenty-second task
+**Defect:** **B-063** (filed by M3-T23, which fixed its consequence) · **ADR:** **ADR-0035**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
-## Why this task is next
+## Why this task is next, and why it is not an operator decision
 
-M3's remaining items are `M3-T16` (blocked on **B6**), `M3-T19` (`low`, a typing finding),
-**B-061** and **B-062**. B-062 is a detector-tuning question with a trade-off the operator should
-see; B-061 is not a question at all once the mechanism is measured — the function returns a
-number that means "I could not estimate", and every caller reads it as a radius.
+`M3-T16` is blocked on **B6** and **B-062** wants an operator's view of a sensitivity trade-off.
+B-063 does not: **the rule was already decided**, and this is a site that was missed.
 
-## The defect, measured
+- **ADR-0020** ruled that every radius reaching `disk()` is `ceil`-ed — *"up, not down: a radius
+  smaller than a particle recovers a substrate containing the particle"* — and that
+  `_integer_radius` is the one funnel. `int()` inside the estimator is a **second, undeclared
+  rounding**, in the opposite direction.
+- **ADR-0024** deleted this exact `int()` pattern as D-04's mechanism.
+- The parameter's own documentation, from the commit that introduced both, says `scale=1.7` is a
+  *"multiplier so the disk is safely **larger** than a particle"*. The truncation makes it
+  smaller. It works against the stated purpose of the line above it.
 
-`estimate_rough_radius` can return **0**. `get_substrate_map(z, 0)` opens with `disk(0)`, a single
-pixel, so **the opening is the identity**: the "substrate" comes back equal to the image and
-`z_above` is zero everywhere. It looks exactly like a result.
+So removing it executes an accepted decision rather than making a new one.
 
-Measured across the phantoms — the cell that reaches it:
+## The defect
 
-| Phantom | scale | median object area | rough radius | rough opening |
-|---|---|---:|---:|---|
-| `afm_flat_monodisperse` | either | 234.5 px | 14 | real |
-| `afm_tilted_polydisperse` | either | 186.0 px | 12 | real |
-| `afm_dense_overlapping` | either | 144.5 px | 11 | real |
-| `afm_coarse_pixels` | either | 73.5 px | 7 | real |
-| `afm_sparse_low_snr` | scaled | 1.0 px | 3 | real |
-| **`afm_sparse_low_snr`** | **unscaled** | **1.0 px** | **0** | **identity** |
+```python
+radius_px = int(np.sqrt(median_area / np.pi))   # <- truncates, downward, silently
+rough_radius = max(radius_px * scale, min_size_px)
+return _integer_radius(rough_radius)            # <- the declared rounding, upward
+```
 
-The median object area is **1.0 px** in both of the last two rows: the threshold
-`median + std` found single-pixel noise, not particles. The scaled run survives it only because
-`min_size_px = 5 / 1.95 = 2.56` floors the answer — **the estimate is equally worthless there and
-the floor hides it.** Without a scale there is no floor (ADR-0025, correctly), so the worthless
-estimate goes through as 0.
+Two roundings in three lines, in opposite directions, and only the second one is documented. The
+first also loses up to a full pixel *before* the `× 1.7`, so the error is amplified: at
+`sqrt(area/π) = 4.9` the disk is built from 4, not 4.9, and the ×1.7 turns a 0.9 px truncation
+into a 1.5 px shortfall.
 
-### It corrects ADR-0025's diagnosis
-
-That ADR recorded, for this exact phantom and path, **17 objects → 3351** and explained it as
-*"losing the scale is losing the filter"*. That is true and it is not the whole mechanism. Losing
-the scale did **two** things: it skipped the `min_size_nm` filter, and it collapsed the rough
-radius to zero so Otsu ran on a map that had never been opened. Fixing only this half moves
-**3351 → 627**, so the collapsed radius accounted for roughly **four fifths** of the inflation
-and the missing filter for the rest.
+It is also how M3-T23's zero arose: `int(0.56) = 0`, and `0 × 1.7 = 0`.
 
 ---
 
-## The decisions this task has to make
+## What it moves — measured before deciding
 
-### 1. What a sub-pixel estimate means
+**M3-T23's own filing overstated this**, and the correction belongs here rather than in a quiet
+edit. It said the change "moves the final radius, the substrate and every height". Measured:
+
+| Phantom | rough | final | substrate | heights | measured rows |
+|---|---|---|---|---|---|
+| `afm_flat_monodisperse` | 14 → **15** | 19 → 19 | identical | identical | 24 → 24 |
+| `afm_tilted_polydisperse` | 12 → **14** | 18 → **19** | **differs** | **max 0.686 nm (2.77 %)** | 30 → 30 |
+| `afm_dense_overlapping` | 11 → **12** | 16 → 16 | identical | — | **59 → 60** |
+| `afm_sparse_low_snr` | 3 → 3 | 8 → 8 | identical | identical | 0 → 0 |
+| `afm_coarse_pixels` | 7 → **9** | 11 → 11 | identical | identical | 14 → 14 |
+
+**The two-stage design absorbs most of it.** The rough radius moves on four phantoms; the *final*
+radius moves on one, because the final radius comes from Otsu's median radius on the roughly
+opened map and that median is robust to the opening being slightly larger.
+
+**`afm_dense_overlapping` gains a measured particle without its substrate changing**, which is
+worth understanding before it is recorded: `sizes` from the rough stage feeds
+`estimate_log_params`, so the sigma range the LoG detector searches moves even when `z_above` does
+not. One more particle clears it — 59 rows become 60.
+
+### And detection quality, which nothing could measure before M3-T15
+
+| Phantom | recall | mean localisation |
+|---|---|---|
+| `afm_flat_monodisperse` | 1.000 → 1.000 | 0.4310 → 0.4310 px |
+| `afm_tilted_polydisperse` | 1.000 → 1.000 | 0.6137 → **0.6156** px |
+| `afm_dense_overlapping` | 0.843 → 0.843 | 0.8265 → 0.8265 px |
+| `afm_coarse_pixels` | 1.000 → 1.000 | 0.4143 → 0.4143 px |
+
+**No measurable change in detection quality.** That is the honest reading and it is worth stating
+plainly: this task is not an improvement to detection, it is the removal of an undeclared
+rounding that contradicts an accepted ADR. **The first task in this project able to say that with
+a number rather than an assumption** — which is what M3-T15 was built for.
+
+---
+
+## The decision this task has to make
+
+Only one, and it is narrow: **is `sqrt(median_area / π)` allowed to keep its fractional part?**
 
 | | |
 |---|---|
-| **It means the estimate failed** ✅ | A median object area of ~1 px is noise, and the function already has a branch for exactly that situation — `len(props) == 0` warns "too flat or too noisy" and falls back to 1 % of the image width. This is the same condition arriving by a different route |
-| Floor it at 1 px | `disk(1)` is a 3×3 element: it removes single-pixel noise and nothing else, so Otsu still measures noise and the estimate stays wrong — a smaller lie, quietly |
-| Raise | The image is valid and the automatic path has a documented fallback. ADR-0018's case, not ADR-0017's |
+| **Yes — `_integer_radius` is the only rounding** ✅ | ADR-0020's rule, applied where it was missed. The estimate stays a float until the single declared ceiling |
+| Round it to nearest instead | Still a second rounding, still undeclared, and still ahead of a `× 1.7` that amplifies it |
+| Keep it, document it | Documents a contradiction rather than removing it, and leaves a downward rounding inside a parameter whose purpose is an upward margin |
 
-The fallback lands on **3 px** for the unscaled sparse phantom — which is what the *scaled* run of
-the same image computes. The one case that can be checked against a known-good answer agrees.
-
-### 2. Where the check goes
-
-On the **unrounded** radius, before `_integer_radius` ceils it. `ceil(0.96)` is 1, so a check
-after the rounding would never see the sub-pixel case at all — it would only ever catch an exact
-zero, which is the symptom rather than the condition.
-
-### 3. What this task does *not* touch
-
-`radius_px = int(np.sqrt(median_area / np.pi))` is a **second, undeclared rounding** in a function
-whose only rounding is supposed to be `_integer_radius` (ADR-0020), and it is the same `int()`
-pattern ADR-0024 deleted as D-04's mechanism. It is also *how* this estimate reaches exactly zero.
-
-But removing it moves the rough radius on **every** phantom — measured: 14 → 15, 12 → 14,
-11 → 12, 7 → 9 — and therefore the final radius, the substrate and every height. That is a
-different defect with a different blast radius, and bundling it here would make neither
-attributable. **Filed as B-063 with those numbers.**
+**What is not decided here:** whether `1.7` and `2.5` are the right constants. They are
+undocumented beyond "safely larger", they were chosen with the truncation in place, and nothing
+in the project can currently say what they should be — **M3-T15 can now measure a candidate**,
+which makes it a real task rather than a preference. **Filed as B-064.**
 
 ---
 
@@ -88,63 +102,34 @@ attributable. **Filed as B-063 with those numbers.**
 
 **In scope**
 
-1. A rough estimate below 1 px falls back, with a warning that names the median area it rejected
-2. Tests: the reproduction, the fallback value, the untouched phantoms, and that the warning
-   distinguishes this case from the empty one
-3. The golden re-recorded for the one cell that moves
+1. Delete the `int()`; the estimate reaches `_integer_radius` as a float
+2. Tests: the truncation is gone, the two roundings become one, and the direction is up
+3. The golden re-recorded — 4 phantoms' rough radius, 1 phantom's substrate and heights,
+   1 phantom's row count
 
 **Out of scope**
 
-- **B-063** — the `int()` truncation, filed with its measured effect on all five phantoms
-- **B-062** — recall 0.000 on the same phantom's *detection*. Different function, different
-  decision, and it wants an operator's view of the sensitivity trade-off
-- The `median + std` threshold itself. That it finds noise on a low-SNR scan is the input to this
-  decision, not a defect this task is fixing
-
----
-
-## Expected blast radius, before measuring
-
-- **One golden cell**: `build_substrate_map_no_scale` on `afm_sparse_low_snr`. `n_objects`
-  3351 → 627, and everything derived from the radii with it. The opening radius stays 5, so the
-  unscaled run still differs from the scaled one — ADR-0025's finding survives with a smaller
-  number and a sharper cause.
-- **Four AFM phantoms and both image phantoms: nothing.** Their estimates are not sub-pixel.
-- M3-T20's `test_and_that_costs_the_substrate_on_a_noisy_scan` must still pass: it asserts the
-  unscaled run differs from the scaled one, which remains true.
+- **B-064** — the provenance of `1.7` and `2.5`
+- **B-062** — recall 0.000 on `afm_sparse_low_snr`, which this does not move (3 → 3)
+- `M3-T19` — the `low` mypy finding in the LoG threshold estimator
 
 ---
 
 ## Definition of done
 
-- [x] A sub-pixel rough estimate falls back and says so, naming the median area
-- [x] Tests — **9**; removing the branch turns 5 red
-- [x] `make check` green — 434 tests; delta **11 differences, all inside the one predicted cell**
-- [x] ADR-0034; **B-063 filed** with measurements; `Backlog.md` (B-061 → done), `STATE.md`,
-      `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T23: a rough radius below one pixel is not an estimate`
-
----
-
-## What it turned up
-
-**The golden had the evidence and nobody read it.** An Otsu threshold of **7.7e-09** is Otsu
-applied to an all-zero map — precisely what `z − z` is when the opening is the identity. It sat
-in the baseline beside "3351 objects" on a phantom with six particles. The four previous findings
-in this milestone were the harness *failing to record* something; this is the first where it
-recorded the fingerprint and the number meant nothing to a reader.
-
-**The substrate did not move, and that is luck.** `opening_radius` stays 5 because the *median*
-radius is 0.798 px before and after. On an image whose median crosses the `× 2.5` boundary the
-returned substrate would move too — so this is not evidence that the defect was harmless.
-
-**The scaled run was equally broken and better hidden.** Same image, same worthless 1.0 px median
-object; the only thing that saved it was the `min_size_nm` floor. A floor is not an estimate.
+- [ ] `int()` gone; `_integer_radius` is the only rounding in the function
+- [ ] Tests, including a case where truncation and ceiling disagree by a whole pixel
+- [ ] `make check` green; delta quantified against the table above, and the detection-quality
+      block re-recorded with it
+- [ ] ADR-0035; **B-064 filed**; `Backlog.md` (B-063 → done, and its overstated estimate
+      corrected), `STATE.md`, `Progress.md`, `TASKS.md`, ADR index
+- [ ] Commit: `M3-T24: the rough estimate stops truncating its own radius`
 
 ---
 
 ## Notes
 
-The audit never listed this. It was found by M3-T13 writing a validation rule that was *too
-strict* — `ensure_positive(radius_px)` turned an M3-T20 test red — and the honest response then
-was to relax the check and file the question. Three tasks later it is answered with a number.
+This is the fourth `int()` this milestone has removed from a scientific path — after ADR-0024's
+`min_size_pixel`, ADR-0020's un-rounded `disk()` radius and M3-T23's zero. The pattern is always
+the same: a truncation written where a float was meant, invisible because it produces a plausible
+integer.
