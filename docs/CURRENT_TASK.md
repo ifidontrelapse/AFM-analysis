@@ -1,97 +1,137 @@
 # CURRENT TASK
 
-**ID:** `M3-T05`
-**Title:** A detection carries the score its detector gave it, or none at all
-**Milestone:** M3 — Numerical correctness, twelfth task
-**Defect:** **D-09** (medium) · **ADR:** **ADR-0028**
-**Branch:** `sci/yolo-confidence` (stacked on `sci/empty-measurements-keep-their-schema`)
-**Status:** **done 2026-08-06.** Rewritten for the next task at the start of the next
-session; the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M3-T08`
+**Title:** `flatten_lines` promotes the way `flatten_plane` does
+**Milestone:** M3 — Numerical correctness, sixteenth task
+**Defect:** **D-13** (medium) · **ADR:** **ADR-0029**
+**Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
+deviation from PROJECT_RULES §7 in `STATE.md`)
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-Every `critical` and `high` defect in M3 is closed. D-09 is the first `medium` one in the task
-list, and it is the one that produces a **wrong number in a user-facing field** rather than a
-crash or a shape.
+Every `critical` and every `high` defect is closed. `STATE.md` names the remaining `medium`
+ones in order — **T08, T13, T14** — and T08 is the only one of the three that is a *number*
+rather than a contract: T13 designs an error taxonomy and T14 unifies a schema, both of which
+touch every entry point. This one is one line in one function.
+
+It is also the task this laptop can finish. There are no weights and no `data/` here, so
+anything that has to execute YOLO or SAM2, or re-read the 628 local scans, cannot be verified;
+`flatten_lines` is pure NumPy/SciPy and the whole gate runs on the CI-shaped environment.
+
+---
+
+## The defect
+
+`nanoscope/core/science/preprocessing/flatten.py:46`
 
 ```python
-Detection(x_px=cx, y_px=cy, radius_px=radius_px, radius_nm=..., bbox=...)
-#                                                  confidence never assigned -> 1.0
+result = np.empty_like(z)          # <- keeps the input's dtype
+for i, row in enumerate(z):
+    coeffs = np.polyfit(xi, row, poly_order)
+    result[i] = row - np.polyval(coeffs, xi)   # <- float64 residuals, truncated on assignment
 ```
 
-The model scores every box, `cfg.yolo_conf` uses those scores to *filter*, and then
-`_boxes_to_detections` throws them away. Every YOLO detection reports **100 % confidence**,
-including the ones that only just cleared the threshold.
+`np.polyfit` and `np.polyval` compute in float64 whatever they are given, so the residual is
+fractional by construction — a levelled row is *mostly* fractional, since the trend it subtracts
+is the row's own fit. Assigning it into an integer array rounds every value toward zero.
+
+Measured here on a `uint8` ramp: residual max **0.368**, recorded output **all zeros**. The audit
+measured its own ramp and got the same shape of answer (correct 0.5625, actual all zeros).
+
+**`flatten_plane` does not have the defect** — it returns `z - plane` with `plane` float64, so
+NumPy promotes for it. The two halves of "flattening" therefore disagree about dtype, which is
+what makes this a defect rather than a preference: `flatten_plane(z).dtype` is `float64` for a
+`uint8` input and `flatten_lines(z).dtype` is `uint8`.
+
+**Boolean input is worse than truncation, and the audit did not measure it.** `result[i] = row -
+polyval(...)` into a `bool` array stores `residual != 0`, so the "levelled topography" comes back
+as a mask of where the residual was non-zero — max **1.0** where the real residual max is 0.45.
+
+### Who reaches it
+
+Not the documented chain: `flatten_lines(flatten_plane(z))` already receives float64, which is
+why the golden's five AFM phantoms have never seen this. Live callers are the ones that hand
+`flatten_lines` an array directly:
+
+- **`load_microscopy_image` returns `uint8`** — `cv2.imread(..., IMREAD_GRAYSCALE)` — and it is
+  the only file entry point for SEM/TEM. Levelling one of those images is a `flatten_lines` call
+  on integer data.
+- **`load_afm(fmt="npy")`** passes through whatever the `.npy` holds, integers included.
+- `README.md`, `project.md` and `PROJECT_CONTEXT.md` all document `flatten_lines` as a public
+  function callable on its own.
 
 ---
 
 ## The decision this task has to make
 
-`confidence: float = 1.0` is a **substitute value**, and this milestone has spent four ADRs
-deleting substitute values: a fabricated pixel scale (ADR-0019, ADR-0025, ADR-0026), a fabricated
-minimum size (ADR-0024), a fabricated empty table (ADR-0027). The same argument applies here, and
-it applies to the LoG detector as much as to YOLO — LoG has no score to give, and 1.0 says it
-has one.
+The task title in `TASKS.md` says "must promote dtype like `flatten_plane` does", and that is a
+rule, not a hint. `flatten_plane`'s rule is NumPy's own: the input dtype combined with float64.
 
-| | |
+| Option | |
 |---|---|
-| Propagate YOLO's score, leave the default at `1.0` | Fixes the reported defect and leaves LoG claiming certainty it never computed |
-| Propagate YOLO's score, and make "no score" **`None`** ✅ | Absent is absent, in the one field where a reader compares detectors against each other |
-| Invent a LoG confidence from the blob response | The response is not a probability and is not normalised; inventing one is a scientific claim this task has no basis for — and M3-T15 is the task that would have to validate it |
+| `np.promote_types(z.dtype, np.float64)` ✅ | *Is* `flatten_plane`'s rule, written out. Integers and bools become float64; float64 stays; a wider float stays wide |
+| `dtype=np.float64`, unconditionally | Identical for every dtype `np.polyfit` accepts today, and *demotes* a `longdouble` input, which `flatten_plane` preserves. Two rules that agree by coincidence are two rules |
+| Cast the input — `z = z.astype(float)` first | Copies the array to compute a result that was going to be allocated anyway |
+| Raise on non-float input | An 8-bit image is not a malformed input; it is what the SEM/TEM loader returns by construction. And typed input validation is **M3-T13**, wholesale |
 
-**In scope:** both YOLO backends must pass their own scores — the direct one from
-`results[0].boxes.conf`, the tiled one from `CombineDetections.filtered_confidences`. A fix that
-only reaches one backend is half a fix.
+**float32 in becomes float64 out**, and that is declared drift rather than an accident: it is
+what `flatten_plane` already does with a float32 input, and what NumPy would do if the expression
+were written `z - trend` instead of assigned into a pre-allocated buffer.
 
 ---
 
 ## Scope
 
+**In scope**
+
+1. The one line in `flatten_lines`, plus a docstring that states the returned dtype
+2. A harness block that records levelling across dtypes — the integer case the audit's own
+   remediation note (R9) asked for: *"Golden covers float; add an integer case"*
+3. Unit tests, including the dtype-agreement invariant between the two functions
+
 **Out of scope**
 
-- Any LoG-side score. `Detection.confidence` is `None` there, which is the honest reading of
-  "this detector does not produce one"
-- `cfg.yolo_conf`'s filtering behaviour. The threshold already works; this task is about what
-  survives it carrying its own number
-- The `bbox` default (`D-16`) sitting two lines below in the same dataclass. It is **M3-T14**,
-  and its `type: ignore` is annotated to expire itself
+- **Typed validation** of `z` — non-numeric dtypes, 1-D, 3-D, NaN. `np.promote_types` raises its
+  own `TypeError` on a string array one line earlier than `np.polyfit` did; making that a project
+  error is **M3-T13**, which owns every numerical entry point at once
+- `flatten_plane`. It is correct here and nothing in it moves
+- **B-059** (`nan <= 0` in `measure_all_baseline`), a different defect in a different file, which
+  gets its own commit (ADR-0010)
+
+---
+
+## Expected blast radius, before measuring
+
+- **The five AFM phantoms and both image phantoms: no change.** Every recorded `flatten_lines`
+  call in a phantom chain is fed `flatten_plane`'s float64 output.
+- **`degenerate_inputs`: dtype changes.** All twelve are float32, so the entries that succeed
+  today record `dtype: float32` and will record `float64`, with the value statistics moving in
+  the last bits of float32 precision. That is the drift this ADR declares.
+- **New keys** for the dtype block.
+- mypy and ruff: no expected movement.
 
 ---
 
 ## Definition of done
 
-- [x] `Detection.confidence` is `float | None`, defaulting to `None`
-- [x] Both YOLO backends pass real per-box scores; a length mismatch raises and names both counts
-- [x] LoG detections report `None`
-- [x] Tests — 7; restoring the drop turns 6 red
-- [x] `make check` green — 232 tests; delta: **29 keys added, 0 values changed**; mypy **14 → 12**
-- [x] ADR-0028; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T05: a detection carries the score its detector gave it`
-
----
-
-## What it turned up
-
-**The golden could never have caught this defect.** `contracts.default_detection_confidence` is
-an *added* key, not a changed one: the harness recorded `default_detection_bbox` — the field the
-audit filed as D-16 — and not `confidence`, filed as D-09 one line below in the same dataclass.
-Third time in M3 the harness itself was the blind spot (M3-T07's `"non-array"`, M3-T12's
-`columns: []`).
-
-**The audit understated the defect.** It named YOLO; the same `1.0` was reported by every **LoG**
-detection too, which computes no score at all.
-
-**mypy went 14 → 12 by accident.** Threading a second array through `_detect_tiled` would have
-added a third `"None" has no attribute ...` error on `self._last_result`; annotating that field
-`Any` — as its own comment already described it — removed all three.
+- [ ] `flatten_lines` allocates with `np.promote_types(z.dtype, np.float64)`; the docstring says
+      so and says why
+- [ ] Harness records levelling for `uint8` / `int32` / `bool` / `float32` / `float64` inputs of
+      one real phantom image, both functions, dtype included
+- [ ] Tests: an integer input keeps its residuals; a bool input is not a mask; both functions
+      agree on dtype for every input dtype; float64 is bit-identical to before; restoring
+      `np.empty_like(z)` turns them red
+- [ ] `make check` green; delta quantified in `Progress.md`, key by key
+- [ ] ADR-0029; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T08: flatten_lines promotes the way flatten_plane does`
 
 ---
 
 ## Notes
 
-Inference is outside the gate (PROJECT_RULES §6), so the golden cannot execute either backend.
-`_boxes_to_detections` is a `staticmethod` needing no weights — the harness already records it
-for D-07 — so the conversion is testable even though the inference around it is not. That is the
-same seam M3-T04 and M3-T10 used.
+The claim this task can and cannot make: it fixes what levelling *returns* for an integer image.
+Whether levelling an 8-bit SEM image is the right preprocessing step at all is a different
+question, and nothing in the gate answers it — **M3-T15** again.
