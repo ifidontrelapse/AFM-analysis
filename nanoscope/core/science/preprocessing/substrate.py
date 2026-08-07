@@ -39,6 +39,15 @@ def _integer_radius(radius_px: float) -> int:
     return int(np.ceil(radius_px))
 
 
+def _fallback_radius(z: np.ndarray, min_size_px: float) -> int:
+    """1% of the image width, floored by the minimum particle size.
+
+    What the function returns when it has no estimate to give — because nothing
+    was found, or because what was found was single-pixel noise (ADR-0034).
+    """
+    return _integer_radius(max(z.shape[1] * 0.01, min_size_px))
+
+
 def get_substrate_map(z: np.ndarray, radius_px: float) -> np.ndarray:
     """
     Estimate the substrate surface with the particles removed.
@@ -213,7 +222,7 @@ def estimate_rough_radius(
             "no objects found for radius estimation — the image is probably too "
             "flat or too noisy; falling back to 1% of the image width"
         )
-        return _integer_radius(max(z.shape[1] * 0.01, min_size_px))
+        return _fallback_radius(z, min_size_px)
 
     # Median area -> equivalent radius
     median_area = np.median([p.area for p in props])
@@ -221,6 +230,26 @@ def estimate_rough_radius(
 
     # Scale up so the disk is safely larger than a particle
     rough_radius = max(radius_px * scale, min_size_px)
+
+    # A rough radius below one pixel is not an estimate (B-061, ADR-0034). It
+    # means `median + std` selected single-pixel noise rather than particles —
+    # the same situation the branch above calls "too flat or too noisy",
+    # arriving by a different route. Left alone it reaches `disk(0)`, a single
+    # pixel, so the opening is the identity: the substrate comes back equal to
+    # the image and `z_above` is zero everywhere, which looks like a result.
+    #
+    # Checked before `_integer_radius`, deliberately: `ceil(0.96)` is 1, so a
+    # check after the rounding would only ever catch an exact zero — the symptom
+    # rather than the condition.
+    if rough_radius < 1.0:
+        logger.warning(
+            "the rough radius estimate came out sub-pixel (%.3g px) because the median object "
+            "found is %.3g px in area — that is noise, not a particle; falling back to 1%% of "
+            "the image width",
+            rough_radius,
+            float(median_area),
+        )
+        return _fallback_radius(z, min_size_px)
 
     return _integer_radius(rough_radius)
 

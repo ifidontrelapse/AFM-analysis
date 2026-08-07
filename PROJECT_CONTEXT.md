@@ -297,6 +297,8 @@ Both return `np.promote_types(z.dtype, np.float64)` — for an integer or boolea
 
 `get_substrate_map(z, radius_px)` applies grayscale morphological opening with a disk structuring element. The intended assumption is that `radius_px` is larger than the largest particle radius, allowing the opening to preserve the substrate and remove particle peaks.
 
+Since M3-T23 (ADR-0034) `estimate_rough_radius` never returns a radius below 1 px: a sub-pixel estimate means `median + std` selected single-pixel noise, and it takes the same "too flat or too noisy" fallback (1 % of the image width) the empty case already used, with a warning naming the median area it rejected. Before that it could return **0**, and `disk(0)` makes the opening the identity — the substrate came back equal to the image.
+
 `build_substrate_map(z, pixel_size_nm, min_size_nm=5, manual_radius_px=None)` has two paths:
 
 ```text

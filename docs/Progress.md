@@ -7,6 +7,79 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-07 — M3-T23 · **B-061 closed: a rough radius below one pixel is not an estimate**
+
+**Task:** `M3-T23`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0034**.
+**Defect:** B-061 — filed by M3-T13, which found it by writing a validation rule that was *too
+strict*.
+
+### The defect
+
+`estimate_rough_radius` could return **0**. `disk(0)` is a single pixel, so the rough opening is
+the **identity**: the substrate comes back equal to the image and `z_above` is zero everywhere.
+Nothing raises, nothing warns, and the result has the shape of an answer.
+
+The condition is that `median + std` selected single-pixel noise. Measured: the median object area
+on `afm_sparse_low_snr` is **1.0 px** in *both* the scaled and the unscaled run. The scaled one
+survives only because `min_size_px = 5 / 1.95 = 2.56` floors it — **the estimate is equally
+worthless there and the floor hides it.**
+
+### It corrects ADR-0025's diagnosis
+
+That ADR recorded **17 objects → 3351** on this exact path and read it as *"losing the scale is
+losing the filter"*. Losing the scale did **two** things, and the filter was the smaller one: the
+rough radius collapsed to zero, so Otsu ran on a map that had never been opened. Fixing only that
+half moves **3351 → 627** — roughly four fifths of the inflation.
+
+ADR-0025 is not edited. Accepted ADRs are immutable; its number stands, with ADR-0034 as the
+correction.
+
+### The delta — 11 differences, all in one cell
+
+Everything is inside
+`afm_sparse_low_snr.preprocessing.build_substrate_map_no_scale.sizes`: the object count
+**3351 → 627**, the Otsu threshold **7.7e-09 → 1.459**, and the radius distribution with them.
+
+**`opening_radius`, `substrate` and `z_above` are unchanged** — the *median* radius drives the
+final radius and it is 0.798 px either way. So the fix changes what the function **reports about
+the sample**, not what it **returns as the substrate**, on this image. That is a coincidence of
+this median, not a property, and the ADR says so.
+
+**The golden had the evidence all along.** An Otsu threshold of **7.7e-09** is Otsu applied to an
+all-zero map — exactly what `z − z` is when the opening is the identity. It sat in the file next
+to "3351 objects" on a phantom with six particles, and read as normal, because nothing in a
+characterization baseline says what a plausible value looks like. The previous four findings were
+the harness *not recording* something; this one is the harness recording it and nobody looking.
+
+**It does not make the unscaled run good.** The median radius is still 0.798 px, `radii_px.max`
+rises to 93.5 px as one large background component clears the new threshold, and 627 objects on a
+six-particle phantom is still wrong. It is now wrong for the single reason ADR-0025 named. The
+remainder is **B-062**.
+
+### Filed with measurements, not fixed
+
+**B-063 — the `int()` inside the estimate.** `radius_px = int(np.sqrt(median_area / np.pi))` is a
+second, undeclared rounding in a function whose only rounding is supposed to be `_integer_radius`
+(ADR-0020), the same pattern ADR-0024 deleted as D-04's mechanism, and *how* the estimate reaches
+exactly 0 rather than 0.96. Deleting it moves the rough radius on **every** phantom — 14 → 15,
+12 → 14, 11 → 12, 7 → 9 — and therefore every height. Different blast radius, different review,
+and it needs someone to ask whether the `× 1.7` scale factor was tuned around the truncation.
+
+### Gate
+
+`make check` green — **434 tests** (9 new), 11 declared golden differences and nothing else.
+M3-T20's `test_and_that_costs_the_substrate_on_a_noisy_scan` still passes: the unscaled run still
+counts more objects and still uses a different opening radius. Removing the branch turns 5 of the
+9 new tests red. mypy unchanged at 12.
+
+### What is next
+
+M3 has two open findings — **B-062** (recall 0.000) and **B-063** — plus `M3-T16` (blocked on
+**B6**) and `M3-T19` (`low`). B-062 wants an operator's view of the sensitivity trade-off; B-063
+is engineering with a wide delta.
+
+---
+
 ## 2026-08-07 — M3-T22 · **B-059 closed: a height that is not a number is not a measurement**
 
 **Task:** `M3-T22`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0033**.

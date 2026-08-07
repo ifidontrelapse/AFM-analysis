@@ -6,7 +6,8 @@
 **Defect:** **B-061** (filed by M3-T13, which found it by being too strict) · **ADR:** **ADR-0034**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -116,12 +117,29 @@ attributable. **Filed as B-063 with those numbers.**
 
 ## Definition of done
 
-- [ ] A sub-pixel rough estimate falls back and says so, naming the median area
-- [ ] Tests, including the exact-zero reproduction and the four phantoms that must not move
-- [ ] `make check` green; delta quantified, and confined to the one cell
-- [ ] ADR-0034; **B-063 filed**; `Backlog.md` (B-061 → done), `STATE.md`, `Progress.md`,
-      `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T23: a rough radius below one pixel is not an estimate`
+- [x] A sub-pixel rough estimate falls back and says so, naming the median area
+- [x] Tests — **9**; removing the branch turns 5 red
+- [x] `make check` green — 434 tests; delta **11 differences, all inside the one predicted cell**
+- [x] ADR-0034; **B-063 filed** with measurements; `Backlog.md` (B-061 → done), `STATE.md`,
+      `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M3-T23: a rough radius below one pixel is not an estimate`
+
+---
+
+## What it turned up
+
+**The golden had the evidence and nobody read it.** An Otsu threshold of **7.7e-09** is Otsu
+applied to an all-zero map — precisely what `z − z` is when the opening is the identity. It sat
+in the baseline beside "3351 objects" on a phantom with six particles. The four previous findings
+in this milestone were the harness *failing to record* something; this is the first where it
+recorded the fingerprint and the number meant nothing to a reader.
+
+**The substrate did not move, and that is luck.** `opening_radius` stays 5 because the *median*
+radius is 0.798 px before and after. On an image whose median crosses the `× 2.5` boundary the
+returned substrate would move too — so this is not evidence that the defect was harmless.
+
+**The scaled run was equally broken and better hidden.** Same image, same worthless 1.0 px median
+object; the only thing that saved it was the `min_size_nm` floor. A floor is not an estimate.
 
 ---
 

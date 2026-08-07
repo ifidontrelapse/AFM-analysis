@@ -34,10 +34,25 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 ## Current task
 
 **None selected.** **Every numerical defect the audit reproduced is closed, detection quality is
-measured, and B-059 is closed with it.** What remains in M3 is **M3-T16**, blocked on **B6**, and
-**M3-T19**, a `low` mypy finding. **B-040** goes last of everything because it rewrites every SHA
-above it. Two findings from this session are still open — **B-061** and **B-062** — and each needs
-a decision.
+measured, and B-059 and B-061 are closed with them.** What remains in M3 is **M3-T16**, blocked on
+**B6**, and **M3-T19**, a `low` mypy finding. **B-040** goes last of everything because it
+rewrites every SHA above it. Two findings are open: **B-062** (recall 0.000, wants an operator's
+view of the sensitivity trade-off) and **B-063** (an `int()` truncation whose delta reaches every
+phantom).
+
+**`M3-T23` done 2026-08-07 (ADR-0034)** — **B-061 closed.** `estimate_rough_radius` could return
+**0**, and `disk(0)` makes the opening the **identity**: the substrate came back equal to the
+image, with the shape of an answer. The condition is that `median + std` selected single-pixel
+noise — the median object area is **1.0 px** on `afm_sparse_low_snr` in *both* runs, and the
+scaled one survives only because `min_size_px = 2.56` floors it, so **the estimate is equally
+worthless there and the floor hides it**. A sub-pixel estimate now takes the fallback the function
+already had, checked before `_integer_radius` because `ceil(0.96)` is 1; it lands on **3 px**,
+which is what the scaled run of the same image computes. **It corrects ADR-0025's diagnosis:**
+losing the scale did two things and the filter was the smaller one — **3351 → 627 objects**.
+Delta: **11 differences, all in one cell**; `opening_radius`, `substrate` and `z_above` unchanged.
+**The golden had the evidence all along** — an Otsu threshold of **7.7e-09**, which is Otsu on the
+all-zero map an identity opening produces. 9 tests; removing the branch turns 5 red. **B-063**
+filed with measurements.
 
 **`M3-T22` done 2026-08-07 (ADR-0033)** — **B-059 closed.** `if height <= 0` was written to
 discard artefacts and **`nan <= 0` is `False`**, so a `NaN` height was the one value it let
@@ -221,6 +236,27 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T23** ✅ (2026-08-07, **ADR-0034**) — **B-061 closed: a rough radius below one pixel is not
+  an estimate.** `estimate_rough_radius` could return **0**; `disk(0)` is a single pixel, so the
+  rough opening was the **identity** — substrate equal to the image, `z_above` zero everywhere,
+  and nothing said so. The condition behind it: `median + std` selected single-pixel noise, and
+  the median object area is **1.0 px** on `afm_sparse_low_snr` in *both* the scaled and unscaled
+  runs. The scaled one survives only because `min_size_px = 5/1.95 = 2.56` floors the answer —
+  **the estimate is equally worthless there and the floor hides it**, which is the part worth
+  remembering. A sub-pixel estimate now takes the "too flat or too noisy" fallback the function
+  already had (1 % of the image width), checked **before** the rounding because `ceil(0.96)` is 1;
+  it returns **3 px**, exactly what the scaled run of the same image computes — the one case with
+  a known-good answer agrees. **It corrects ADR-0025**, which recorded 17 → 3351 objects and read
+  it as "losing the scale is losing the filter": losing the scale did two things, and this was the
+  bigger — **3351 → 627**. Delta: **11 differences, all inside one cell**, with `opening_radius`,
+  `substrate` and `z_above` **unchanged**, because the median radius that drives the final radius
+  is 0.798 px either way — the fix changes what the function *reports about the sample*, not what
+  it *returns as the substrate*, on this image. **The golden had the evidence all along:** an Otsu
+  threshold of **7.7e-09** is Otsu on the all-zero map an identity opening produces, and it sat
+  next to "3351 objects" on a six-particle phantom reading as normal. First finding of this kind
+  in M3 that was recorded rather than missing. 9 tests; removing the branch turns 5 red. **B-063**
+  filed with the measured effect of its own fix (14 → 15, 12 → 14, 11 → 12, 7 → 9).
 
 - **M3-T22** ✅ (2026-08-07, **ADR-0033**) — **B-059 closed: a height that is not a number is not
   a measurement.** The guard `if metrics["height_nm"] <= 0` exists to discard artefacts, and
@@ -779,6 +815,10 @@ perfect; one finds nothing at all, which is **B-062**.
 **And no `NaN` reaches a measurement table** (M3-T22) — the third site of ADR-0018's `not x > 0`,
 and the last defect carried over from an earlier task in this milestone.
 
+**And the rough opening is always an opening** (M3-T23). A substrate identical to the image is no
+longer reachable through the automatic path, and the cost ADR-0025 attributed entirely to the
+missing size filter turns out to have been four fifths this.
+
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
 to detection quality, which nothing in the gate can measure; **M3-T15 is the task that would
@@ -872,12 +912,12 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **119** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **121** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **425, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **434, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
