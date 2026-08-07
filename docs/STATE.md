@@ -33,13 +33,29 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **Every numerical defect the audit reproduced is closed, detection quality is
-measured, and B-059, B-060, B-061 and B-063 are closed with them.** Inside M3's task list only
-**M3-T16** (blocked on **B6**) and **M3-T19** (`low`) remain. Open findings: **B-062** (recall
-0.000 — **wants an operator's view**), **B-064** (the constants), and the two M3-T25 filed —
-**B-065** (a gap-tolerant *pipeline*, which needs a decision about what a substrate under a gap
-is) and **B-066** (deliberate interpolation). **B-040** goes last of everything because it
-rewrites every SHA above it.
+**None selected, and M3's engineering queue is empty.** Every numerical defect the audit
+reproduced is closed, detection quality is measured, and **B-059, B-060, B-061, B-063 and B-064**
+are closed with them. Inside M3's task list only **M3-T16** (blocked on **B6**) and **M3-T19**
+(`low`) remain.
+
+**Everything else open needs a decision, not an afternoon:** **B-062** (recall 0.000 — wants an
+operator's view of a sensitivity trade-off), **B-065** (a gap-tolerant *pipeline* — needs an
+answer to "what is a substrate under a gap?"), **B-066** (deliberate interpolation, and a method
+choice), **B-067** (a margin from the radius distribution's upper tail rather than its median).
+**B-040** goes last of everything because it rewrites every SHA above it.
+
+**`M3-T26` done 2026-08-08 (ADR-0037)** — **B-064 closed: the opening-radius constants are
+measured.** `scale=1.7` and a bare `2.5` set every opening radius, neither derived anywhere, both
+chosen while ADR-0035's truncation was in place (effective margin `1.7 × int(r)/r` = **1.39** at
+r = 4.9). Swept both over the five AFM phantoms against ground truth. **The rough factor barely
+matters** — recall and precision identical from 1.3 to 2.4, because the second stage re-estimates
+from Otsu, which is *why the truncation survived five months*. **The final factor is a real
+trade-off:** dense recall 0.886 at ×1.5 → 0.800 at ×4.0 as a bigger disk steps over touching
+particles, against a radius error that is best at ×2.5. Decision: **keep both, name them, expose
+the literal** — `DEFAULT_ROUGH_SCALE`, `DEFAULT_OPENING_SCALE`, `MIN_OPENING_RADIUS_PX`, and
+`opening_scale` as a parameter, because a magic number inside a branch is not a decision anyone
+can revisit. Delta: **zero, golden byte-identical.** `afm_sparse_low_snr` scores 0.000 at every
+factor — more evidence B-062 is a detector question. **B-067** filed.
 
 **`M3-T25` done 2026-08-08 (ADR-0036)** — **B-060 closed: levelling can fit around a gap.**
 M3-T13's rejection was right as a uniform contract and ADR-0030 said in its own text it was not
@@ -266,6 +282,30 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T26** ✅ (2026-08-08, **ADR-0037**) — **B-064 closed: the opening-radius constants are
+  named, exposed and measured.** Two numbers set every opening radius in the project and neither
+  was derived anywhere; both were chosen while ADR-0035's `int()` truncation was in place, so the
+  effective margin was `1.7 × int(r)/r` — **1.39 at r = 4.9**, not 1.7. Both swept over the five
+  AFM phantoms against ground truth, which M3-T15 made possible. **The rough factor barely
+  matters:** mean recall and precision are *identical* from 1.3 to 2.4 and the radius error moves
+  in the third decimal, because the second stage re-estimates from Otsu — M3-T24's finding from
+  the other side, and **the explanation for why the truncation went unaudited for five months**.
+  **The final factor is a genuine trade-off:** `afm_dense_overlapping`'s recall falls 0.886 →
+  0.800 as the factor grows, because a bigger disk steps *over* two touching particles instead of
+  into the gap, while the radius error is minimised at ×2.5 on both hard phantoms. ×1.5 buys three
+  detections on one phantom for an 80 % worse radius error across the set. **Decision: keep both,
+  and stop them being anonymous** — `DEFAULT_ROUGH_SCALE`, `DEFAULT_OPENING_SCALE`,
+  `MIN_OPENING_RADIUS_PX`, and the literal becomes an `opening_scale` parameter, because the
+  plumbing *is* the deliverable: a magic number inside a branch is not a decision anyone can
+  revisit, which is why this took two tasks to surface. Delta: **zero — the golden is
+  byte-identical and was left untouched rather than rewritten.** The sweep deliberately does not
+  go in the golden (25 detection runs against a file that already costs ten minutes); it lives in
+  the ADR, the docstrings, and a test pinning the trade-off's *direction*. Two things it turned
+  up: `afm_sparse_low_snr` scores **0.000 at every factor**, which is more evidence **B-062** is a
+  detector-threshold question; and **B-067**, because the margin comes from the *median* particle
+  and `afm_tilted_polydisperse` is the only phantom that loses a detection as the factor grows.
+  12 tests.
 
 - **M3-T25** ✅ (2026-08-08, **ADR-0036**) — **B-060 closed: levelling can fit around a gap.**
   M3-T13 made a non-finite value a rejection, which was right — three functions had three answers
@@ -988,12 +1028,12 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **125** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **127** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **464, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **476, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

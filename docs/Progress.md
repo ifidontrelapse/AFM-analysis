@@ -7,6 +7,85 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-08 — M3-T26 · **B-064 closed: the opening-radius constants are measured**
+
+**Task:** `M3-T26`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0037**.
+**Defect:** B-064 — filed by M3-T24, the last engineering finding open in M3.
+
+### What was unknown
+
+Two numbers set every opening radius in the project — `scale=1.7`, documented with one line, and a
+bare `2.5` inside a branch. Neither derived anywhere, and **both chosen while ADR-0035's `int()`
+truncation was in place**: the effective margin was `1.7 × int(r)/r`, which at r = 4.9 is **1.39**.
+
+Until M3-T15 there was no way to ask whether they were right.
+
+### The sweep
+
+**The rough factor barely matters.** From 1.3 to 2.4, mean recall and precision are *identical*
+(0.7686 / 0.9958) and the radius error moves in the third decimal. The second stage re-estimates
+from Otsu and absorbs it — M3-T24's finding approached from the other side, and **the explanation
+for why the truncation survived five months: a constant whose value does not measurably matter
+does not get audited.**
+
+**The final factor is a genuine trade-off:**
+
+| factor | dense recall | mean radius error |
+|---|---:|---:|
+| 1.5 | **0.886** | 0.890 px |
+| 2.5 | 0.843 | **0.494 px** |
+| 4.0 | 0.800 | 0.579 px |
+
+A smaller opening finds more particles; a larger one measures their radii better. The recall cost
+falls entirely on `afm_dense_overlapping` — a bigger disk steps *over* two touching particles
+instead of into the gap between them — and ×1.5 buys three detections there for an 80 % worse
+radius error across the set.
+
+### The decision, and why "keep them" is a result
+
+**2.5 minimises the radius error on both hard phantoms and is the only value in the sweep not
+beaten on the metric it leads.** 1.7 is kept because nothing in range distinguishes it. So both
+values stay — and stop being anonymous: `DEFAULT_ROUGH_SCALE`, `DEFAULT_OPENING_SCALE`,
+`MIN_OPENING_RADIUS_PX`, and the literal becomes an `opening_scale` parameter.
+
+The plumbing *is* the deliverable. A magic number inside a branch is not a decision anyone can
+revisit, which is exactly why this finding needed two tasks to surface. "The constants were
+already right" is the difference between a number nobody has checked and one someone has.
+
+### Delta: zero
+
+The golden is byte-identical and was left untouched rather than rewritten, so the commit carries
+no phantom change at all. The plan predicted zero; naming a constant and exposing it as a
+parameter must not move a number, and if it had, a default was mistyped.
+
+The measurement itself is deliberately **not** in the golden — 25 detection runs against a file
+that already costs ten minutes. It lives in the ADR, in the constants' docstrings, and in a test
+that pins the trade-off's *direction* rather than its numbers.
+
+### Two things the sweep turned up
+
+**`afm_sparse_low_snr` scores 0.000 at every factor**, which is more evidence that **B-062** is a
+detector-threshold question and not a substrate one.
+
+**B-067, filed:** the margin comes from `typical_radius_px`, a **median**. On a polydisperse
+sample the median particle is by definition too small for half of them — and the sweep shows the
+symptom, because `afm_tilted_polydisperse` is the *only* phantom that loses a detection as the
+factor grows, and it is the polydisperse one. A margin derived from the distribution's upper tail
+is a different algorithm, and the harness can now score it.
+
+### Gate
+
+`make check` green — **476 tests** (12 new), **zero golden differences**. mypy unchanged at 12.
+
+### What is next
+
+M3's engineering queue is empty. What remains needs a decision: **B6** blocks `M3-T16`, **B-062**
+wants an operator's view of a sensitivity trade-off, and **B-065**, **B-066**, **B-067** are each
+a real algorithm choice. `M3-T19` is a `low` typing finding. The milestone's exit criteria are the
+thing to review.
+
+---
+
 ## 2026-08-08 — M3-T25 · **B-060 closed: levelling can fit around a gap**
 
 **Task:** `M3-T25`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0036**.

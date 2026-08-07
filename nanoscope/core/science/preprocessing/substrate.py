@@ -27,6 +27,37 @@ from nanoscope.core.validation import ensure_height_map, ensure_non_negative, en
 
 logger = logging.getLogger(__name__)
 
+#: Multiplier on the rough equivalent radius, so the first-pass disk is safely
+#: larger than a particle. **Measured in M3-T26 (ADR-0037), and the measurement
+#: is that it barely matters:** swept from 1.3 to 2.4 over the five AFM phantoms,
+#: mean recall and precision are *identical* and the mean radius error moves in
+#: the third decimal. The second stage re-estimates from Otsu, which absorbs it —
+#: and that is why the `int()` truncation ADR-0035 removed went unnoticed for
+#: five months. A constant whose value does not matter does not get audited.
+DEFAULT_ROUGH_SCALE = 1.7
+
+#: Multiplier on the Otsu typical radius, giving the radius the **final** opening
+#: uses. Unlike the rough factor this one is a real trade-off, measured over the
+#: same five phantoms (ADR-0037):
+#:
+#: | factor | dense recall | mean radius error |
+#: |---|---|---|
+#: | 1.5 | 0.886 | 0.890 px |
+#: | 2.5 | 0.843 | **0.494 px** |
+#: | 4.0 | 0.800 | 0.579 px |
+#:
+#: A smaller opening finds more particles — the cost lands entirely on
+#: `afm_dense_overlapping`, where a bigger disk steps over two touching particles
+#: as one — and a larger one measures radii better. 2.5 minimises the radius
+#: error on both hard phantoms and is kept for that reason, not by inheritance.
+DEFAULT_OPENING_SCALE = 2.5
+
+#: Floor on the final opening radius, in pixels. An opening smaller than this
+#: cannot separate a particle from its substrate on any phantom in the set, and
+#: below 3 px `disk()` stops resembling a disk at all. Undocumented until M3-T26;
+#: no phantom reaches it, so it has never been exercised.
+MIN_OPENING_RADIUS_PX = 5
+
 
 def _integer_radius(radius_px: float) -> int:
     """The integer radius `disk()` can centre, rounded **up** (ADR-0020 / D-10).
@@ -179,7 +210,10 @@ def estimate_radius_otsu(
 
 
 def estimate_rough_radius(
-    z: np.ndarray, pixel_size_nm: float | None, min_size_nm: float, scale: float = 1.7
+    z: np.ndarray,
+    pixel_size_nm: float | None,
+    min_size_nm: float,
+    scale: float = DEFAULT_ROUGH_SCALE,
 ) -> int:
     """
     Estimate a starting radius from the image itself, with no hard-coded constants.
@@ -196,7 +230,9 @@ def estimate_rough_radius(
                         estimate. Converted to pixels here, and **not** floored
                         to an integer on the way (ADR-0024)
         scale:          radius multiplier, so the disk is safely larger than a
-                        particle (default 1.7)
+                        particle. See `DEFAULT_ROUGH_SCALE`: swept from 1.3 to
+                        2.4 this changes no recall and no precision, because the
+                        second stage re-estimates from Otsu
 
     Returns:
         int: rough radius in pixels for the morphological opening
@@ -263,6 +299,7 @@ def build_substrate_map(
     pixel_size_nm: float | None,
     min_size_nm: float = 5,
     manual_radius_px: float = None,
+    opening_scale: float = DEFAULT_OPENING_SCALE,
 ) -> tuple:
     """
     Build the substrate map, estimating the opening radius automatically unless
@@ -277,6 +314,11 @@ def build_substrate_map(
         min_size_nm: minimum particle radius in nm — the floor for the estimate,
             and the noise filter in `estimate_radius_otsu`. Since ADR-0024 it is
             used as a physical size at both sites; nothing converts it with `int()`
+        opening_scale: multiplier on the Otsu typical radius that gives the final
+            opening radius. A bare `2.5` until M3-T26 (ADR-0037), which measured
+            it: smaller finds more particles in a dense sample, larger measures
+            radii better, and 2.5 minimises the radius error on both hard
+            phantoms. See `DEFAULT_OPENING_SCALE`
 
     Returns:
         substrate:      the substrate map (float32)
@@ -309,7 +351,9 @@ def build_substrate_map(
 
         # Refine the radius with Otsu
         sizes = estimate_radius_otsu(z_above_rough, pixel_size_nm, min_size_nm=min_size_nm)
-        opening_radius = max(_integer_radius(sizes["typical_radius_px"] * 2.5), 5)
+        opening_radius = max(
+            _integer_radius(sizes["typical_radius_px"] * opening_scale), MIN_OPENING_RADIUS_PX
+        )
 
         # Final topography with the substrate subtracted
         substrate = get_substrate_map(z, opening_radius)

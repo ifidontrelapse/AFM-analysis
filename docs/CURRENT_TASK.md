@@ -6,7 +6,8 @@
 **Defect:** **B-064** (filed by M3-T24) · **ADR:** **ADR-0037**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-08.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -116,13 +117,28 @@ revisit — the whole reason this finding took two tasks to reach.
 
 ## Definition of done
 
-- [ ] Both factors and the floor are named constants with the sweep in their docstrings
-- [ ] `opening_scale` is a parameter; the default reproduces today exactly
-- [ ] Tests, including the trade-off property and that the defaults did not move
-- [ ] `make check` green; delta: **zero**
-- [ ] ADR-0037 carrying the full sweep; **B-067 filed**; `Backlog.md` (B-064 → done), `STATE.md`,
+- [x] Both factors and the floor are named constants with the sweep in their docstrings
+- [x] `opening_scale` is a parameter; the default reproduces today exactly
+- [x] Tests — **12**, including the trade-off property and the defaults asserted literally
+- [x] `make check` green — 476 tests; delta **zero, golden byte-identical**
+- [x] ADR-0037 carrying the full sweep; **B-067 filed**; `Backlog.md` (B-064 → done), `STATE.md`,
       `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T26: the opening-radius constants are named, exposed and measured`
+- [x] Commit: `M3-T26: the opening-radius constants are named, exposed and measured`
+
+---
+
+## What it turned up
+
+**The flat response of the rough factor explains the previous task.** Recall and precision are
+identical from 1.3 to 2.4 — so ADR-0035's truncation, which shifted that factor's *effective*
+value to 1.39, could never have shown up in any quality metric. **A constant whose value does not
+measurably matter does not get audited**, and that is a general lesson about where defects hide,
+not a fact about this one.
+
+**B-067 came out of the sweep rather than out of reading.** `afm_tilted_polydisperse` is the only
+phantom that loses a detection as the factor grows, and it is the polydisperse one — which is the
+signature of a margin derived from the *median* particle being too small for the large half of the
+distribution.
 
 ---
 
