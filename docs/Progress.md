@@ -7,6 +7,82 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-07 — M3-T15 · **The project can measure detection quality for the first time**
+
+**Task:** `M3-T15`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0032**.
+**Defect:** none — this is the gap five tasks in this milestone wrote "not claimed" for.
+
+### What was missing
+
+The golden catches a number that moved and says nothing about whether the number is any good.
+M3-T03, M3-T10, M3-T21, M3-T05 and M3-T14 each had to write some version of "not claimed: better
+detections". Meanwhile `phantoms.py` has carried exact ground truth since the audit and says so in
+its own first paragraph — *"so that a future evaluation harness can score detection against it"*.
+The data to answer the question had been in the repository the whole time.
+
+### The two rules that make the numbers mean something
+
+**A match is a centre inside the particle** — `distance <= match_factor × radius`, scale-free
+because the tolerance is the particle's own size. A fixed pixel threshold would be two different
+physical tolerances across a phantom set spanning 1.95 to 29.3 nm/px.
+
+**One detection per particle, assigned optimally.** Ten boxes on one particle are one hit and nine
+false positives; that is what makes precision mean anything. The pairing minimises total distance
+over the admissible pairs rather than taking nearest-first, because greedy gets the same counts
+and can pair the wrong two — a test pins a case where greedy costs 6.0 and the optimum 4.0.
+
+Ratios with a zero denominator are `None`. A detector that reported nothing on an empty image has
+no precision, and 1.0 would have been the seventh substitute value this milestone deleted.
+
+### The numbers — 7 golden differences, all `ADDED`
+
+| Phantom | TP | FP | FN | precision | recall | localisation |
+|---|---:|---:|---:|---:|---:|---:|
+| `afm_flat_monodisperse` | 24 | 0 | 0 | 1.000 | 1.000 | 0.43 px · 0.86 nm |
+| `afm_tilted_polydisperse` | 30 | 0 | 0 | 1.000 | 1.000 | 0.61 px · 1.23 nm |
+| `afm_coarse_pixels` | 14 | 0 | 0 | 1.000 | 1.000 | 0.41 px · 4.05 nm |
+| `afm_dense_overlapping` | 59 | 1 | 11 | **0.983** | **0.843** | 0.83 px · 1.65 nm |
+| `afm_sparse_low_snr` | 0 | 0 | 6 | — | **0.000** | — |
+| `sem_bright_particles` | 22 | 0 | 0 | 1.000 | 1.000 | 0.44 px · 0.66 nm |
+| `tem_dark_particles` | 22 | 0 | 0 | 1.000 | 1.000 | 0.36 px · 0.18 nm |
+
+**`tem_dark_particles` is the one that closes a loop.** ADR-0023 fixed D-12 four days ago and
+could only report "0 → 22 blobs", a count from a detector nobody had scored. It is now a
+measurement: every particle found, none invented, a third of a pixel from the truth.
+
+**`afm_sparse_low_snr` scores recall 0.000** — six particles, none found. Not new behaviour;
+M3-T12 had already noticed the phantom produces zero blobs, and the golden had been recording a
+zero-column measurement table for it since the baseline. But "0 blobs" and "recall 0.0 against six
+known particles" are different sentences, and only the second is a defect report. **Filed as
+B-062**, not fixed here: it moves numbers, so it needs its own ADR (ADR-0010).
+
+**Every AFM radius is biased small and both image radii large** — −0.19 to −0.70 px, +0.19 and
++0.29 px. Consistent within a modality, which is what a calibration offset looks like rather than
+scatter, and precisely the distinction the *signed* error was reported for alongside the absolute
+one.
+
+### What it does not license, written before the numbers existed
+
+**A phantom is not a sample.** Seven synthetic images license "this change improved detection on
+the phantom set" and nothing about real scans — that is **B6 / M3-T16**, still waiting on the
+operator. And these are baselines, not a before/after: the "before" was never recorded and cannot
+be recovered without re-running four superseded code paths.
+
+### Gate
+
+`make check` green — **415 tests**, 7 declared golden differences and nothing else. 21 of the new
+tests are this task's; the other two arrived by themselves, because `test_logging.py` and
+`test_import_graph.py` parametrize over the package's modules and a new module is a new case in
+each. mypy unchanged at 12.
+
+### What is next
+
+M3's numerical work is done. `M3-T16` is blocked on **B6**, and `M3-T19` is a `low` mypy finding.
+The milestone's exit criteria are the thing to review next, along with three findings this session
+filed rather than fixed: **B-060**, **B-061**, **B-062**.
+
+---
+
 ## 2026-08-07 — M3-T14 · **D-16 and D-17 fixed: one measurement schema**
 
 **Task:** `M3-T14`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0031**.

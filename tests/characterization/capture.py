@@ -566,6 +566,60 @@ def capture_contracts() -> dict:
     }
 
 
+def capture_detection_quality(ph: phantoms.Phantom, z_above: np.ndarray | None) -> dict:
+    """How well the LoG detector actually finds the particles (M3-T15, ADR-0032).
+
+    Everything else in this file records what the code *does*. This block is the
+    first that records how *good* it is, against the ground truth the phantoms
+    have carried since the audit and nothing has ever scored against.
+
+    YOLO is absent for the usual reason: inference is outside the gate
+    (PROJECT_RULES §6) and CI has no weights. The function scores any detections;
+    only LoG's can be recorded here.
+    """
+    from nanoscope.core.science.detection import LogDetector
+    from nanoscope.core.science.evaluation import evaluate_detections
+    from nanoscope.core.values import default_polarity
+
+    image = ph.image if z_above is None else z_above
+    modality = ph.name.split("_")[0]
+    detector = LogDetector(
+        overlap=0.3, percentile=20.0, threshold=None, polarity=default_polarity(modality)
+    )
+
+    r = _record(detector.detect, image, ph.pixel_size_nm, None)
+    if not r["ok"]:
+        return r
+
+    m = _record(
+        evaluate_detections,
+        r["value"],
+        ph.centres_yx_px,
+        ph.radii_px,
+        pixel_size_nm=ph.pixel_size_nm,
+    )
+    if not m["ok"]:
+        return m
+    metrics = m["value"]
+    return {
+        "ok": True,
+        "n_truth": metrics.n_truth,
+        "n_detected": metrics.n_detected,
+        "true_positives": metrics.true_positives,
+        "false_positives": metrics.false_positives,
+        "false_negatives": metrics.false_negatives,
+        "precision": _num(metrics.precision),
+        "recall": _num(metrics.recall),
+        "f1": _num(metrics.f1),
+        "mean_localisation_error_px": _num(metrics.mean_localisation_error_px),
+        "median_localisation_error_px": _num(metrics.median_localisation_error_px),
+        "mean_localisation_error_nm": _num(metrics.mean_localisation_error_nm),
+        "mean_radius_error_px": _num(metrics.mean_radius_error_px),
+        "mean_signed_radius_error_px": _num(metrics.mean_signed_radius_error_px),
+        "match_factor": _num(metrics.match_factor),
+    }
+
+
 def capture_flatten_dtypes() -> dict:
     """Levelling, per input dtype (D-13, M3-T08).
 
@@ -626,6 +680,9 @@ def build_all() -> dict:
             "log_detection": capture_log_detection(ph),
             "baseline_measurement": capture_baseline_measurement(ph),
             "yolo_input_preparation": capture_yolo_preprocessing(ph),
+            # Against ground truth, on the same array `run_pipeline` hands the
+            # detector: `z_result` for AFM (M3-T15).
+            "detection_quality": capture_detection_quality(ph, _z_above(ph)),
         }
 
     for factory in phantoms.ALL_IMAGE_PHANTOMS:
@@ -640,6 +697,9 @@ def build_all() -> dict:
             # SEM/TEM enter run_pipeline with the RAW image as the detector input.
             "log_detection_on_raw_image": _record(_log_on_raw, ph),
             "yolo_input_preparation": capture_yolo_preprocessing(ph),
+            # SEM/TEM enter the detector with the raw image, so that is what is
+            # scored — `z_above` does not exist for them (M3-T15).
+            "detection_quality": capture_detection_quality(ph, None),
         }
         r = snapshot[ph.name]["log_detection_on_raw_image"]
         if r.get("ok"):
@@ -649,6 +709,25 @@ def build_all() -> dict:
     snapshot["flatten_dtypes"] = capture_flatten_dtypes()
     snapshot["contracts"] = capture_contracts()
     return snapshot
+
+
+def _z_above(ph: phantoms.Phantom) -> np.ndarray | None:
+    """The particle-positive map the AFM path detects on, or None if this
+    phantom cannot be preprocessed at all."""
+    from nanoscope.core.science.preprocessing import (
+        build_substrate_map,
+        flatten_lines,
+        flatten_plane,
+    )
+
+    try:
+        with _quiet():
+            _, z_above, _, _ = build_substrate_map(
+                flatten_lines(flatten_plane(ph.image)), ph.pixel_size_nm
+            )
+        return z_above
+    except Exception:
+        return None
 
 
 def _log_on_raw(ph: phantoms.Phantom) -> np.ndarray:

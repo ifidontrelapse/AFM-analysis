@@ -33,11 +33,26 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **Every numerical defect the audit reproduced is now closed** — D-01 to D-22,
-across nineteen tasks. What remains in M3 is **M3-T15**, the evaluation harness, without which
-"the detector got better" is still not a measurable claim and which five tasks have now had to
-write "not claimed" for; **M3-T16**, blocked on **B6**; and **M3-T19**, a `low` mypy finding.
-**B-040** goes last of everything because it rewrites every SHA above it.
+**None selected.** **Every numerical defect the audit reproduced is closed, and detection quality
+is measured for the first time.** What remains in M3 is **M3-T16**, blocked on **B6**, and
+**M3-T19**, a `low` mypy finding. **B-040** goes last of everything because it rewrites every SHA
+above it. Three findings this session filed rather than fixed — **B-060**, **B-061**, **B-062** —
+each needs its own task.
+
+**`M3-T15` done 2026-08-07 (ADR-0032)** — **the project can measure detection quality.** Five
+tasks had written "not claimed" for want of this; `core/science/evaluation.py` scores detections
+against the ground truth the phantoms have carried since the audit. A match is a centre within
+`match_factor × the particle's own radius` — scale-free, where a fixed pixel threshold would be
+two different physical tolerances across 1.95–29.3 nm/px — and the assignment is **one-to-one and
+optimal**, because ten boxes on one particle are 1 TP and 9 FP and greedy can pair the wrong two.
+Delta: **7 differences, all `detection_quality: ADDED`.** The numbers: four AFM phantoms and both
+image phantoms at **precision and recall 1.000**, localisation 0.36–0.61 px;
+`afm_dense_overlapping` at **0.983 / 0.843**; and **`tem_dark_particles` 22 of 22 at 0.36 px**,
+which turns ADR-0023's "0 → 22 blobs" from a count into a measurement. **`afm_sparse_low_snr`
+scores recall 0.000** — six particles, none found — filed as **B-062**. Radius error is
+consistently negative on AFM and positive on the image phantoms, which is a calibration offset
+rather than scatter. 21 tests. **Not licensed, and said before the numbers existed: a phantom is
+not a sample.**
 
 **`M3-T14` done 2026-08-07 (ADR-0031)** — **D-16 and D-17 fixed: one measurement schema.**
 `schema.py` declares a **core** every producer emits plus **blocks present in full or absent in
@@ -193,6 +208,27 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T15** ✅ (2026-08-07, **ADR-0032**) — **the first measurement of detection *quality* this
+  project has ever taken.** Not a defect: the gap M3-T03, T10, T21, T05 and T14 each wrote "not
+  claimed" for. `core/science/evaluation.py` — in `core`, not `tests/`, because M4's annotation
+  flow and M8's training loop need it — scores detections against the ground truth `phantoms.py`
+  has carried since the audit and whose own docstring asked for exactly this. **A match is a
+  centre inside the particle** (`match_factor × radius`), scale-free where a fixed pixel threshold
+  would be two different physical tolerances across a set spanning 1.95–29.3 nm/px; **the
+  assignment is one-to-one and optimal** (`linear_sum_assignment`), because ten boxes on one
+  particle are 1 TP and 9 FP, and greedy nearest-first can pair the wrong two and then measure the
+  localisation error between the wrong objects — a test pins a case where greedy costs 6.0 against
+  the optimum's 4.0. Ratios with a zero denominator are `None`, not a substituted 1.0. Delta:
+  **7 differences, all `detection_quality: ADDED`; nothing moved.** The numbers: `flat`,
+  `tilted`, `coarse`, `sem` and `tem` all at **precision 1.000 / recall 1.000** with 0.36–0.61 px
+  localisation; `afm_dense_overlapping` at **0.983 / 0.843**, 11 misses of 70 where particles
+  overlap; and `afm_sparse_low_snr` at **recall 0.000**, six particles and none found — **B-062**,
+  filed not fixed, because it moves numbers. **`tem_dark_particles` 22 of 22 at 0.36 px** turns
+  ADR-0023's "0 → 22 blobs" from a count into a measurement. Radius error is negative on every AFM
+  phantom and positive on both image phantoms — a calibration offset, not scatter, which is why
+  the signed error is reported next to the absolute one. 21 tests. **A phantom is not a sample**,
+  written into the ADR before the numbers existed so they could not quietly widen it.
 
 - **M3-T14** ✅ (2026-08-07, **ADR-0031**) — **D-16 and D-17 fixed: one measurement schema, and a
   `bbox` that means something.** Four producers had four column sets; the fix is a **core** —
@@ -704,6 +740,10 @@ map, a 1-D array or a 3-D array with "no particles found".
 quantity — and, more importantly, one quantity per name: `radius_nm` used to mean the detector's
 radius in one table and the measured mask's in another.
 
+**And, at last, a way to ask whether any of it is any good** (M3-T15). The golden now records
+precision, recall and localisation against ground truth on all seven phantoms. Four of them are
+perfect; one finds nothing at all, which is **B-062**.
+
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
 to detection quality, which nothing in the gate can measure; **M3-T15 is the task that would
@@ -728,7 +768,7 @@ requires. The branch was only ever a label. If the rule is meant to bind the bra
 an amendment saying so; it is recorded here rather than left as a silent violation.
 
 All fourteen task branches were green on CI before they were deleted (#44–#50, #52, #54–#56), and
-the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s) and **M3-T13 as #63**.
+the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s), **M3-T13 as #63** and **M3-T14 as #64**.
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
 rather than path-hacked.
@@ -772,9 +812,10 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **M3-T15, the evaluation harness.** It is what remains, and it is the one that unblocks every
-   claim about detection *quality*: M3-T03, T10, T21, T05 and T14 have each had to write "not
-   claimed" for want of it. Rewrite `docs/CURRENT_TASK.md` first, as every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
+1. **Review M3's exit criteria and decide whether the milestone closes.** Its numerical work is
+   done: every defect the audit reproduced is fixed, the degenerate-input contract exists, one
+   schema covers the four producers, and detection quality is measured. What is left inside M3 is
+   **M3-T16** (blocked on **B6**) and **M3-T19** (`low`). **M3-T15** (the evaluation harness) is the one that unblocks every claim about
    detection *quality* — M3-T03, T10, T21 and now T08 each had to say "not claimed" because it
    does not exist yet
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
@@ -796,12 +837,12 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **114** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **117** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **392, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **415, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

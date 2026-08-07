@@ -39,6 +39,7 @@ Use `TEMPLATE.md` for new records.
 | [0029](ADR-0029-flatten-lines-promotes-like-flatten-plane.md) | `flatten_lines` promotes the way `flatten_plane` does | Accepted | 2026-08-07 |
 | [0030](ADR-0030-a-typed-error-taxonomy-at-the-entry.md) | A typed error taxonomy, checked at the entry | Accepted | 2026-08-07 |
 | [0031](ADR-0031-one-measurement-schema.md) | One measurement schema, and a `bbox` that means something | Accepted | 2026-08-07 |
+| [0032](ADR-0032-scoring-a-detector-against-ground-truth.md) | Scoring a detector against ground truth | Accepted | 2026-08-07 |
 
 ## When to write one
 

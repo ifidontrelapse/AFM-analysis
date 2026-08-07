@@ -289,6 +289,10 @@ These functions preserve the array shape and operate on the numeric map; they do
 
 Both return `np.promote_types(z.dtype, np.float64)` — for an integer or boolean input, float64. Until M3-T08 (ADR-0029) only `flatten_plane` did: `flatten_lines` pre-allocated with `np.empty_like(z)`, so the fractional residuals were cast back into the input dtype on assignment and an 8-bit image — which is what `load_microscopy_image` returns — levelled to **all zeros** (D-13). A float32 input now comes back float64, as it already did from `flatten_plane`.
 
+### 6.2a Evaluation: `nanoscope/core/science/evaluation.py`
+
+`evaluate_detections(detections, truth_centres_yx_px, truth_radii_px, *, match_factor=1.0, pixel_size_nm=None)` scores a detector against ground truth and returns `DetectionMetrics`: TP/FP/FN, precision, recall, F1, localisation error (px and nm) and both the absolute and **signed** radius error. `match_detections` exposes the pairing itself. A detection matches a particle when its centre lies within `match_factor × the particle's radius` — scale-free — and the pairing is **one-to-one and optimal** (`scipy.optimize.linear_sum_assignment`), so ten detections on one particle score 1 TP and 9 FP. Ratios with a zero denominator are `None`, as are the `_nm` fields without a scale. Added by M3-T15 (ADR-0032); the golden records LoG's scores on all seven phantoms under `detection_quality`. **A phantom is not a sample:** these numbers license claims about the phantom set only.
+
 ### 6.3 Substrate estimation
 
 `get_substrate_map(z, radius_px)` applies grayscale morphological opening with a disk structuring element. The intended assumption is that `radius_px` is larger than the largest particle radius, allowing the opening to preserve the substrate and remove particle peaks.

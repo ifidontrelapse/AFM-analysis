@@ -366,6 +366,23 @@
       },
       "n_blobs_in": 14
     },
+    "detection_quality": {
+      "f1": 1.0,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": 4.047759445822439,
+      "mean_localisation_error_px": 0.4143049586307512,
+      "mean_radius_error_px": 0.18458941879593338,
+      "mean_signed_radius_error_px": -0.18458941879593338,
+      "median_localisation_error_px": 0.4218307035957344,
+      "n_detected": 14,
+      "n_truth": 14,
+      "ok": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 14
+    },
     "ground_truth": {
       "heights_nm": {
         "dtype": "float64",
@@ -1450,6 +1467,23 @@
         "ok": true
       },
       "n_blobs_in": 59
+    },
+    "detection_quality": {
+      "f1": 0.9076923076923077,
+      "false_negatives": 11,
+      "false_positives": 1,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": 1.6529162117786171,
+      "mean_localisation_error_px": 0.8264581058893086,
+      "mean_radius_error_px": 0.6419253478292262,
+      "mean_signed_radius_error_px": -0.33226992624112434,
+      "median_localisation_error_px": 0.4730851279240087,
+      "n_detected": 60,
+      "n_truth": 70,
+      "ok": true,
+      "precision": 0.9833333333333333,
+      "recall": 0.8428571428571429,
+      "true_positives": 59
     },
     "ground_truth": {
       "heights_nm": {
@@ -2536,6 +2570,23 @@
       },
       "n_blobs_in": 24
     },
+    "detection_quality": {
+      "f1": 1.0,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": 0.8619721310682955,
+      "mean_localisation_error_px": 0.43098606553414776,
+      "mean_radius_error_px": 0.43092643956467347,
+      "mean_signed_radius_error_px": -0.43092643956467347,
+      "median_localisation_error_px": 0.4026849883159449,
+      "n_detected": 24,
+      "n_truth": 24,
+      "ok": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 24
+    },
     "ground_truth": {
       "heights_nm": {
         "dtype": "float64",
@@ -3473,6 +3524,23 @@
       },
       "n_blobs_in": 0
     },
+    "detection_quality": {
+      "f1": null,
+      "false_negatives": 6,
+      "false_positives": 0,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": null,
+      "mean_localisation_error_px": null,
+      "mean_radius_error_px": null,
+      "mean_signed_radius_error_px": null,
+      "median_localisation_error_px": null,
+      "n_detected": 0,
+      "n_truth": 6,
+      "ok": true,
+      "precision": null,
+      "recall": 0.0,
+      "true_positives": 0
+    },
     "ground_truth": {
       "heights_nm": {
         "dtype": "float64",
@@ -4403,6 +4471,23 @@
         "ok": true
       },
       "n_blobs_in": 30
+    },
+    "detection_quality": {
+      "f1": 1.0,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": 1.2273506498708062,
+      "mean_localisation_error_px": 0.6136753249354031,
+      "mean_radius_error_px": 0.7650783565943496,
+      "mean_signed_radius_error_px": -0.704085102763375,
+      "median_localisation_error_px": 0.4802237404813797,
+      "n_detected": 30,
+      "n_truth": 30,
+      "ok": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 30
     },
     "ground_truth": {
       "heights_nm": {
@@ -6067,6 +6152,23 @@
     }
   },
   "sem_bright_particles": {
+    "detection_quality": {
+      "f1": 1.0,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": 0.6629545328975389,
+      "mean_localisation_error_px": 0.4419696885983593,
+      "mean_radius_error_px": 0.38335336297778044,
+      "mean_signed_radius_error_px": 0.1908372987862652,
+      "median_localisation_error_px": 0.44239392613741246,
+      "n_detected": 22,
+      "n_truth": 22,
+      "ok": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 22
+    },
     "ground_truth": {
       "n_particles": 22,
       "pixel_size_nm": 1.5,
@@ -6235,6 +6337,23 @@
     }
   },
   "tem_dark_particles": {
+    "detection_quality": {
+      "f1": 1.0,
+      "false_negatives": 0,
+      "false_positives": 0,
+      "match_factor": 1.0,
+      "mean_localisation_error_nm": 0.17854798298587604,
+      "mean_localisation_error_px": 0.3570959659717521,
+      "mean_radius_error_px": 0.2935341183508644,
+      "mean_signed_radius_error_px": 0.2935341183508644,
+      "median_localisation_error_px": 0.3937746082167631,
+      "n_detected": 22,
+      "n_truth": 22,
+      "ok": true,
+      "precision": 1.0,
+      "recall": 1.0,
+      "true_positives": 22
+    },
     "ground_truth": {
       "n_particles": 22,
       "pixel_size_nm": 0.5,

@@ -6,7 +6,8 @@
 **Defect:** none. This is the **gap** five tasks have written "not claimed" for · **ADR:** **ADR-0032**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -101,15 +102,33 @@ catches.
 
 ## Definition of done
 
-- [ ] `evaluate_detections` returns precision, recall, F1, localisation and radius error, with
+- [x] `evaluate_detections` returns precision, recall, F1, localisation and radius error, with
       the nanometre fields absent when the scale is
-- [ ] Matching is one-to-one and optimal, and a test proves greedy would score differently
-- [ ] The golden records LoG's scores on all five AFM phantoms
-- [ ] Tests: at least one per property above, plus a proof the metrics are computed from the
-      assignment rather than from the counts
-- [ ] `make check` green; delta quantified (expected: **added keys only**)
-- [ ] ADR-0032; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T15: precision, recall and localisation against ground truth`
+- [x] Matching is one-to-one and optimal, and a test pins a case where greedy costs 6.0 against
+      the optimum's 4.0
+- [x] The golden records LoG's scores on all five AFM phantoms **and both image phantoms**
+- [x] Tests — **21**
+- [x] `make check` green — **415 tests**; delta **7 differences, all `detection_quality: ADDED`**
+- [x] ADR-0032; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index, Backlog
+- [x] Commit: `M3-T15: precision, recall and localisation against ground truth`
+
+---
+
+## What it turned up
+
+**`afm_sparse_low_snr` scores recall 0.000** — six particles, none found. M3-T12 had already
+noticed the phantom produces zero blobs, and the golden had been recording a zero-column
+measurement table for it since the baseline; nobody read it as a defect, because "0 blobs" is a
+number and "recall 0.0 against six known particles" is an accusation. **Filed as B-062.**
+
+**`tem_dark_particles` closes a loop four days old.** ADR-0023 fixed D-12 and could only report
+"0 → 22 blobs". It is now 22 of 22 with precision 1.000 and a localisation error of 0.36 px — the
+count became a measurement.
+
+**The radius error has a sign, and the sign is consistent.** Negative on every AFM phantom
+(−0.19 to −0.70 px), positive on both image phantoms. That pattern is a calibration offset, not
+scatter, and the mean *absolute* error alone could not have shown it — which is why both are
+reported.
 
 ---
 
