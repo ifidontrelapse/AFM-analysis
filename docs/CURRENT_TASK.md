@@ -1,87 +1,75 @@
 # CURRENT TASK
 
-**ID:** `M3-T14`
-**Title:** One measurement schema across the four producers, and a `bbox` that means something
-**Milestone:** M3 — Numerical correctness, eighteenth task
-**Defects:** **D-16**, **D-17** (medium) · **ADR:** **ADR-0031**
+**ID:** `M3-T15`
+**Title:** An evaluation harness — precision, recall and localisation against ground truth
+**Milestone:** M3 — Numerical correctness, nineteenth task and the last of its numerical work
+**Defect:** none. This is the **gap** five tasks have written "not claimed" for · **ADR:** **ADR-0032**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-It is the last `medium` defect, and the last one M3-T12 named when it declared the baseline
-schema and deliberately left the other three producers alone: *"the two SAM2 producers vary their
-columns per row, and detect mode's schema is modality-dependent — that is M3-T14's decision."*
+Every numerical defect the audit reproduced is closed. What is not closed is the project's
+inability to say whether any of it *helped*:
 
-## The defect
-
-**D-17 — four producers, four schemas.** What each emits today:
-
-| Producer | Columns |
+| Task | What it had to write |
 |---|---|
-| `measure_all_baseline` | `particle_id x_px y_px sigma_px radius_nm method height_nm mean_nm baseline_nm area_px ring_px baseline_source` |
-| `run_sam2_from_blobs` (AFM) | `x_px y_px score height_nm baseline_nm peak_nm mask_area_px log_radius_nm` |
-| `run_sam2_from_boxes` (AFM) | `x_px y_px sam_score height_nm baseline_nm peak_nm mask_area_px` |
-| `run_sam2_*` (SEM/TEM) | `x_px y_px score/sam_score area_px area_nm2 radius_px radius_nm circularity aspect_ratio` |
-| `run_pipeline`, detect mode | *(none — `pd.DataFrame()`)* |
+| M3-T03 (D-03) | "Not claimed: better detections — the weights were trained on images the old path produced" |
+| M3-T10 (D-12) | "Not claimed: better YOLO detections — inference is outside the gate" |
+| M3-T21 (B7) | "The backends are not bit-identical … **no claim is made that either is better**; M3-T15 owns that" |
+| M3-T05 (D-09) | "Inventing a LoG confidence … **M3-T15 is the only thing that could license one**" |
+| M3-T14 (D-17) | the same, one column further along |
 
-Three separate problems live in that table, and only the first is the one the audit named:
+Five tasks, one missing measurement. Until it exists, "the detector improved" is an opinion, and
+the phantoms — which carry exact ground truth and have done since the audit — are being used only
+to detect *change*, never *quality*.
 
-1. **One quantity, two names.** `score` and `sam_score` are the same SAM2 number, emitted by two
-   functions that were copy-pasted and then drifted. So are `area_px` and `mask_area_px`.
-2. **Two quantities, one name.** `radius_nm` is the *detector's blob radius* in
-   `measure_all_baseline` and the *measured mask's* equivalent radius in the SEM/TEM SAM2 path.
-   That is worse than the first problem: a reader who concatenates two tables gets one column
-   holding two different measurements, and nothing says so.
-3. **The columns vary per row.** Both SAM2 producers build their record with `if k in res`, so
-   two particles in the same call can have different columns — the DataFrame is then the union,
-   with NaN where a key was missing for reasons that were never written down.
-
-**D-16 — `bbox` defaults to `()`** while the annotation promises four ints. The `type: ignore` on
-that line was written in M2-T02 to expire itself the moment this task fixes it.
-
-**The audit's own yardstick is gone.** Its table measures each producer against the TypeScript
-`ParticleMeasurement` interface — and ADR-0012 deleted the frontend. The schema this task
-declares has to come from what the science produces and what a consumer needs, not from a
-contract that no longer exists.
+`tests/characterization/phantoms.py` has said so from its first line: *"Ground truth is returned
+alongside the image so that a future evaluation harness can score detection against it."*
 
 ---
 
 ## The decisions this task has to make
 
-### 1. Not one wide table — a core plus declared blocks
+### 1. What counts as a match
 
 | | |
 |---|---|
-| One superset schema, NaN where a producer cannot fill a column ✅/✗ | Makes `df["height_nm"]` always readable. But it says SEM/TEM *has* heights and they are all missing, and that is a false sentence: the modality cannot produce one |
-| **A core every producer emits, plus blocks that are present in full or absent in full** ✅ | `method` says which producer wrote the row, and therefore which blocks to expect. "Absent" stays absent (ADR-0019/0025/0028), and no row inside a table is ever half a block |
-| A schema per producer, documented | Is today, with documentation. The reason a consumer cannot write one loop over four tables |
+| Centre within a fixed pixel distance | Simple, and wrong across phantoms: `afm_coarse_pixels` is 29.3 nm/px and `afm_flat_monodisperse` is 1.95, so one threshold means two different physical tolerances |
+| **Centre within `match_factor × the particle's own radius`** ✅ | Scale-free by construction, and it states the criterion in the only unit that matters — "the detection landed on the particle" |
+| IoU of the two circles above a threshold | The right criterion when both sides have real masks. Detections here are centre + radius, so an IoU would be computed between two idealised discs — precision the inputs do not have |
 
-### 2. One name per quantity, and a different name per quantity
+Default `match_factor = 1.0`: the detection's centre must fall inside the true particle.
 
-- `score` / `sam_score` → **`mask_score`**. Not `score`: this project now has two scores, and
-  `Detection.confidence` (ADR-0028) is the detector's. SAM2's is a predicted mask IoU.
-- `mask_area_px` → **`area_px`**. The same count of pixels.
-- The detector's radius and the mask's radius stop sharing a name:
-  **`detector_radius_nm`** (from the blob or box that prompted the measurement — today
-  `radius_nm` in the baseline table and `log_radius_nm` in the SAM2 one) and **`radius_nm`**
-  (equivalent-circle radius of the mask that was actually measured).
+### 2. One detection per particle, chosen optimally
 
-### 3. `bbox` is `None` when there is no box
+A detector that reports ten boxes on one particle must be charged nine false positives, not
+credited ten times. So: **one-to-one assignment**, over the admissible pairs only, minimising
+total centre distance — `scipy.optimize.linear_sum_assignment`. Greedy nearest-first is easier
+and can pick a worse global assignment; the cost of doing it properly is one scipy call.
 
-`tuple[int, int, int, int] | None = None`. `()` is a four-element promise broken silently; a LoG
-detection has no box at all, and this milestone has deleted five substitute values already
-(ADR-0019, 0024, 0025, 0027, 0028). The `type: ignore` goes with it — `warn_unused_ignores`
-makes that automatic.
+### 3. What is reported
 
-### 4. Detect mode returns the empty table of the schema it would have filled
+`TP / FP / FN`, `precision`, `recall`, `f1`, the localisation error of matched pairs (mean and
+median, in pixels and — when a scale is known — in nanometres), and the **radius** error, because
+the phantoms carry true radii and every downstream size statistic depends on them.
 
-Which is the question ADR-0027 left open by name. AFM gets core + height, SEM/TEM gets core +
-geometry, both with zero rows.
+Absent stays absent (ADR-0019): with no `pixel_size_nm`, the nanometre fields are `None`, not the
+pixel value wearing nanometre units.
+
+### 4. Where it lives, and whether it is in the gate
+
+`nanoscope/core/science/evaluation.py` — pure NumPy/SciPy, modality-neutral, no I/O. It is a
+library capability, not a test helper: annotating real images and scoring a detector against them
+is what M4 and M8 need, and a function living in `tests/` cannot be imported by either.
+
+**And the LoG detector's scores go into the golden**, per AFM phantom. Detection on a phantom is
+deterministic, so the numbers are stable; recording them makes a regression in detection *quality*
+visible for the first time, next to the regressions in detection *values* the golden already
+catches.
 
 ---
 
@@ -89,74 +77,45 @@ geometry, both with zero rows.
 
 **In scope**
 
-1. `core/science/measurement/schema.py` — the column groups, their dtypes,
-   `measurement_columns(...)` and `empty_measurement_table(...)`
-2. All four producers emit the schema's names; the `if k in res` assembly is replaced by a
-   record built from a declared block
-3. `Detection.bbox` → `| None`, `type: ignore` removed
-4. `run_pipeline`'s detect-mode empty frame
-5. Tests, including the two SAM2 producers — which have **no weights here and none in CI**, so
-   they are driven by a stub predictor. `_run_sam2_single` is the seam; the same trick M3-T05
-   used on `_boxes_to_detections`
+1. `core/science/evaluation.py` — `match_detections`, `evaluate_detections`, and a
+   `DetectionMetrics` dataclass with every field named for what it is
+2. Validation at the entry, per ADR-0030
+3. A `detection_quality` block in the harness: LoG against ground truth on all five AFM phantoms,
+   plus the two image phantoms
+4. Tests: perfect detection, duplicates, misses, a shifted set, scale-free matching, the empty
+   cases, and the assignment being optimal rather than greedy
 
 **Out of scope**
 
-- **B-059** (`nan <= 0` in `measure_all_baseline`) — still its own commit
-- Any change to *how* a height or a geometry is computed. This task moves names and shapes, and
-  the golden must show that: no measured value may move
-- A typed record class instead of a dict per row. ADR-0027 named it as the single-source
-  alternative; it is a refactor of every producer's internals and belongs with the persistence
-  layer in M4, where a schema has to be written to SQLite anyway
-
----
-
-## Expected blast radius, before measuring
-
-- `measure_all_baseline`'s table is golden-recorded on all five AFM phantoms: **column names and
-  dtypes move, values must not.** `x_px`/`y_px` become float64 — they hold `int(round(...))`
-  today, and a centre is a subpixel quantity that the other three producers already emit as float
-- `contracts.default_detection_bbox` — `[]` → `None`, and `default_detection_bbox_len` becomes
-  meaningless and goes
-- The SAM2 producers are outside the gate entirely (no weights), so their delta is **zero by
-  construction and the tests are the whole safety net** — that has to be said, not implied
+- **Any change to a detector.** This task measures; it does not tune. A commit that improves a
+  number *and* the thing measuring it is a commit that cannot be read
+- **YOLO's scores.** Inference is outside the gate (PROJECT_RULES §6) and there are no weights
+  here or in CI. The function works on any detections; the golden can only record LoG's
+- **Segmentation quality** (mask IoU against a true mask). The phantoms carry centres and radii,
+  not masks; a mask ground truth is a phantom change and a task of its own
+- **A verdict on M3.** The numbers this produces are today's, measured for the first time. They
+  are a baseline, not a before/after — the "before" was never recorded and cannot be recovered
+  without re-running four superseded code paths
 
 ---
 
 ## Definition of done
 
-- [x] One schema module; every producer emits from it, and no producer builds a row with
-      `if k in res`
-- [x] `mask_score`, `area_px`, `detector_radius_nm` / `radius_nm` — one name per quantity across
-      all four
-- [x] `Detection.bbox` is `| None`; the `type: ignore` is gone and mypy is happy without it
-- [x] Detect mode returns the modality's empty table
-- [x] Tests — **31** over five tables, the SAM2 pair driven by a stub predictor
-- [x] `make check` green — 392 tests; delta **62 differences, 35 column digests unchanged and 0
-      changed**, and the renamed column's digest is byte-identical to its predecessor
-- [x] ADR-0031; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T14: one measurement schema, and a bbox that means something`
-
----
-
-## What it turned up
-
-**The harness had the same bug the code did.** `capture_contracts` called `list(det.bbox)`, which
-is a `TypeError` the moment a bbox can be absent — D-16's assumption living inside the tool built
-to catch D-16. Fourth time this milestone that the harness was part of the finding.
-
-**The audit missed the worse half of D-17.** It listed each producer's columns against a
-TypeScript interface that ADR-0012 has since deleted, which surfaces *missing* and *extra* columns
-but not **two quantities sharing a name**. `radius_nm` meaning two different measurements is the
-fault that silently corrupts an aggregate, and no column count can see it.
-
-**mypy caught a dead comparison in code written minutes earlier** — `cfg.mode == "segment"` inside
-the branch that only runs for `"detect"`. Two errors appeared in this change and both were fixed
-rather than annotated.
+- [ ] `evaluate_detections` returns precision, recall, F1, localisation and radius error, with
+      the nanometre fields absent when the scale is
+- [ ] Matching is one-to-one and optimal, and a test proves greedy would score differently
+- [ ] The golden records LoG's scores on all five AFM phantoms
+- [ ] Tests: at least one per property above, plus a proof the metrics are computed from the
+      assignment rather than from the counts
+- [ ] `make check` green; delta quantified (expected: **added keys only**)
+- [ ] ADR-0032; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T15: precision, recall and localisation against ground truth`
 
 ---
 
 ## Notes
 
-The measure of this task is whether a consumer can write one loop over the output of all four
-producers. Today it cannot, and the reason is not that the science differs — it is that the same
-number has two names and two numbers have one name.
+What this can and cannot license, stated before the numbers exist so that the numbers cannot
+quietly widen it: **a phantom is not a sample.** Scoring well on eight synthetic images licenses
+the sentence "this change improved detection on the phantom set", and nothing about real scans —
+which is **B6 / M3-T16**, still waiting on the operator.
