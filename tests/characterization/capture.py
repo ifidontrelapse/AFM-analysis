@@ -380,6 +380,24 @@ def capture_baseline_measurement(ph: phantoms.Phantom) -> dict:
     out["measure_all_baseline_empty_blobs"] = (
         lambda rr: {"ok": True, **_df_digest(rr["value"])} if rr["ok"] else rr
     )(_record(measure_all_baseline, z_flat, z_above, np.empty((0, 4))))
+
+    # B-059 (M3-T22, ADR-0033): a constant map has no Otsu split, so the
+    # substrate mask is empty, `np.median` of nothing is `nan`, and every height
+    # inherits it. `nan <= 0` is False, so those rows used to *survive* the guard
+    # written to discard artefacts. No phantom has an empty substrate, which is
+    # why the golden could not catch it — this probe is the coverage, added with
+    # the fix rather than after it.
+    flat = np.full(ph.image.shape, 3.0, dtype=np.float32)
+    out["measure_all_baseline_empty_substrate"] = (
+        lambda rr: {"ok": True, **_df_digest(rr["value"])} if rr["ok"] else rr
+    )(
+        _record(
+            measure_all_baseline,
+            flat,
+            flat,
+            blobs if len(blobs) else np.array([[8.0, 8.0, 3.0, 6.0]]),
+        )
+    )
     return out
 
 

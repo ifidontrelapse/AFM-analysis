@@ -40,6 +40,7 @@ Use `TEMPLATE.md` for new records.
 | [0030](ADR-0030-a-typed-error-taxonomy-at-the-entry.md) | A typed error taxonomy, checked at the entry | Accepted | 2026-08-07 |
 | [0031](ADR-0031-one-measurement-schema.md) | One measurement schema, and a `bbox` that means something | Accepted | 2026-08-07 |
 | [0032](ADR-0032-scoring-a-detector-against-ground-truth.md) | Scoring a detector against ground truth | Accepted | 2026-08-07 |
+| [0033](ADR-0033-a-nan-height-is-not-a-measurement.md) | A height that is not a number is not a measurement | Accepted | 2026-08-07 |
 
 ## When to write one
 

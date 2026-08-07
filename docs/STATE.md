@@ -33,11 +33,24 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **Every numerical defect the audit reproduced is closed, and detection quality
-is measured for the first time.** What remains in M3 is **M3-T16**, blocked on **B6**, and
+**None selected.** **Every numerical defect the audit reproduced is closed, detection quality is
+measured, and B-059 is closed with it.** What remains in M3 is **M3-T16**, blocked on **B6**, and
 **M3-T19**, a `low` mypy finding. **B-040** goes last of everything because it rewrites every SHA
-above it. Three findings this session filed rather than fixed — **B-060**, **B-061**, **B-062** —
-each needs its own task.
+above it. Two findings from this session are still open — **B-061** and **B-062** — and each needs
+a decision.
+
+**`M3-T22` done 2026-08-07 (ADR-0033)** — **B-059 closed.** `if height <= 0` was written to
+discard artefacts and **`nan <= 0` is `False`**, so a `NaN` height was the one value it let
+through: a constant map has no Otsu split, the substrate mask comes back empty, `np.median` of
+nothing is `nan`, and every particle falling back to the global baseline inherited it — two rows
+of `NaN` in a table of measurements. The comparison needed no new decision (ADR-0018's rule, third
+site); **the silence did**, because the fix alone turns two `NaN` rows into zero rows, which reads
+like "there was nothing here" — so an empty substrate mask now warns, naming cause and
+consequence. Delta: **5 differences, all the new probe; the fix moves nothing recorded**, because
+no phantom has an empty substrate — the fifth time in M3 that closing a defect meant extending the
+harness that missed it. **Found while testing: the empty substrate is all-or-nothing** —
+`get_clean_ring` intersects the ring with the substrate mask, so no particle can be measured at
+all and the "partial success" case does not exist. 10 tests; restoring `<= 0` turns 2 red.
 
 **`M3-T15` done 2026-08-07 (ADR-0032)** — **the project can measure detection quality.** Five
 tasks had written "not claimed" for want of this; `core/science/evaluation.py` scores detections
@@ -208,6 +221,25 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T22** ✅ (2026-08-07, **ADR-0033**) — **B-059 closed: a height that is not a number is not
+  a measurement.** The guard `if metrics["height_nm"] <= 0` exists to discard artefacts, and
+  **`nan <= 0` is `False`**, so it kept the most artefactual value there is. Four reasonable steps
+  produce it: a constant map has no Otsu split → the substrate mask is empty → `np.median` of
+  nothing is `nan` → every particle whose own ring is too small inherits it. Two rows of `NaN` in
+  a table of measurements, with nothing said. **The comparison needed no decision** — ADR-0018
+  ruled on `not x > 0` five days earlier, in this milestone, for this exact reason, and this is
+  its third site. **The silence did:** the fix on its own turns two `NaN` rows into zero rows,
+  which reads exactly like "there was nothing here", so an empty substrate mask now warns and
+  names both cause and consequence (ADR-0025's call, applied again). Delta: **5 differences, every
+  one of them the new probe** — the fix moves nothing recorded, because **no phantom has an empty
+  substrate**, which is precisely why the golden could not catch it; fifth time in M3 that closing
+  a defect meant extending the harness that missed it. **Found while testing:** the planned
+  "partial success" test could not be written, because that case does not exist —
+  `get_clean_ring` intersects the ring with the substrate mask, so an empty substrate leaves
+  *every* particle without one and the whole table goes. The rows are never a subset, which is why
+  the warning names the substrate. 10 tests; restoring `<= 0` turns 2 red, and the other eight
+  correctly stay green because they cover what this task must not change. **mypy unchanged at 12.**
 
 - **M3-T15** ✅ (2026-08-07, **ADR-0032**) — **the first measurement of detection *quality* this
   project has ever taken.** Not a defect: the gap M3-T03, T10, T21, T05 and T14 each wrote "not
@@ -744,6 +776,9 @@ radius in one table and the measured mask's in another.
 precision, recall and localisation against ground truth on all seven phantoms. Four of them are
 perfect; one finds nothing at all, which is **B-062**.
 
+**And no `NaN` reaches a measurement table** (M3-T22) — the third site of ADR-0018's `not x > 0`,
+and the last defect carried over from an earlier task in this milestone.
+
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
 to detection quality, which nothing in the gate can measure; **M3-T15 is the task that would
@@ -837,12 +872,12 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **117** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **119** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **415, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **425, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -7,6 +7,74 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-07 — M3-T22 · **B-059 closed: a height that is not a number is not a measurement**
+
+**Task:** `M3-T22`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0033**.
+**Defect:** B-059 — found while writing M3-T12's tests on 2026-08-06, deferred twice rather than
+bundled into a schema change (ADR-0010).
+
+### The defect
+
+```python
+if metrics["height_nm"] <= 0:   # "discard negative heights — they are artefacts"
+    continue
+```
+
+**`nan <= 0` is `False`**, so the guard written to discard artefacts kept the most artefactual
+value there is. On a constant map: two rows, `height_nm` and `baseline_nm` both `NaN`,
+`baseline_source` "global", and nothing said so.
+
+The route is four steps and every one of them is reasonable on its own. A map with one value has
+no Otsu split, so the substrate mask is **empty**; `np.median` of nothing is `nan`; a particle
+whose own ring is too small falls back to that global baseline; and the guard lets it through.
+
+### What needed deciding, and what did not
+
+**The comparison did not.** ADR-0018 ruled on `not x > 0` versus `x <= 0` five days ago, in this
+milestone, for exactly this reason. This is its third site.
+
+**The silence did.** The fix on its own turns two `NaN` rows into zero rows — which reads exactly
+like "there was nothing here", the sentence that let this survive a whole milestone. So the empty
+substrate mask now warns, naming the cause and the consequence, the same call ADR-0025 made for
+the skipped `min_size_nm` filter.
+
+### The delta — 5 differences, all of them the probe
+
+The fix moves **nothing recorded**. That is the finding: `not h > 0` and `h <= 0` agree on every
+number, and **no phantom has an empty substrate**, so the golden had no way to see this. The probe
+ships in the same commit — `measure_all_baseline_empty_substrate`, five AFM phantoms, recording
+`{n_rows: 0, columns: [13 names]}` where the same probe would have recorded two rows of `NaN`
+before.
+
+**Fifth time in M3 that closing a defect meant extending the harness that missed it**, after
+M3-T07's `"non-array"` scalars, M3-T12's `columns: []`, M3-T05's never-recorded field and
+M3-T14's `list(det.bbox)`.
+
+### Found while testing: the empty substrate is all-or-nothing
+
+The planned test for "partial success — some particles have their own ring" could not be written,
+because that case does not exist. `get_clean_ring` intersects the ring with the substrate mask,
+so **an empty substrate leaves every particle without a ring**; all of them fall back to the
+baseline that is `nan`, and the whole table goes. The rows are never a subset — which is why the
+warning names the substrate rather than the missing rows. Pinned by a test instead of a comment.
+
+### Gate
+
+`make check` green — **425 tests** (10 new), 5 declared golden differences and nothing else. mypy
+unchanged at 12. Restoring `<= 0` turns 2 of the 10 red; the other eight cover the warning and the
+behaviour this task must not change, and a mutant of the comparison correctly leaves them green.
+
+### What is next
+
+M3's numerical work is complete. `M3-T16` is blocked on **B6**, `M3-T19` is a `low` typing
+finding, and **B-061** and **B-062** are the two findings this session filed — each needs a
+decision. The milestone's exit criteria are the thing to review.
+
+**Third time `x <= 0` has been the wrong way to write it** (ADR-0018, ADR-0025, here). A fourth
+and the rule belongs in `PROJECT_RULES` §3 beside the unit conventions, not in three ADRs.
+
+---
+
 ## 2026-08-07 — M3-T15 · **The project can measure detection quality for the first time**
 
 **Task:** `M3-T15`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0032**.

@@ -364,6 +364,108 @@
         "n_rows": 0,
         "ok": true
       },
+      "measure_all_baseline_empty_substrate": {
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::peak_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "detector_radius_nm",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "peak_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
+        "n_rows": 0,
+        "ok": true
+      },
       "n_blobs_in": 14
     },
     "detection_quality": {
@@ -1365,6 +1467,108 @@
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::peak_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "detector_radius_nm",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "peak_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
+        "n_rows": 0,
+        "ok": true
+      },
+      "measure_all_baseline_empty_substrate": {
         "col::area_px": {
           "dtype": "int64",
           "shape": [
@@ -2568,6 +2772,108 @@
         "n_rows": 0,
         "ok": true
       },
+      "measure_all_baseline_empty_substrate": {
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::peak_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "detector_radius_nm",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "peak_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
+        "n_rows": 0,
+        "ok": true
+      },
       "n_blobs_in": 24
     },
     "detection_quality": {
@@ -3522,6 +3828,108 @@
         "n_rows": 0,
         "ok": true
       },
+      "measure_all_baseline_empty_substrate": {
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::peak_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "detector_radius_nm",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "peak_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
+        "n_rows": 0,
+        "ok": true
+      },
       "n_blobs_in": 0
     },
     "detection_quality": {
@@ -4369,6 +4777,108 @@
         "ok": true
       },
       "measure_all_baseline_empty_blobs": {
+        "col::area_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::baseline_source": {
+          "value_counts": {}
+        },
+        "col::detector_radius_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::height_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::mean_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::method": {
+          "value_counts": {}
+        },
+        "col::particle_id": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::peak_nm": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::ring_px": {
+          "dtype": "int64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::sigma_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::x_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "col::y_px": {
+          "dtype": "float64",
+          "shape": [
+            0
+          ],
+          "size": 0
+        },
+        "columns": [
+          "area_px",
+          "baseline_nm",
+          "baseline_source",
+          "detector_radius_nm",
+          "height_nm",
+          "mean_nm",
+          "method",
+          "particle_id",
+          "peak_nm",
+          "ring_px",
+          "sigma_px",
+          "x_px",
+          "y_px"
+        ],
+        "n_rows": 0,
+        "ok": true
+      },
+      "measure_all_baseline_empty_substrate": {
         "col::area_px": {
           "dtype": "int64",
           "shape": [

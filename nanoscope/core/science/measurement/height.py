@@ -220,7 +220,22 @@ def measure_all_baseline(
     # particles, including the ones detection missed.
     otsu_thresh = threshold_otsu(z_above)
     substrate_mask = z_above < otsu_thresh
-    global_baseline = float(np.median(z_flat[substrate_mask]))
+    if substrate_mask.any():
+        global_baseline = float(np.median(z_flat[substrate_mask]))
+    else:
+        # `np.median` of nothing is `nan`, with a RuntimeWarning nobody reads.
+        # Every particle that cannot measure its own ring then inherits it, and
+        # its height is dropped below — so the fact worth reporting is *this*,
+        # not the missing rows. Silent would be B-059 again: the fix on its own
+        # turns two nan rows into zero rows, which reads like "no particles"
+        # (ADR-0033).
+        global_baseline = float("nan")
+        logger.warning(
+            "the substrate mask is empty (Otsu threshold %.3g on a map whose values do not "
+            "separate), so there is no global baseline; any particle without a usable ring "
+            "cannot be measured and is dropped",
+            otsu_thresh,
+        )
 
     logger.debug(
         "global baseline %.3f, Otsu threshold %.3f, substrate %d/%d px",
@@ -249,8 +264,11 @@ def measure_all_baseline(
             z_flat, mask, substrate_mask, global_baseline, outer_px, inner_erode_px, min_ring_px
         )
 
-        # Discard negative heights — they are artefacts
-        if metrics["height_nm"] <= 0:
+        # Discard non-positive heights — they are artefacts. `not h > 0` rather
+        # than `h <= 0`: the two differ precisely on `nan`, which `<=` lets
+        # through, and a nan height is the artefact this guard most needs to
+        # catch (B-059, ADR-0033 — the third site of ADR-0018's rule).
+        if not metrics["height_nm"] > 0:
             continue
 
         results.append(

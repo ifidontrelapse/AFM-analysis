@@ -7,7 +7,8 @@
 **ADR:** **ADR-0033**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -69,6 +70,10 @@ call ADR-0025 made when the `min_size_nm` filter has to be skipped.
 Partial success stays partial: a particle whose own ring gave it a baseline is unaffected and
 keeps its row. Only the ones that fell back to a baseline that does not exist are dropped.
 
+> **This paragraph was wrong, and the code said so.** `get_clean_ring` intersects the ring with
+> the substrate mask, so there is no partial case at all — see *What it turned up*. The plan is
+> left as written rather than quietly corrected, because the correction is the finding.
+
 ### 3. Whether the harness should have caught this
 
 It could not: **no phantom has an empty substrate**, so the path has never been executed under the
@@ -108,14 +113,28 @@ empty-blobs case were — otherwise this commit makes the defect unreachable *an
 
 ## Definition of done
 
-- [ ] `not metrics["height_nm"] > 0`, with the reason on the line
-- [ ] An empty substrate mask is warned about, once, naming what it costs
-- [ ] The harness records the constant-map probe
-- [ ] Tests: `nan` rows gone, legitimate rows kept, negative heights still dropped, and the
-      partial case where some particles have their own ring
-- [ ] `make check` green; delta quantified
-- [ ] ADR-0033; `STATE.md`, `Progress.md`, `TASKS.md`, `Backlog.md` (B-059 → done), ADR index
-- [ ] Commit: `M3-T22: a height that is not a number is not a measurement`
+- [x] `not metrics["height_nm"] > 0`, with the reason on the line
+- [x] An empty substrate mask is warned about, once, naming what it costs
+- [x] The harness records the constant-map probe
+- [x] Tests — **10**: `nan` rows gone, legitimate rows kept, negative and zero heights still
+      dropped. **The "partial case" could not be written — see below**
+- [x] `make check` green — 425 tests; delta **5 differences, all of them the new probe**
+- [x] ADR-0033; `STATE.md`, `Progress.md`, `TASKS.md`, `Backlog.md` (B-059 → done), ADR index
+- [x] Commit: `M3-T22: a height that is not a number is not a measurement`
+
+---
+
+## What it turned up
+
+**The planned "partial success" test does not exist as a case.** `get_clean_ring` intersects the
+ring with the substrate mask, so an empty substrate leaves *every* particle without a ring, all of
+them fall back to the `nan` baseline, and the whole table goes. There is no scan where some rows
+survive it. That is why the warning names the substrate rather than the dropped rows — the rows
+are never a subset — and it is pinned by a test instead of a comment.
+
+**The fix moves nothing recorded, and that is the point.** No phantom has an empty substrate, so
+the golden could not have caught this; the probe ships in the same commit. Fifth time in M3 that
+closing a defect meant extending the harness that missed it.
 
 ---
 
