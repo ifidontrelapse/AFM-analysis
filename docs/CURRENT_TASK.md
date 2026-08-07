@@ -1,76 +1,79 @@
 # CURRENT TASK
 
-**ID:** `M3-T15`
-**Title:** An evaluation harness — precision, recall and localisation against ground truth
-**Milestone:** M3 — Numerical correctness, nineteenth task and the last of its numerical work
-**Defect:** none. This is the **gap** five tasks have written "not claimed" for · **ADR:** **ADR-0032**
+**ID:** `M3-T22`
+**Title:** A height that is not a number is not a measurement
+**Milestone:** M3 — Numerical correctness, twentieth task
+**Defect:** **B-059** (found while writing M3-T12's tests, deferred twice by ADR-0010) ·
+**ADR:** **ADR-0033**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-Every numerical defect the audit reproduced is closed. What is not closed is the project's
-inability to say whether any of it *helped*:
+Of what is left in M3, it is the only item that is both unblocked and wrong: `M3-T16` waits on
+**B6**, `M3-T19` is a `low` typing finding, `B-061` and `B-062` each need a decision this task
+does not have to make. B-059 needs none — **the rule was decided in ADR-0018** and this is the
+third site it applies to. It has been carried since 2026-08-06 because M3-T12 and M3-T14 both
+refused to bundle a moved number into a schema change (ADR-0010), which was right, and the debt
+comes due here.
 
-| Task | What it had to write |
-|---|---|
-| M3-T03 (D-03) | "Not claimed: better detections — the weights were trained on images the old path produced" |
-| M3-T10 (D-12) | "Not claimed: better YOLO detections — inference is outside the gate" |
-| M3-T21 (B7) | "The backends are not bit-identical … **no claim is made that either is better**; M3-T15 owns that" |
-| M3-T05 (D-09) | "Inventing a LoG confidence … **M3-T15 is the only thing that could license one**" |
-| M3-T14 (D-17) | the same, one column further along |
+## The defect, reproduced
 
-Five tasks, one missing measurement. Until it exists, "the detector improved" is an opinion, and
-the phantoms — which carry exact ground truth and have done since the audit — are being used only
-to detect *change*, never *quality*.
+```python
+z = np.full((64, 64), 3.0)          # a constant map
+measure_all_baseline(z, z, blobs)   # two blobs
 
-`tests/characterization/phantoms.py` has said so from its first line: *"Ground truth is returned
-alongside the image so that a future evaluation harness can score detection against it."*
+   particle_id  height_nm  baseline_nm baseline_source
+0            0        NaN          NaN          global
+1            1        NaN          NaN          global
+```
+
+Two rows in the measurement table, both `NaN`, and **nothing said so**.
+
+The mechanism, end to end:
+
+1. `substrate_mask = z_above < threshold_otsu(z_above)`. On a constant map Otsu returns the
+   constant, so the mask is **empty** — 0 px of 4096.
+2. `global_baseline = float(np.median(z_flat[substrate_mask]))` — the median of nothing is `nan`,
+   with a `RuntimeWarning` nobody sees.
+3. Every particle whose ring is too small falls back to that baseline, so `height_nm` is `nan`.
+4. `if metrics["height_nm"] <= 0: continue` — and **`nan <= 0` is `False`**, so the row that was
+   supposed to be discarded is the one that survives.
+
+Step 4 is the same comparison **ADR-0018 already ruled on**, for the same reason, in the same
+milestone: `not x > 0` and `x <= 0` differ precisely on `nan`, and `nan` is always the case that
+matters.
 
 ---
 
 ## The decisions this task has to make
 
-### 1. What counts as a match
+### 1. What happens to the row
 
 | | |
 |---|---|
-| Centre within a fixed pixel distance | Simple, and wrong across phantoms: `afm_coarse_pixels` is 29.3 nm/px and `afm_flat_monodisperse` is 1.95, so one threshold means two different physical tolerances |
-| **Centre within `match_factor × the particle's own radius`** ✅ | Scale-free by construction, and it states the criterion in the only unit that matters — "the detection landed on the particle" |
-| IoU of the two circles above a threshold | The right criterion when both sides have real masks. Detections here are centre + radius, so an IoU would be computed between two idealised discs — precision the inputs do not have |
+| **Drop it, as the guard always intended** ✅ | A height that is not a number is not a measurement. The guard exists to discard artefacts; a `nan` is the most artefactual value there is, and it survived only through a comparison bug |
+| Keep the row with `nan` | `height_nm` is `float64` and `nan` is a legal value in it, so the table would be *shaped* correctly and *wrong*. Every consumer — a mean, a histogram, a CSV — would have to know |
+| Raise | The image is valid and some particles may have measured perfectly through their own rings. Refusing the whole scan for the ones that could not is ADR-0017's case, and this is ADR-0018's |
 
-Default `match_factor = 1.0`: the detection's centre must fall inside the true particle.
+### 2. Whether an empty substrate is allowed to be silent
 
-### 2. One detection per particle, chosen optimally
+**No.** Rows disappearing without a reason is how this defect stayed invisible: the fix alone
+turns two `nan` rows into zero rows, which reads exactly like "no particles here". The empty
+substrate mask is *the* diagnosable fact, and it gets a warning naming what happened — the same
+call ADR-0025 made when the `min_size_nm` filter has to be skipped.
 
-A detector that reports ten boxes on one particle must be charged nine false positives, not
-credited ten times. So: **one-to-one assignment**, over the admissible pairs only, minimising
-total centre distance — `scipy.optimize.linear_sum_assignment`. Greedy nearest-first is easier
-and can pick a worse global assignment; the cost of doing it properly is one scipy call.
+Partial success stays partial: a particle whose own ring gave it a baseline is unaffected and
+keeps its row. Only the ones that fell back to a baseline that does not exist are dropped.
 
-### 3. What is reported
+### 3. Whether the harness should have caught this
 
-`TP / FP / FN`, `precision`, `recall`, `f1`, the localisation error of matched pairs (mean and
-median, in pixels and — when a scale is known — in nanometres), and the **radius** error, because
-the phantoms carry true radii and every downstream size statistic depends on them.
-
-Absent stays absent (ADR-0019): with no `pixel_size_nm`, the nanometre fields are `None`, not the
-pixel value wearing nanometre units.
-
-### 4. Where it lives, and whether it is in the gate
-
-`nanoscope/core/science/evaluation.py` — pure NumPy/SciPy, modality-neutral, no I/O. It is a
-library capability, not a test helper: annotating real images and scoring a detector against them
-is what M4 and M8 need, and a function living in `tests/` cannot be imported by either.
-
-**And the LoG detector's scores go into the golden**, per AFM phantom. Detection on a phantom is
-deterministic, so the numbers are stable; recording them makes a regression in detection *quality*
-visible for the first time, next to the regressions in detection *values* the golden already
-catches.
+It could not: **no phantom has an empty substrate**, so the path has never been executed under the
+golden. The probe is part of the fix, the way M3-T07's `negative_with_structure` and M3-T12's
+empty-blobs case were — otherwise this commit makes the defect unreachable *and* unrecorded.
 
 ---
 
@@ -78,63 +81,46 @@ catches.
 
 **In scope**
 
-1. `core/science/evaluation.py` — `match_detections`, `evaluate_detections`, and a
-   `DetectionMetrics` dataclass with every field named for what it is
-2. Validation at the entry, per ADR-0030
-3. A `detection_quality` block in the harness: LoG against ground truth on all five AFM phantoms,
-   plus the two image phantoms
-4. Tests: perfect detection, duplicates, misses, a shifted set, scale-free matching, the empty
-   cases, and the assignment being optimal rather than greedy
+1. `if not metrics["height_nm"] > 0` — the ADR-0018 comparison, at its third site
+2. A warning when the substrate mask is empty, naming the consequence
+3. A harness probe recording the constant-map case
+4. Tests: the reproduction, the partial-success case, and that a legitimately negative height is
+   still dropped exactly as before
 
 **Out of scope**
 
-- **Any change to a detector.** This task measures; it does not tune. A commit that improves a
-  number *and* the thing measuring it is a commit that cannot be read
-- **YOLO's scores.** Inference is outside the gate (PROJECT_RULES §6) and there are no weights
-  here or in CI. The function works on any detections; the golden can only record LoG's
-- **Segmentation quality** (mask IoU against a true mask). The phantoms carry centres and radii,
-  not masks; a mask ground truth is a phantom change and a task of its own
-- **A verdict on M3.** The numbers this produces are today's, measured for the first time. They
-  are a baseline, not a before/after — the "before" was never recorded and cannot be recovered
-  without re-running four superseded code paths
+- **B-062** (recall 0.000 on `afm_sparse_low_snr`) and **B-061** (a rough radius of 0) — each
+  moves numbers and needs its own decision
+- The two SAM2 producers. Their baseline comes from a ring that is required to have ≥ 5 px, so
+  there is no `nan` route there; adding a guard would be a change with no defect behind it
+- Anything about *why* Otsu returns the constant on a constant map. That is scikit-image's
+  behaviour and it is not wrong — a map with one value has no threshold that separates it
+
+---
+
+## Expected blast radius, before measuring
+
+- **Zero golden differences from the fix**, because no phantom reaches the path — and that is the
+  finding, not a reassurance. The probe added in the same commit is what changes the file.
+- No test should change meaning: the negative-height filter behaves identically on every number.
 
 ---
 
 ## Definition of done
 
-- [x] `evaluate_detections` returns precision, recall, F1, localisation and radius error, with
-      the nanometre fields absent when the scale is
-- [x] Matching is one-to-one and optimal, and a test pins a case where greedy costs 6.0 against
-      the optimum's 4.0
-- [x] The golden records LoG's scores on all five AFM phantoms **and both image phantoms**
-- [x] Tests — **21**
-- [x] `make check` green — **415 tests**; delta **7 differences, all `detection_quality: ADDED`**
-- [x] ADR-0032; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index, Backlog
-- [x] Commit: `M3-T15: precision, recall and localisation against ground truth`
-
----
-
-## What it turned up
-
-**`afm_sparse_low_snr` scores recall 0.000** — six particles, none found. M3-T12 had already
-noticed the phantom produces zero blobs, and the golden had been recording a zero-column
-measurement table for it since the baseline; nobody read it as a defect, because "0 blobs" is a
-number and "recall 0.0 against six known particles" is an accusation. **Filed as B-062.**
-
-**`tem_dark_particles` closes a loop four days old.** ADR-0023 fixed D-12 and could only report
-"0 → 22 blobs". It is now 22 of 22 with precision 1.000 and a localisation error of 0.36 px — the
-count became a measurement.
-
-**The radius error has a sign, and the sign is consistent.** Negative on every AFM phantom
-(−0.19 to −0.70 px), positive on both image phantoms. That pattern is a calibration offset, not
-scatter, and the mean *absolute* error alone could not have shown it — which is why both are
-reported.
+- [ ] `not metrics["height_nm"] > 0`, with the reason on the line
+- [ ] An empty substrate mask is warned about, once, naming what it costs
+- [ ] The harness records the constant-map probe
+- [ ] Tests: `nan` rows gone, legitimate rows kept, negative heights still dropped, and the
+      partial case where some particles have their own ring
+- [ ] `make check` green; delta quantified
+- [ ] ADR-0033; `STATE.md`, `Progress.md`, `TASKS.md`, `Backlog.md` (B-059 → done), ADR index
+- [ ] Commit: `M3-T22: a height that is not a number is not a measurement`
 
 ---
 
 ## Notes
 
-What this can and cannot license, stated before the numbers exist so that the numbers cannot
-quietly widen it: **a phantom is not a sample.** Scoring well on eight synthetic images licenses
-the sentence "this change improved detection on the phantom set", and nothing about real scans —
-which is **B6 / M3-T16**, still waiting on the operator.
+Third time in this milestone that `x <= 0` has been the wrong way to write it (ADR-0018,
+ADR-0025's `not value > 0`, and here). If it happens a fourth time the rule belongs in
+`PROJECT_RULES` §3 next to the unit conventions, not in three ADRs.
