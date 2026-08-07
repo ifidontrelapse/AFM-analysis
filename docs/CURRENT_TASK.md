@@ -1,92 +1,86 @@
 # CURRENT TASK
 
-**ID:** `M3-T13`
-**Title:** A typed error taxonomy, and validation at every numerical entry point
-**Milestone:** M3 — Numerical correctness, seventeenth task
-**Defect:** **D-15** (medium) · **ADR:** **ADR-0030**
+**ID:** `M3-T14`
+**Title:** One measurement schema across the four producers, and a `bbox` that means something
+**Milestone:** M3 — Numerical correctness, eighteenth task
+**Defects:** **D-16**, **D-17** (medium) · **ADR:** **ADR-0031**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-Two `medium` tasks are left and this is the one four other tasks have been deferring *to* by
-name: M3-T06, M3-T07, M3-T08, M3-T17 and M3-T20 each declined to invent a rejection rule on the
-grounds that D-15 owns all of them at once. A taxonomy of one is not a taxonomy, so the debt was
-deliberately collected here.
+It is the last `medium` defect, and the last one M3-T12 named when it declared the baseline
+schema and deliberately left the other three producers alone: *"the two SAM2 producers vary their
+columns per row, and detect mode's schema is modality-dependent — that is M3-T14's decision."*
 
-## The defect, as the harness already records it
+## The defect
 
-Eleven degenerate inputs × five entry points, today:
+**D-17 — four producers, four schemas.** What each emits today:
 
-| Input | `flatten_plane` | `flatten_lines` | `build_substrate_map` | `detect_particles` | `estimate_log_threshold_adaptive` |
-|---|---|---|---|---|---|
-| `empty` (0×0) | ok | ok | ValueError | ValueError | ValueError |
-| `single_pixel` | ok | LinAlgError | ValueError | **ok** | ok |
-| `one_dimensional` | ValueError | IndexError | **TypeError** | **ok** | ValueError |
-| `three_dimensional` | ValueError | ValueError | **RuntimeError** | **ok** | ok |
-| `with_nan` | ValueError | **ok** | ValueError | **ok** | ok |
-| `with_inf` | ValueError | **ok** | ValueError | **ok** | ok |
-| constant / negative | ok | ok | ValueError · ok | ok | ok |
+| Producer | Columns |
+|---|---|
+| `measure_all_baseline` | `particle_id x_px y_px sigma_px radius_nm method height_nm mean_nm baseline_nm area_px ring_px baseline_source` |
+| `run_sam2_from_blobs` (AFM) | `x_px y_px score height_nm baseline_nm peak_nm mask_area_px log_radius_nm` |
+| `run_sam2_from_boxes` (AFM) | `x_px y_px sam_score height_nm baseline_nm peak_nm mask_area_px` |
+| `run_sam2_*` (SEM/TEM) | `x_px y_px score/sam_score area_px area_nm2 radius_px radius_nm circularity aspect_ratio` |
+| `run_pipeline`, detect mode | *(none — `pd.DataFrame()`)* |
 
-**Five different exception types, none of them ours, and `detect_particles` returns a clean empty
-result for a 1-D array, a 3-D array, a NaN map and an infinite map.** That last row is the reason
-this is not a cosmetics task: an unusable input and an empty sample are the same answer today.
+Three separate problems live in that table, and only the first is the one the audit named:
 
-The audit's own table says the same thing in prose: `AttributeError: 'str' object has no
-attribute 'image'`, `too many values to unpack (expected 2)` from `flatten_plane`, `array must not
-contain infs or NaNs` from `scipy.lstsq`, a Russian message from Otsu, and — for an all-zero array
-— no error at all.
+1. **One quantity, two names.** `score` and `sam_score` are the same SAM2 number, emitted by two
+   functions that were copy-pasted and then drifted. So are `area_px` and `mask_area_px`.
+2. **Two quantities, one name.** `radius_nm` is the *detector's blob radius* in
+   `measure_all_baseline` and the *measured mask's* equivalent radius in the SEM/TEM SAM2 path.
+   That is worse than the first problem: a reader who concatenates two tables gets one column
+   holding two different measurements, and nothing says so.
+3. **The columns vary per row.** Both SAM2 producers build their record with `if k in res`, so
+   two particles in the same call can have different columns — the DataFrame is then the union,
+   with NaN where a key was missing for reasons that were never written down.
+
+**D-16 — `bbox` defaults to `()`** while the annotation promises four ints. The `type: ignore` on
+that line was written in M2-T02 to expire itself the moment this task fixes it.
+
+**The audit's own yardstick is gone.** Its table measures each producer against the TypeScript
+`ParticleMeasurement` interface — and ADR-0012 deleted the frontend. The schema this task
+declares has to come from what the science produces and what a consumer needs, not from a
+contract that no longer exists.
 
 ---
 
 ## The decisions this task has to make
 
-### 1. What the taxonomy is
-
-```
-NanoscopeError(Exception)                    every error this library raises on purpose
-├── InvalidInputError(…, ValueError)         the caller passed something no analysis can run on
-│   ├── InvalidImageError                    the array: shape, dtype, emptiness, finiteness
-│   └── InvalidParameterError                a scalar argument outside its domain
-├── UnsupportedRequestError(…, ValueError)   the (modality, detector, mode) combination has no path
-├── DataFormatError(…, ValueError)           a file or header we cannot read
-├── MissingFileError(…, FileNotFoundError)   the file is not there
-└── AnalysisFailedError(…, ValueError)       the input was valid; the analysis has no answer
-```
-
-**Every project error also inherits the builtin it replaces at that site.** `except ValueError`
-in a notebook keeps working, which matters because the notebooks are the only callers this
-library has. It is the `json.JSONDecodeError` pattern, and it makes the taxonomy adoptable in one
-commit instead of a migration.
-
-### 2. What a height map is
-
-**2-D, numeric, non-empty, and finite.** The first three are structural. The fourth is a decision:
+### 1. Not one wide table — a core plus declared blocks
 
 | | |
 |---|---|
-| Reject non-finite input at the entry ✅ | `flatten_plane` — step one of the documented chain — *already* rejects it, via `scipy.lstsq`. This makes the existing contract early, typed and identical everywhere, instead of a rule the first step happens to enforce and the second silently ignores |
-| Accept it and let each function cope | Is today's behaviour: `flatten_lines` propagates NaN, `detect_particles` reports zero particles, `build_substrate_map` raises. Three answers to one question |
-| Mask the non-finite values and fit around them | A real feature — a dropped scan line is a real thing — but it is a *scientific* change to what levelling computes, and this task is about rejections. File it |
+| One superset schema, NaN where a producer cannot fill a column ✅/✗ | Makes `df["height_nm"]` always readable. But it says SEM/TEM *has* heights and they are all missing, and that is a false sentence: the modality cannot produce one |
+| **A core every producer emits, plus blocks that are present in full or absent in full** ✅ | `method` says which producer wrote the row, and therefore which blocks to expect. "Absent" stays absent (ADR-0019/0025/0028), and no row inside a table is ever half a block |
+| A schema per producer, documented | Is today, with documentation. The reason a consumer cannot write one loop over four tables |
 
-**This supersedes part of ADR-0018 on exactly one input.** That ADR ruled that a non-positive or
-`nan` maximum returns a default threshold rather than raising, because "zero particles is an
-answer". That stays true for a *flat* or *negative* map, which is valid data with nothing in it.
-A NaN map is not valid data, and the two cases were only ever conflated because the guard looked
-at the maximum instead of at the input.
+### 2. One name per quantity, and a different name per quantity
 
-### 3. Where the check lives
+- `score` / `sam_score` → **`mask_score`**. Not `score`: this project now has two scores, and
+  `Detection.confidence` (ADR-0028) is the detector's. SAM2's is a predicted mask IoU.
+- `mask_area_px` → **`area_px`**. The same count of pixels.
+- The detector's radius and the mask's radius stop sharing a name:
+  **`detector_radius_nm`** (from the blob or box that prompted the measurement — today
+  `radius_nm` in the baseline table and `log_radius_nm` in the SAM2 one) and **`radius_nm`**
+  (equivalent-circle radius of the mask that was actually measured).
 
-One `ensure_height_map` in `core/validation.py`, called at each entry point, rather than a
-hand-written check per function. The cost is a `np.isfinite(...).all()` pass — O(n), sub-millisecond
-at 512×512 — and it will be measured, not assumed.
+### 3. `bbox` is `None` when there is no box
 
-The harness records `raised_in`, which becomes the validator's name for every rejected input. No
-attribution is lost: the golden's key already names the entry point that was called.
+`tuple[int, int, int, int] | None = None`. `()` is a four-element promise broken silently; a LoG
+detection has no box at all, and this milestone has deleted five substitute values already
+(ADR-0019, 0024, 0025, 0027, 0028). The `type: ignore` goes with it — `warn_unused_ignores`
+makes that automatic.
+
+### 4. Detect mode returns the empty table of the schema it would have filled
+
+Which is the question ADR-0027 left open by name. AFM gets core + height, SEM/TEM gets core +
+geometry, both with zero rows.
 
 ---
 
@@ -94,79 +88,58 @@ attribution is lost: the golden's key already names the entry point that was cal
 
 **In scope**
 
-1. `nanoscope/core/errors.py` — the taxonomy, no numpy import
-2. `nanoscope/core/validation.py` — `ensure_height_map`, `ensure_positive`, and the one
-   arity check the maths states (`flatten_lines` needs `poly_order + 1` columns)
-3. Validation applied at the numerical entry points: `flatten_plane`, `flatten_lines`,
-   `get_substrate_map`, `estimate_radius_otsu`, `estimate_rough_radius`, `build_substrate_map`,
-   `estimate_log_threshold`, `estimate_log_threshold_adaptive`, `detect_particles`,
-   `LogDetector.detect`, `YoloDetector.detect`, `measure_all_baseline`,
-   `measure_geometry_from_mask`, and `run_pipeline`'s `data` argument
-4. The nineteen existing deliberate `raise ValueError` sites re-typed to the taxonomy. They
-   already name the parameter and its value; what they lack is a type a caller can catch
+1. `core/science/measurement/schema.py` — the column groups, their dtypes,
+   `measurement_columns(...)` and `empty_measurement_table(...)`
+2. All four producers emit the schema's names; the `if k in res` assembly is replaced by a
+   record built from a declared block
+3. `Detection.bbox` → `| None`, `type: ignore` removed
+4. `run_pipeline`'s detect-mode empty frame
+5. Tests, including the two SAM2 producers — which have **no weights here and none in CI**, so
+   they are driven by a stub predictor. `_run_sam2_single` is the seam; the same trick M3-T05
+   used on `_boxes_to_detections`
 
 **Out of scope**
 
-- **Masked / NaN-tolerant fitting.** Filed as **B-060**, because it changes what levelling
-  *computes*, not what it rejects
-- **B-059** (`nan <= 0` in `measure_all_baseline`) — a wrong number, not a missing rejection, and
-  ADR-0010 keeps one defect to one commit
-- The measurement schema (**M3-T14**) and the evaluation harness (**M3-T15**)
-- Any new *capability* rule. `validate_request` already owns which combinations exist (M2-T10);
-  it changes exception type here and nothing else
+- **B-059** (`nan <= 0` in `measure_all_baseline`) — still its own commit
+- Any change to *how* a height or a geometry is computed. This task moves names and shapes, and
+  the golden must show that: no measured value may move
+- A typed record class instead of a dict per row. ADR-0027 named it as the single-source
+  alternative; it is a refactor of every producer's internals and belongs with the persistence
+  layer in M4, where a schema has to be written to SQLite anyway
 
 ---
 
 ## Expected blast radius, before measuring
 
-- **`degenerate_inputs` moves substantially**: error types become ours, `raised_in` becomes the
-  validator, and — because ADR-0022 compares a message only when we wrote it — a batch of keys
-  moves from `error_message_unchecked` back to `error_message`. Several `ok` cells become errors.
-- **The seven phantoms must not move at all.** Every one of them is a valid image; if a recorded
-  value changes, the validation is rejecting something real and the task is wrong.
-- mypy: no expected movement. ruff: none.
+- `measure_all_baseline`'s table is golden-recorded on all five AFM phantoms: **column names and
+  dtypes move, values must not.** `x_px`/`y_px` become float64 — they hold `int(round(...))`
+  today, and a centre is a subpixel quantity that the other three producers already emit as float
+- `contracts.default_detection_bbox` — `[]` → `None`, and `default_detection_bbox_len` becomes
+  meaningless and goes
+- The SAM2 producers are outside the gate entirely (no weights), so their delta is **zero by
+  construction and the tests are the whole safety net** — that has to be said, not implied
 
 ---
 
 ## Definition of done
 
-- [x] The taxonomy exists, every class documented with what raises it
-- [x] Every entry point in the list validates its image argument; the existing raises carry a
-      project type
-- [x] `run_pipeline("not-data", cfg)` — the audit's first row — raises a typed error naming the
-      argument and the type it got, before anything is constructed
-- [x] Tests — **109**; the centre is 7 bad inputs × 10 entry points, 70 combinations and one
-      error type, plus the same sweep proving a valid map passes all ten
-- [x] `make check` green — 359 tests; delta **129 differences, no measured value**, and **no
-      phantom value moved**
-- [x] ADR-0030; **B-060 and B-061 filed**; `STATE.md`, `Progress.md`, `TASKS.md`,
-      `PROJECT_CONTEXT.md`, ADR index, `Backlog.md`
-- [x] Commit: `M3-T13: a typed error taxonomy, and validation at the entry`
-
----
-
-## What it turned up
-
-**The check that was too strict, caught by an older task's test.** Validating `radius_px` as
-*positive* turned M3-T20's `test_and_that_costs_the_substrate_on_a_noisy_scan` red:
-`estimate_rough_radius` returns **0** on an unscaled noisy scan, and `disk(0)` makes the opening
-the identity. That is a defect — the "substrate" comes back equal to the image — but it is the
-one **ADR-0025 measured and recorded**, so rejecting it here would have moved a number inside a
-validation task. The check is non-negative and the question is filed as **B-061**. A regression
-suite earning its keep in the direction that matters: stopping a change, not confirming one.
-
-**ADR-0022's `_unchecked` category is now empty — 15 foreign messages to 0.** Not by deleting the
-mechanism, which stays right, but because the entry points stopped handing out other projects'
-sentences for inputs this project has an opinion about.
-
-**Two existing tests had to change their subject**, and both say so in their docstrings rather
-than being quietly rewritten: ADR-0018's NaN test and M3-T08's boolean test. A superseded rule is
-worth more when the test that used to prove it explains what replaced it.
+- [ ] One schema module; every producer emits from it, and no producer builds a row with
+      `if k in res`
+- [ ] `mask_score`, `area_px`, `detector_radius_nm` / `radius_nm` — one name per quantity across
+      all four
+- [ ] `Detection.bbox` is `| None`; the `type: ignore` is gone and mypy is happy without it
+- [ ] Detect mode returns the modality's empty table
+- [ ] Tests: the declaration matches what each populated path emits (the drift guard ADR-0027
+      established), both SAM2 producers driven by a stub predictor, `pd.concat` of two producers'
+      tables has no duplicated-meaning column
+- [ ] `make check` green; delta quantified, **and no measured value moved**
+- [ ] ADR-0031; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T14: one measurement schema, and a bbox that means something`
 
 ---
 
 ## Notes
 
-The measure of this task is not how many checks it adds. It is that after it, the answer to
-"what does this library do with input it cannot use" is one sentence instead of a table with five
-exception types in it.
+The measure of this task is whether a consumer can write one loop over the output of all four
+producers. Today it cannot, and the reason is not that the science differs — it is that the same
+number has two names and two numbers have one name.
