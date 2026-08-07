@@ -485,6 +485,72 @@
       "recall": 1.0,
       "true_positives": 14
     },
+    "gapped_levelling": {
+      "flatten_lines_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 18.66825590100101,
+          "mean": -8.767237377000244e-17,
+          "min": -5.264084405802017,
+          "n_nonfinite": 256,
+          "percentiles_10_25_50_75_90": [
+            -1.6360710440627872,
+            -0.7979199508418109,
+            -0.194802581475802,
+            0.05959725174285179,
+            0.49513552521833804
+          ],
+          "shape": [
+            128,
+            128
+          ],
+          "size": 16384,
+          "std": 2.4057813389273477,
+          "sum": -1.4139800441625994e-12
+        }
+      },
+      "flatten_plane_default_on_a_gapped_map": {
+        "error_message": "z contains 256 value(s) that are not finite (256 nan, 0 inf); a height map must be finite. Repair or crop the scan before analysing it.",
+        "error_type": "InvalidImageError",
+        "ok": false,
+        "raised_in": "ensure_height_map"
+      },
+      "flatten_plane_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 19.472444678172582,
+          "mean": -5.85069911389765e-16,
+          "min": -1.902338311480766,
+          "n_nonfinite": 256,
+          "percentiles_10_25_50_75_90": [
+            -1.1824938248006207,
+            -0.9398310639206668,
+            -0.5598958573872597,
+            -0.250064205695819,
+            0.4735665413242915
+          ],
+          "shape": [
+            128,
+            128
+          ],
+          "size": 16384,
+          "std": 2.5573841301714926,
+          "sum": -9.43600753089413e-12
+        }
+      },
+      "gap_px": 256,
+      "gap_rows": [
+        64,
+        65
+      ],
+      "max_abs_diff_vs_ungapped": 0.07971843451135374,
+      "max_abs_diff_zero_filled_vs_ungapped": 0.09239531748449292,
+      "rows_absent_after_masked_lines": 2
+    },
     "ground_truth": {
       "heights_nm": {
         "dtype": "float64",
@@ -1688,6 +1754,72 @@
       "precision": 0.9833333333333333,
       "recall": 0.8428571428571429,
       "true_positives": 59
+    },
+    "gapped_levelling": {
+      "flatten_lines_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 16.595201572495178,
+          "mean": 6.591676023912501e-16,
+          "min": -7.4311002905788435,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -2.424939027732636,
+            -1.5673674821341006,
+            -0.8280864527223025,
+            0.1022363452965508,
+            4.010331802566707
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 3.087593425981414,
+          "sum": 4.2861714177888643e-11
+        }
+      },
+      "flatten_plane_default_on_a_gapped_map": {
+        "error_message": "z contains 512 value(s) that are not finite (512 nan, 0 inf); a height map must be finite. Repair or crop the scan before analysing it.",
+        "error_type": "InvalidImageError",
+        "ok": false,
+        "raised_in": "ensure_height_map"
+      },
+      "flatten_plane_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 17.449015616759972,
+          "mean": -1.1539325925237847e-15,
+          "min": -2.6882121675029005,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -1.921383080189254,
+            -1.6414037794338368,
+            -1.3111400335948162,
+            -0.3704269876451779,
+            4.586166370823626
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 3.2861912842226557,
+          "sum": -7.503331289626658e-11
+        }
+      },
+      "gap_px": 512,
+      "gap_rows": [
+        128,
+        129
+      ],
+      "max_abs_diff_vs_ungapped": 0.01437334845272864,
+      "max_abs_diff_zero_filled_vs_ungapped": 0.02439705674261239,
+      "rows_absent_after_masked_lines": 2
     },
     "ground_truth": {
       "heights_nm": {
@@ -2893,6 +3025,72 @@
       "recall": 1.0,
       "true_positives": 24
     },
+    "gapped_levelling": {
+      "flatten_lines_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 17.052634313578025,
+          "mean": 3.540474999788885e-16,
+          "min": -5.1075973854119425,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -1.7318299431623276,
+            -1.1277624559212165,
+            -0.5193764174068196,
+            0.024040827384950933,
+            1.3469195295463896
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 2.5952070376823535,
+          "sum": 2.3021584638627246e-11
+        }
+      },
+      "flatten_plane_default_on_a_gapped_map": {
+        "error_message": "z contains 512 value(s) that are not finite (512 nan, 0 inf); a height map must be finite. Repair or crop the scan before analysing it.",
+        "error_type": "InvalidImageError",
+        "ok": false,
+        "raised_in": "ensure_height_map"
+      },
+      "flatten_plane_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 17.23498681422326,
+          "mean": -5.245148147835385e-16,
+          "min": -1.5647654147505965,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -1.0684794285164032,
+            -0.9632385008953774,
+            -0.8332298456722846,
+            -0.6421690462460522,
+            1.5547443432849952
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 2.7107309306377556,
+          "sum": -3.410605131648481e-11
+        }
+      },
+      "gap_px": 512,
+      "gap_rows": [
+        128,
+        129
+      ],
+      "max_abs_diff_vs_ungapped": 0.0036749305802797894,
+      "max_abs_diff_zero_filled_vs_ungapped": 0.005613175453825114,
+      "rows_absent_after_masked_lines": 2
+    },
     "ground_truth": {
       "heights_nm": {
         "dtype": "float64",
@@ -3949,6 +4147,72 @@
       "recall": 0.0,
       "true_positives": 0
     },
+    "gapped_levelling": {
+      "flatten_lines_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 4.912159667727815,
+          "mean": 1.0121496816526095e-17,
+          "min": -4.269169658371806,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -1.2865303993662842,
+            -0.683704867127537,
+            -0.004136002567771156,
+            0.6790365944755039,
+            1.2895487432223955
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 1.0065164544581828,
+          "sum": 6.581402089977928e-13
+        }
+      },
+      "flatten_plane_default_on_a_gapped_map": {
+        "error_message": "z contains 512 value(s) that are not finite (512 nan, 0 inf); a height map must be finite. Repair or crop the scan before analysing it.",
+        "error_type": "InvalidImageError",
+        "ok": false,
+        "raised_in": "ensure_height_map"
+      },
+      "flatten_plane_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 5.0225529938632585,
+          "mean": -4.130554166420366e-17,
+          "min": -4.334042773474698,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -1.2920056965555315,
+            -0.6832420108361553,
+            -0.0037090462356648424,
+            0.6794274115417379,
+            1.2947239345754782
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 1.0112700031663013,
+          "sum": -2.6858515411731787e-12
+        }
+      },
+      "gap_px": 512,
+      "gap_rows": [
+        128,
+        129
+      ],
+      "max_abs_diff_vs_ungapped": 0.0009030254717480313,
+      "max_abs_diff_zero_filled_vs_ungapped": 0.0011975288369647785,
+      "rows_absent_after_masked_lines": 2
+    },
     "ground_truth": {
       "heights_nm": {
         "dtype": "float64",
@@ -4998,6 +5262,72 @@
       "precision": 1.0,
       "recall": 1.0,
       "true_positives": 30
+    },
+    "gapped_levelling": {
+      "flatten_lines_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 24.42316334338962,
+          "mean": 4.6891078072049615e-15,
+          "min": -8.803314276315003,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -3.3050358942159894,
+            -1.8208993388768202,
+            -0.5614214154555017,
+            0.20142619072807788,
+            3.9966293704436158
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 3.7828495401888733,
+          "sum": 3.049045460556954e-10
+        }
+      },
+      "flatten_plane_default_on_a_gapped_map": {
+        "error_message": "z contains 512 value(s) that are not finite (512 nan, 0 inf); a height map must be finite. Repair or crop the scan before analysing it.",
+        "error_type": "InvalidImageError",
+        "ok": false,
+        "raised_in": "ensure_height_map"
+      },
+      "flatten_plane_masked": {
+        "ok": true,
+        "stdout_lines": 0,
+        "value": {
+          "dtype": "float64",
+          "max": 28.014490448862624,
+          "mean": -2.133026913453057e-15,
+          "min": -5.241280437681208,
+          "n_nonfinite": 512,
+          "percentiles_10_25_50_75_90": [
+            -2.785511154840043,
+            -2.140962046551659,
+            -1.3347429463809117,
+            -0.026967199725294044,
+            4.840423419364457
+          ],
+          "shape": [
+            256,
+            256
+          ],
+          "size": 65536,
+          "std": 4.17744591686967,
+          "sum": -1.3869794202037156e-10
+        }
+      },
+      "gap_px": 512,
+      "gap_rows": [
+        128,
+        129
+      ],
+      "max_abs_diff_vs_ungapped": 0.047134087735219765,
+      "max_abs_diff_zero_filled_vs_ungapped": 0.1983297325746065,
+      "rows_absent_after_masked_lines": 2
     },
     "ground_truth": {
       "heights_nm": {

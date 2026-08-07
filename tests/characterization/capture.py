@@ -584,6 +584,53 @@ def capture_contracts() -> dict:
     }
 
 
+def capture_gapped_levelling(ph: phantoms.Phantom) -> dict:
+    """Levelling a scan that lost two lines (B-060, M3-T25, ADR-0036).
+
+    Recorded because the capability is new and nothing else exercises it: the
+    default path refuses a non-finite map (ADR-0030) and every phantom is
+    intact, so without this block the masked fit would ship uncharacterized.
+
+    Two probes and a reference, so the file carries the comparison the decision
+    was made on rather than only the result: the masked fit, the same scan
+    levelled with no gap at all, and `nan_to_num` — the fix that looks right.
+    """
+    from nanoscope.core.science.preprocessing import flatten_lines, flatten_plane
+
+    gapped = ph.image.astype(np.float64).copy()
+    rows = (gapped.shape[0] // 2, gapped.shape[0] // 2 + 1)
+    gapped[list(rows), :] = np.nan
+
+    out: dict[str, Any] = {"gap_rows": list(rows), "gap_px": int(gapped.shape[1] * len(rows))}
+
+    r = _record(flatten_plane, gapped, allow_gaps=True)
+    out["flatten_plane_masked"] = {**r, "value": _array_digest(r["value"]) if r["ok"] else None}
+
+    intact = _record(flatten_plane, ph.image.astype(np.float64))
+    if r["ok"] and intact["ok"]:
+        finite = np.isfinite(r["value"])
+        # The number the decision rests on: how far the masked fit lands from
+        # levelling the same scan with no gap in it.
+        out["max_abs_diff_vs_ungapped"] = _num(
+            np.abs(r["value"][finite] - intact["value"][finite]).max()
+        )
+        filled = _record(flatten_plane, np.nan_to_num(gapped, nan=0.0))
+        if filled["ok"]:
+            out["max_abs_diff_zero_filled_vs_ungapped"] = _num(
+                np.abs(filled["value"][finite] - intact["value"][finite]).max()
+            )
+
+    rl = _record(flatten_lines, gapped, allow_gaps=True)
+    out["flatten_lines_masked"] = {**rl, "value": _array_digest(rl["value"]) if rl["ok"] else None}
+    if rl["ok"]:
+        out["rows_absent_after_masked_lines"] = int((~np.isfinite(rl["value"])).all(axis=1).sum())
+
+    # The default still refuses it — ADR-0030's contract, recorded so a change
+    # to it reads as drift rather than as an improvement.
+    out["flatten_plane_default_on_a_gapped_map"] = _record(flatten_plane, gapped)
+    return out
+
+
 def capture_detection_quality(ph: phantoms.Phantom, z_above: np.ndarray | None) -> dict:
     """How well the LoG detector actually finds the particles (M3-T15, ADR-0032).
 
@@ -701,6 +748,7 @@ def build_all() -> dict:
             # Against ground truth, on the same array `run_pipeline` hands the
             # detector: `z_result` for AFM (M3-T15).
             "detection_quality": capture_detection_quality(ph, _z_above(ph)),
+            "gapped_levelling": capture_gapped_levelling(ph),
         }
 
     for factory in phantoms.ALL_IMAGE_PHANTOMS:

@@ -287,6 +287,8 @@ Since M3-T13 (ADR-0030) every error the library raises on purpose is a `Nanoscop
 
 These functions preserve the array shape and operate on the numeric map; they do not change the physical pixel scale.
 
+Both take **`allow_gaps=False`** (M3-T25, ADR-0036): with it set they fit over the finite pixels only and leave non-finite ones absent in the result, which is how a scan that lost feedback for a few lines can be levelled instead of refused. It is opt-in — the default is ADR-0030's contract, enforced identically at every other entry point — and the gap is never interpolated. `flatten_lines` returns a fully-absent row where there were too few finite points to fit, and warns how many. **The levelled output still carries NaN, so the substrate step and both detectors still refuse it** (B-065).
+
 Both return `np.promote_types(z.dtype, np.float64)` — for an integer or boolean input, float64. Until M3-T08 (ADR-0029) only `flatten_plane` did: `flatten_lines` pre-allocated with `np.empty_like(z)`, so the fractional residuals were cast back into the input dtype on assignment and an 8-bit image — which is what `load_microscopy_image` returns — levelled to **all zeros** (D-13). A float32 input now comes back float64, as it already did from `flatten_plane`.
 
 ### 6.2a Evaluation: `nanoscope/core/science/evaluation.py`

@@ -6,7 +6,8 @@
 **Defect:** **B-060** (filed by M3-T13, whose rejection this completes) · **ADR:** **ADR-0036**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-08.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -109,14 +110,29 @@ of its lines should not level silently.
 
 ## Definition of done
 
-- [ ] Both levelling functions take `allow_gaps`; the default path is untouched
-- [ ] A masked fit recovers the ungapped answer to a measured tolerance, and beats zero-filling
-- [ ] Rows that cannot be fitted are absent and counted, not silently zeroed
-- [ ] Tests, including that the default still refuses a gapped map with ADR-0030's message
-- [ ] `make check` green; delta quantified — expected: **added keys only**
-- [ ] ADR-0036; **B-065 and B-066 filed**; `Backlog.md` (B-060 → done), `STATE.md`, `Progress.md`,
+- [x] Both levelling functions take `allow_gaps`; the default path is untouched
+- [x] A masked fit recovers the ungapped answer to **0.029 nm** and beats zero-filling **4.7×**
+- [x] Rows that cannot be fitted are absent and counted, not silently zeroed
+- [x] Tests — **12**, including that an intact map levels byte-identically either way
+- [x] `make check` green — 464 tests; delta **5 differences, added keys only**, as predicted
+- [x] ADR-0036; **B-065 and B-066 filed**; `Backlog.md` (B-060 → done), `STATE.md`, `Progress.md`,
       `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M3-T25: levelling can fit around a gap`
+- [x] Commit: `M3-T25: levelling can fit around a gap`
+
+---
+
+## What it turned up
+
+**The advantage of the masked fit tracks the tilt**, which the synthetic scene could not show on
+its own. Across the phantoms zero-filling costs **4.2×** on `afm_tilted_polydisperse` and only
+1.2–1.7× on the flat ones — the fill corrupts the *plane*, so its damage is proportional to how
+much plane there is to get wrong. A real AFM scan is tilted by construction, so the phantom that
+matters is the one where the gap costs most.
+
+**The prediction held exactly.** "Zero golden differences from behaviour; the file changes only by
+the probes" — 5 differences, all `ADDED`. Worth recording because the previous task's prediction
+was wrong by 70×, and the difference between the two is that this one changed a default-off flag
+while that one changed a value every stage reads.
 
 ---
 

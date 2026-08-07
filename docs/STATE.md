@@ -34,11 +34,26 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 ## Current task
 
 **None selected.** **Every numerical defect the audit reproduced is closed, detection quality is
-measured, and B-059, B-061 and B-063 are closed with them.** Inside M3's task list only
-**M3-T16** (blocked on **B6**) and **M3-T19** (`low`) remain. Three findings need their own task:
-**B-060** (masked levelling), **B-062** (recall 0.000 — **wants an operator's view**) and
-**B-064** (the provenance of `1.7` and `2.5`). **B-040** goes last of everything because it
+measured, and B-059, B-060, B-061 and B-063 are closed with them.** Inside M3's task list only
+**M3-T16** (blocked on **B6**) and **M3-T19** (`low`) remain. Open findings: **B-062** (recall
+0.000 — **wants an operator's view**), **B-064** (the constants), and the two M3-T25 filed —
+**B-065** (a gap-tolerant *pipeline*, which needs a decision about what a substrate under a gap
+is) and **B-066** (deliberate interpolation). **B-040** goes last of everything because it
 rewrites every SHA above it.
+
+**`M3-T25` done 2026-08-08 (ADR-0036)** — **B-060 closed: levelling can fit around a gap.**
+M3-T13's rejection was right as a uniform contract and ADR-0030 said in its own text it was not
+the best behaviour available. Both levelling functions now take **`allow_gaps=False`** and fit
+over the finite pixels when asked — **opt-in**, because accepting NaN silently would put the
+library back where D-15 found it. The gap stays **absent**, never interpolated, and rows that
+cannot be fitted are counted out loud. Measured against the ungapped answer: masked fit
+**0.029 nm** against `nan_to_num`'s **0.134 nm**, and the difference lives in the *tilt*
+coefficient — zero-filling tells the fit the sample dips to zero along two lines. Delta:
+**5 differences, all the new block; nothing recorded moves**, as predicted. The block records the
+evidence rather than the outcome, and the finding is that **the advantage tracks the tilt** (4.2×
+on the tilted phantom, 1.2–1.7× on the flat ones). **Honest headline: the pipeline is still not
+gap-tolerant** — the output carries NaN and the substrate step refuses it, pinned by a test.
+**B-065** and **B-066** filed.
 
 **`M3-T24` done 2026-08-08 (ADR-0035)** — **B-063 closed.** Two roundings in three lines, in
 opposite directions, only one documented. **Not an operator decision:** ADR-0020 already made
@@ -251,6 +266,28 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T25** ✅ (2026-08-08, **ADR-0036**) — **B-060 closed: levelling can fit around a gap.**
+  M3-T13 made a non-finite value a rejection, which was right — three functions had three answers
+  and one contract replaced them — and ADR-0030 wrote in its own text that it was not the best
+  behaviour available. **A dropped scan line is a real artefact**: two rows of NaN and four
+  thousand good ones, and the scan was refused. `flatten_plane` and `flatten_lines` now take
+  **`allow_gaps=False`** and fit over the finite pixels when asked. **Opt-in on purpose** —
+  accepting NaN silently would restore D-15's disagreement, levelling tolerating what detection
+  refuses. The gap stays **absent**, never interpolated (the eighth substitute value this
+  milestone declined to add), and a row with too few finite points comes back absent with the
+  count **warned**, because rows vanishing unexplained is how B-059 survived. Measured against
+  levelling the same scan intact: masked fit **0.029 nm**, `nan_to_num(z, 0.0)` **0.134 nm** — and
+  the difference is in the *tilt* coefficient (0.0496 against 0.0511 true), because zero-filling
+  does not add noise, it tells the fit the sample dips to zero along two lines. Delta: **5
+  differences, all the new `gapped_levelling` block; nothing recorded moves**, which the plan
+  predicted before measuring. The block carries the comparison rather than only the result, and
+  **the advantage tracks the tilt** — 4.2× on `afm_tilted_polydisperse`, 1.2–1.7× on the flat
+  phantoms, which is the mechanism confirming itself. **The honest headline is a negative one:
+  this does not make the pipeline gap-tolerant** — the levelled output still carries NaN and
+  `build_substrate_map` still refuses it, asserted as a test. 12 tests, including that an intact
+  map levels **byte-identically** with and without the flag. **B-065** (the pipeline; needs a real
+  decision about a substrate under a gap) and **B-066** (interpolation) filed.
 
 - **M3-T24** ✅ (2026-08-08, **ADR-0035**) — **B-063 closed: the rough estimate stops truncating
   its own radius.** `radius_px = int(np.sqrt(median_area / np.pi))` was a second, undeclared
@@ -951,12 +988,12 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **123** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **125** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **452, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **464, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

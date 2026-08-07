@@ -7,6 +7,62 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-08 — M3-T25 · **B-060 closed: levelling can fit around a gap**
+
+**Task:** `M3-T25`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0036**.
+**Defect:** B-060 — filed by M3-T13, whose rejection this completes rather than reverses.
+
+### What was wrong with being right
+
+M3-T13 made a non-finite value a rejection and that was correct: three functions had three
+answers, and one contract replaced them. ADR-0030 also wrote, in its own text, that rejecting was
+not the best behaviour available. **A dropped scan line is a real artefact, not malformed input** —
+two rows of NaN and four thousand good ones, and the whole scan refused.
+
+### The decision, and the number under it
+
+`flatten_plane(z, *, allow_gaps=False)` and `flatten_lines(z, poly_order=1, *, allow_gaps=False)`.
+**Opt-in**, because accepting NaN silently would put the library back where D-15 found it —
+levelling tolerating what detection refuses. The gap stays **absent**, never interpolated: an
+interpolated value is a measurement nobody made, and that would have been the eighth substitute
+value this milestone declined to add. A row with too few finite points comes back absent and the
+count is **warned**.
+
+Measured against levelling the same scan with no gap at all, on a 64 px synthetic scene: masked
+fit **0.029 nm**, `nan_to_num(z, 0.0)` **0.134 nm**. The tilt coefficient is where the difference
+lives — 0.0496 filled against 0.0511 true. **Zero-filling does not add noise; it tells the fit
+that the sample dips to zero along two lines, and the plane leans to accommodate it.**
+
+### The delta — 5 differences, exactly as predicted
+
+All of them the new `gapped_levelling` block. Nothing recorded moves, because the default path is
+untouched by construction — the plan said so before the measurement and the measurement agreed.
+
+The block carries the *evidence*, not only the result: masked fit, ungapped reference and the
+zero-filled alternative, per phantom. **The finding is that the advantage tracks the tilt** —
+4.2× on `afm_tilted_polydisperse`, 1.2–1.7× on the flat ones. That is the mechanism confirming
+itself: the fill corrupts the *plane*, so its damage is proportional to how much plane there is to
+get wrong. A real AFM scan is tilted by construction.
+
+### The honest headline
+
+**This does not make the pipeline gap-tolerant.** The levelled output still carries NaN, so
+`build_substrate_map` and both detectors still refuse it. What the caller gains is a levelled map
+to crop, inspect or fill deliberately, instead of an exception. It is pinned by a test so the
+limitation cannot be forgotten, and filed as **B-065** — which needs a decision rather than
+plumbing: the morphological opening propagates NaN across the whole structuring element, so
+passing it through turns two dropped rows into a band `2 × opening_radius` wide, and masking the
+opening instead means the substrate is interpolated across the gap by a morphology operator.
+**B-066** files deliberate interpolation, with the note that whatever fills a gap must mark the
+pixels it invented or it recreates B-059 one array along.
+
+### Gate
+
+`make check` green — **464 tests** (12 new), 5 declared golden differences and nothing else.
+mypy unchanged at 12.
+
+---
+
 ## 2026-08-08 — M3-T24 · **B-063 closed: the rough estimate stops truncating its own radius**
 
 **Task:** `M3-T24`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0035**.

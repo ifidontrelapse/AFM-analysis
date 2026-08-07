@@ -28,13 +28,18 @@ import numpy as np
 from nanoscope.core.errors import InvalidImageError, InvalidParameterError
 
 
-def ensure_height_map(z: Any, name: str = "z") -> np.ndarray:
+def ensure_height_map(z: Any, name: str = "z", *, allow_gaps: bool = False) -> np.ndarray:
     """Check that `z` is a map this library can compute on, and return it.
 
     Args:
         z:    the candidate array
         name: the parameter's name in the caller's signature, so the message
               names what the caller wrote rather than what we call it
+        allow_gaps: accept non-finite values as *absent measurements* rather than
+            rejecting the map (ADR-0036). Every other requirement still holds.
+            Opt-in on purpose: the default contract is the one ADR-0030 states
+            and every other entry point enforces, and a caller who knows their
+            scan has dropped lines has to say so.
 
     Returns:
         `z` unchanged. It is returned rather than only checked so a call site
@@ -42,9 +47,10 @@ def ensure_height_map(z: Any, name: str = "z") -> np.ndarray:
         this ever needs to become a coercion.
 
     Raises:
-        InvalidImageError: if it is not a 2-D, non-empty, numeric, finite array.
-            The message names the parameter, what was wrong, and the value that
-            was wrong — a shape, a dtype, or how many values were not finite.
+        InvalidImageError: if it is not a 2-D, non-empty, numeric, finite array —
+            the last requirement waived by `allow_gaps`. The message names the
+            parameter, what was wrong, and the value that was wrong: a shape, a
+            dtype, or how many values were not finite.
     """
     if not isinstance(z, np.ndarray):
         raise InvalidImageError(
@@ -62,7 +68,7 @@ def ensure_height_map(z: Any, name: str = "z") -> np.ndarray:
         # Booleans are excluded on purpose: a mask is not a height map, and the
         # one place a bool array meant "topography" was D-13's truncation bug.
         raise InvalidImageError(f"{name} must hold integers or real numbers, got dtype {z.dtype}.")
-    if np.issubdtype(z.dtype, np.floating):
+    if np.issubdtype(z.dtype, np.floating) and not allow_gaps:
         finite = np.isfinite(z)
         if not finite.all():
             n_bad = int(finite.size - finite.sum())
