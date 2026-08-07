@@ -1,84 +1,85 @@
 # CURRENT TASK
 
-**ID:** `M3-T22`
-**Title:** A height that is not a number is not a measurement
-**Milestone:** M3 — Numerical correctness, twentieth task
-**Defect:** **B-059** (found while writing M3-T12's tests, deferred twice by ADR-0010) ·
-**ADR:** **ADR-0033**
+**ID:** `M3-T23`
+**Title:** A rough radius that lands below one pixel is not an estimate
+**Milestone:** M3 — Numerical correctness, twenty-first task
+**Defect:** **B-061** (filed by M3-T13, which found it by being too strict) · **ADR:** **ADR-0034**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-Of what is left in M3, it is the only item that is both unblocked and wrong: `M3-T16` waits on
-**B6**, `M3-T19` is a `low` typing finding, `B-061` and `B-062` each need a decision this task
-does not have to make. B-059 needs none — **the rule was decided in ADR-0018** and this is the
-third site it applies to. It has been carried since 2026-08-06 because M3-T12 and M3-T14 both
-refused to bundle a moved number into a schema change (ADR-0010), which was right, and the debt
-comes due here.
+M3's remaining items are `M3-T16` (blocked on **B6**), `M3-T19` (`low`, a typing finding),
+**B-061** and **B-062**. B-062 is a detector-tuning question with a trade-off the operator should
+see; B-061 is not a question at all once the mechanism is measured — the function returns a
+number that means "I could not estimate", and every caller reads it as a radius.
 
-## The defect, reproduced
+## The defect, measured
 
-```python
-z = np.full((64, 64), 3.0)          # a constant map
-measure_all_baseline(z, z, blobs)   # two blobs
+`estimate_rough_radius` can return **0**. `get_substrate_map(z, 0)` opens with `disk(0)`, a single
+pixel, so **the opening is the identity**: the "substrate" comes back equal to the image and
+`z_above` is zero everywhere. It looks exactly like a result.
 
-   particle_id  height_nm  baseline_nm baseline_source
-0            0        NaN          NaN          global
-1            1        NaN          NaN          global
-```
+Measured across the phantoms — the cell that reaches it:
 
-Two rows in the measurement table, both `NaN`, and **nothing said so**.
+| Phantom | scale | median object area | rough radius | rough opening |
+|---|---|---:|---:|---|
+| `afm_flat_monodisperse` | either | 234.5 px | 14 | real |
+| `afm_tilted_polydisperse` | either | 186.0 px | 12 | real |
+| `afm_dense_overlapping` | either | 144.5 px | 11 | real |
+| `afm_coarse_pixels` | either | 73.5 px | 7 | real |
+| `afm_sparse_low_snr` | scaled | 1.0 px | 3 | real |
+| **`afm_sparse_low_snr`** | **unscaled** | **1.0 px** | **0** | **identity** |
 
-The mechanism, end to end:
+The median object area is **1.0 px** in both of the last two rows: the threshold
+`median + std` found single-pixel noise, not particles. The scaled run survives it only because
+`min_size_px = 5 / 1.95 = 2.56` floors the answer — **the estimate is equally worthless there and
+the floor hides it.** Without a scale there is no floor (ADR-0025, correctly), so the worthless
+estimate goes through as 0.
 
-1. `substrate_mask = z_above < threshold_otsu(z_above)`. On a constant map Otsu returns the
-   constant, so the mask is **empty** — 0 px of 4096.
-2. `global_baseline = float(np.median(z_flat[substrate_mask]))` — the median of nothing is `nan`,
-   with a `RuntimeWarning` nobody sees.
-3. Every particle whose ring is too small falls back to that baseline, so `height_nm` is `nan`.
-4. `if metrics["height_nm"] <= 0: continue` — and **`nan <= 0` is `False`**, so the row that was
-   supposed to be discarded is the one that survives.
+### It corrects ADR-0025's diagnosis
 
-Step 4 is the same comparison **ADR-0018 already ruled on**, for the same reason, in the same
-milestone: `not x > 0` and `x <= 0` differ precisely on `nan`, and `nan` is always the case that
-matters.
+That ADR recorded, for this exact phantom and path, **17 objects → 3351** and explained it as
+*"losing the scale is losing the filter"*. That is true and it is not the whole mechanism. Losing
+the scale did **two** things: it skipped the `min_size_nm` filter, and it collapsed the rough
+radius to zero so Otsu ran on a map that had never been opened. Fixing only this half moves
+**3351 → 627**, so the collapsed radius accounted for roughly **four fifths** of the inflation
+and the missing filter for the rest.
 
 ---
 
 ## The decisions this task has to make
 
-### 1. What happens to the row
+### 1. What a sub-pixel estimate means
 
 | | |
 |---|---|
-| **Drop it, as the guard always intended** ✅ | A height that is not a number is not a measurement. The guard exists to discard artefacts; a `nan` is the most artefactual value there is, and it survived only through a comparison bug |
-| Keep the row with `nan` | `height_nm` is `float64` and `nan` is a legal value in it, so the table would be *shaped* correctly and *wrong*. Every consumer — a mean, a histogram, a CSV — would have to know |
-| Raise | The image is valid and some particles may have measured perfectly through their own rings. Refusing the whole scan for the ones that could not is ADR-0017's case, and this is ADR-0018's |
+| **It means the estimate failed** ✅ | A median object area of ~1 px is noise, and the function already has a branch for exactly that situation — `len(props) == 0` warns "too flat or too noisy" and falls back to 1 % of the image width. This is the same condition arriving by a different route |
+| Floor it at 1 px | `disk(1)` is a 3×3 element: it removes single-pixel noise and nothing else, so Otsu still measures noise and the estimate stays wrong — a smaller lie, quietly |
+| Raise | The image is valid and the automatic path has a documented fallback. ADR-0018's case, not ADR-0017's |
 
-### 2. Whether an empty substrate is allowed to be silent
+The fallback lands on **3 px** for the unscaled sparse phantom — which is what the *scaled* run of
+the same image computes. The one case that can be checked against a known-good answer agrees.
 
-**No.** Rows disappearing without a reason is how this defect stayed invisible: the fix alone
-turns two `nan` rows into zero rows, which reads exactly like "no particles here". The empty
-substrate mask is *the* diagnosable fact, and it gets a warning naming what happened — the same
-call ADR-0025 made when the `min_size_nm` filter has to be skipped.
+### 2. Where the check goes
 
-Partial success stays partial: a particle whose own ring gave it a baseline is unaffected and
-keeps its row. Only the ones that fell back to a baseline that does not exist are dropped.
+On the **unrounded** radius, before `_integer_radius` ceils it. `ceil(0.96)` is 1, so a check
+after the rounding would never see the sub-pixel case at all — it would only ever catch an exact
+zero, which is the symptom rather than the condition.
 
-> **This paragraph was wrong, and the code said so.** `get_clean_ring` intersects the ring with
-> the substrate mask, so there is no partial case at all — see *What it turned up*. The plan is
-> left as written rather than quietly corrected, because the correction is the finding.
+### 3. What this task does *not* touch
 
-### 3. Whether the harness should have caught this
+`radius_px = int(np.sqrt(median_area / np.pi))` is a **second, undeclared rounding** in a function
+whose only rounding is supposed to be `_integer_radius` (ADR-0020), and it is the same `int()`
+pattern ADR-0024 deleted as D-04's mechanism. It is also *how* this estimate reaches exactly zero.
 
-It could not: **no phantom has an empty substrate**, so the path has never been executed under the
-golden. The probe is part of the fix, the way M3-T07's `negative_with_structure` and M3-T12's
-empty-blobs case were — otherwise this commit makes the defect unreachable *and* unrecorded.
+But removing it moves the rough radius on **every** phantom — measured: 14 → 15, 12 → 14,
+11 → 12, 7 → 9 — and therefore the final radius, the substrate and every height. That is a
+different defect with a different blast radius, and bundling it here would make neither
+attributable. **Filed as B-063 with those numbers.**
 
 ---
 
@@ -86,60 +87,46 @@ empty-blobs case were — otherwise this commit makes the defect unreachable *an
 
 **In scope**
 
-1. `if not metrics["height_nm"] > 0` — the ADR-0018 comparison, at its third site
-2. A warning when the substrate mask is empty, naming the consequence
-3. A harness probe recording the constant-map case
-4. Tests: the reproduction, the partial-success case, and that a legitimately negative height is
-   still dropped exactly as before
+1. A rough estimate below 1 px falls back, with a warning that names the median area it rejected
+2. Tests: the reproduction, the fallback value, the untouched phantoms, and that the warning
+   distinguishes this case from the empty one
+3. The golden re-recorded for the one cell that moves
 
 **Out of scope**
 
-- **B-062** (recall 0.000 on `afm_sparse_low_snr`) and **B-061** (a rough radius of 0) — each
-  moves numbers and needs its own decision
-- The two SAM2 producers. Their baseline comes from a ring that is required to have ≥ 5 px, so
-  there is no `nan` route there; adding a guard would be a change with no defect behind it
-- Anything about *why* Otsu returns the constant on a constant map. That is scikit-image's
-  behaviour and it is not wrong — a map with one value has no threshold that separates it
+- **B-063** — the `int()` truncation, filed with its measured effect on all five phantoms
+- **B-062** — recall 0.000 on the same phantom's *detection*. Different function, different
+  decision, and it wants an operator's view of the sensitivity trade-off
+- The `median + std` threshold itself. That it finds noise on a low-SNR scan is the input to this
+  decision, not a defect this task is fixing
 
 ---
 
 ## Expected blast radius, before measuring
 
-- **Zero golden differences from the fix**, because no phantom reaches the path — and that is the
-  finding, not a reassurance. The probe added in the same commit is what changes the file.
-- No test should change meaning: the negative-height filter behaves identically on every number.
+- **One golden cell**: `build_substrate_map_no_scale` on `afm_sparse_low_snr`. `n_objects`
+  3351 → 627, and everything derived from the radii with it. The opening radius stays 5, so the
+  unscaled run still differs from the scaled one — ADR-0025's finding survives with a smaller
+  number and a sharper cause.
+- **Four AFM phantoms and both image phantoms: nothing.** Their estimates are not sub-pixel.
+- M3-T20's `test_and_that_costs_the_substrate_on_a_noisy_scan` must still pass: it asserts the
+  unscaled run differs from the scaled one, which remains true.
 
 ---
 
 ## Definition of done
 
-- [x] `not metrics["height_nm"] > 0`, with the reason on the line
-- [x] An empty substrate mask is warned about, once, naming what it costs
-- [x] The harness records the constant-map probe
-- [x] Tests — **10**: `nan` rows gone, legitimate rows kept, negative and zero heights still
-      dropped. **The "partial case" could not be written — see below**
-- [x] `make check` green — 425 tests; delta **5 differences, all of them the new probe**
-- [x] ADR-0033; `STATE.md`, `Progress.md`, `TASKS.md`, `Backlog.md` (B-059 → done), ADR index
-- [x] Commit: `M3-T22: a height that is not a number is not a measurement`
-
----
-
-## What it turned up
-
-**The planned "partial success" test does not exist as a case.** `get_clean_ring` intersects the
-ring with the substrate mask, so an empty substrate leaves *every* particle without a ring, all of
-them fall back to the `nan` baseline, and the whole table goes. There is no scan where some rows
-survive it. That is why the warning names the substrate rather than the dropped rows — the rows
-are never a subset — and it is pinned by a test instead of a comment.
-
-**The fix moves nothing recorded, and that is the point.** No phantom has an empty substrate, so
-the golden could not have caught this; the probe ships in the same commit. Fifth time in M3 that
-closing a defect meant extending the harness that missed it.
+- [ ] A sub-pixel rough estimate falls back and says so, naming the median area
+- [ ] Tests, including the exact-zero reproduction and the four phantoms that must not move
+- [ ] `make check` green; delta quantified, and confined to the one cell
+- [ ] ADR-0034; **B-063 filed**; `Backlog.md` (B-061 → done), `STATE.md`, `Progress.md`,
+      `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T23: a rough radius below one pixel is not an estimate`
 
 ---
 
 ## Notes
 
-Third time in this milestone that `x <= 0` has been the wrong way to write it (ADR-0018,
-ADR-0025's `not value > 0`, and here). If it happens a fourth time the rule belongs in
-`PROJECT_RULES` §3 next to the unit conventions, not in three ADRs.
+The audit never listed this. It was found by M3-T13 writing a validation rule that was *too
+strict* — `ensure_positive(radius_px)` turned an M3-T20 test red — and the honest response then
+was to relax the check and file the question. Three tasks later it is answered with a number.
