@@ -803,7 +803,7 @@ requires. The branch was only ever a label. If the rule is meant to bind the bra
 an amendment saying so; it is recorded here rather than left as a silent violation.
 
 All fourteen task branches were green on CI before they were deleted (#44–#50, #52, #54–#56), and
-the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s), **M3-T13 as #63**, **M3-T14 as #64** and **M3-T15 as #65** — every commit of this session verified on the machine without torch.
+the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s), **M3-T13 as #63**, **M3-T14 as #64**, **M3-T15 as #65** and **M3-T22 as #67** — every task commit of this session verified on the machine without torch.
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
 rather than path-hacked.
