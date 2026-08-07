@@ -1,106 +1,79 @@
 # CURRENT TASK
 
-**ID:** `M3-T24`
-**Title:** The rough estimate stops truncating its own radius
-**Milestone:** M3 — Numerical correctness, twenty-second task
-**Defect:** **B-063** (filed by M3-T23, which fixed its consequence) · **ADR:** **ADR-0035**
+**ID:** `M3-T25`
+**Title:** Levelling can fit around a gap instead of refusing the scan
+**Milestone:** M3 — Numerical correctness, twenty-third task
+**Defect:** **B-060** (filed by M3-T13, whose rejection this completes) · **ADR:** **ADR-0036**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-08.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
-## Why this task is next, and why it is not an operator decision
+## Why this task is next
 
-`M3-T16` is blocked on **B6** and **B-062** wants an operator's view of a sensitivity trade-off.
-B-063 does not: **the rule was already decided**, and this is a site that was missed.
+Of the four findings open in M3, two are engineering (**B-060**, **B-064**) and two need
+something this session cannot supply — **B6** blocks `M3-T16`, and **B-062** wants an operator's
+view of a sensitivity trade-off. This is the first of the two.
 
-- **ADR-0020** ruled that every radius reaching `disk()` is `ceil`-ed — *"up, not down: a radius
-  smaller than a particle recovers a substrate containing the particle"* — and that
-  `_integer_radius` is the one funnel. `int()` inside the estimator is a **second, undeclared
-  rounding**, in the opposite direction.
-- **ADR-0024** deleted this exact `int()` pattern as D-04's mechanism.
-- The parameter's own documentation, from the commit that introduced both, says `scale=1.7` is a
-  *"multiplier so the disk is safely **larger** than a particle"*. The truncation makes it
-  smaller. It works against the stated purpose of the line above it.
+M3-T13 made a non-finite value a rejection: *"a height map must be finite"*, checked at fourteen
+entry points. That was the honest reading of what the code already did — `flatten_plane` had
+always rejected NaN through `scipy.lstsq`. It was never the best behaviour available, and
+ADR-0030 said so in its own text.
 
-So removing it executes an accepted decision rather than making a new one.
+**A dropped scan line is a real artefact**, not malformed input. An AFM that loses feedback for
+two lines produces a map with two rows of NaN and 4 094 perfectly good ones, and today the whole
+scan is refused.
 
-## The defect
+## What a masked fit recovers — measured
 
-```python
-radius_px = int(np.sqrt(median_area / np.pi))   # <- truncates, downward, silently
-rough_radius = max(radius_px * scale, min_size_px)
-return _integer_radius(rough_radius)            # <- the declared rounding, upward
-```
+A 64×64 tilted scan with four particles and two dropped rows, levelled three ways and compared
+against **levelling the same scan with no gap at all**:
 
-Two roundings in three lines, in opposite directions, and only the second one is documented. The
-first also loses up to a full pixel *before* the `× 1.7`, so the error is amplified: at
-`sqrt(area/π) = 4.9` the disk is built from 4, not 4.9, and the ×1.7 turns a 0.9 px truncation
-into a 1.5 px shortfall.
+| Strategy | plane coefficients `(a, b, c)` | max error on the intact pixels |
+|---|---|---:|
+| ungapped reference | `0.051149  0.031149  0.712928` | — |
+| **masked fit** | `0.051186  0.031076  0.739255` | **0.0287 nm** |
+| `nan_to_num(z, 0.0)` | `0.049587  0.031377  0.677039` | 0.1343 nm |
 
-It is also how M3-T23's zero arose: `int(0.56) = 0`, and `0 × 1.7 = 0`.
+The masked fit recovers the plane to **0.03 nm**; zero-filling is **4.7× worse** and biases the
+tilt itself — it does not merely add noise, it tells the fit that the sample dips to zero along
+two lines.
 
----
-
-## What it moves — measured before deciding
-
-**M3-T23's own filing overstated this**, and the correction belongs here rather than in a quiet
-edit. It said the change "moves the final radius, the substrate and every height". Measured:
-
-| Phantom | rough | final | substrate | heights | measured rows |
-|---|---|---|---|---|---|
-| `afm_flat_monodisperse` | 14 → **15** | 19 → 19 | identical | identical | 24 → 24 |
-| `afm_tilted_polydisperse` | 12 → **14** | 18 → **19** | **differs** | **max 0.686 nm (2.77 %)** | 30 → 30 |
-| `afm_dense_overlapping` | 11 → **12** | 16 → 16 | identical | — | **59 → 60** |
-| `afm_sparse_low_snr` | 3 → 3 | 8 → 8 | identical | identical | 0 → 0 |
-| `afm_coarse_pixels` | 7 → **9** | 11 → 11 | identical | identical | 14 → 14 |
-
-**The two-stage design absorbs most of it.** The rough radius moves on four phantoms; the *final*
-radius moves on one, because the final radius comes from Otsu's median radius on the roughly
-opened map and that median is robust to the opening being slightly larger.
-
-**`afm_dense_overlapping` gains a measured particle without its substrate changing**, which is
-worth understanding before it is recorded: `sizes` from the rough stage feeds
-`estimate_log_params`, so the sigma range the LoG detector searches moves even when `z_above` does
-not. One more particle clears it — 59 rows become 60.
-
-### And detection quality, which nothing could measure before M3-T15
-
-| Phantom | recall | mean localisation |
-|---|---|---|
-| `afm_flat_monodisperse` | 1.000 → 1.000 | 0.4310 → 0.4310 px |
-| `afm_tilted_polydisperse` | 1.000 → 1.000 | 0.6137 → **0.6156** px |
-| `afm_dense_overlapping` | 0.843 → 0.843 | 0.8265 → 0.8265 px |
-| `afm_coarse_pixels` | 1.000 → 1.000 | 0.4143 → 0.4143 px |
-
-**No measurable change in detection quality.** That is the honest reading and it is worth stating
-plainly: this task is not an improvement to detection, it is the removal of an undeclared
-rounding that contradicts an accepted ADR. **The first task in this project able to say that with
-a number rather than an assumption** — which is what M3-T15 was built for.
-
-> **Refined by the golden, which records more than this table sampled.** Recall is indeed
-> unchanged everywhere, but on `afm_tilted_polydisperse` the **radius** error improves 6 %
-> (0.765 → 0.718 px, signed −0.704 → −0.669) while localisation degrades 0.3 % in the mean and
-> improves in the median. Still a wash — but "no measurable change" was one metric short.
+Per row, for `flatten_lines`: a **partially** gapped row fits on its 54 finite points and keeps
+the gap absent; a **fully** NaN row — which is exactly what a dropped scan line is — cannot be
+fitted at all.
 
 ---
 
-## The decision this task has to make
+## The decisions this task has to make
 
-Only one, and it is narrow: **is `sqrt(median_area / π)` allowed to keep its fractional part?**
+### 1. Opt-in, not automatic
 
 | | |
 |---|---|
-| **Yes — `_integer_radius` is the only rounding** ✅ | ADR-0020's rule, applied where it was missed. The estimate stays a float until the single declared ceiling |
-| Round it to nearest instead | Still a second rounding, still undeclared, and still ahead of a `× 1.7` that amplifies it |
-| Keep it, document it | Documents a contradiction rather than removing it, and leaves a downward rounding inside a parameter whose purpose is an upward margin |
+| **`allow_gaps=False` by default; the caller asks** ✅ | ADR-0030's contract holds everywhere it holds today, and the default path does not move a single number. A caller who knows their scan has gaps says so |
+| Accept NaN automatically in levelling | Puts the library back where D-15 found it: levelling tolerates what detection refuses, and the two disagree about what an image is. That disagreement is the defect ADR-0030 closed six tasks ago |
+| Relax `ensure_height_map` globally | Undoes ADR-0030 wholesale to serve one artefact |
 
-**What is not decided here:** whether `1.7` and `2.5` are the right constants. They are
-undocumented beyond "safely larger", they were chosen with the truncation in place, and nothing
-in the project can currently say what they should be — **M3-T15 can now measure a candidate**,
-which makes it a real task rather than a preference. **Filed as B-064.**
+**This does not make the pipeline gap-tolerant, and the ADR says so plainly.** The output of a
+masked levelling still contains NaN, so `build_substrate_map` and both detectors still refuse it —
+correctly, because nothing has decided what a substrate under a gap means. What the caller gains is
+a levelled map they can crop, inspect or fill deliberately, instead of an exception. The rest is
+filed, not implied.
+
+### 2. The gap stays absent in the output
+
+`NaN` in, `NaN` out, in exactly the same places. Not filled, not interpolated: an interpolated
+value is a measurement nobody made, and this milestone has deleted seven substitute values
+(ADR-0019, 0024, 0025, 0027, 0028, 0031, 0032). Interpolating a gap is a *feature* — with its own
+decision about the method — not a consequence of this one.
+
+### 3. A row that cannot be fitted comes back absent
+
+A fully-NaN row has nothing to fit, and `polyfit` on fewer than `poly_order + 1` finite points is
+not a fit either. Those rows return NaN, and the count is **warned about** — a scan that lost 40 %
+of its lines should not level silently.
 
 ---
 
@@ -108,52 +81,47 @@ which makes it a real task rather than a preference. **Filed as B-064.**
 
 **In scope**
 
-1. Delete the `int()`; the estimate reaches `_integer_radius` as a float
-2. Tests: the truncation is gone, the two roundings become one, and the direction is up
-3. The golden re-recorded — 4 phantoms' rough radius, 1 phantom's substrate and heights,
-   1 phantom's row count
+1. `flatten_plane(z, *, allow_gaps=False)` — masked least squares over the finite pixels
+2. `flatten_lines(z, poly_order=1, *, allow_gaps=False)` — per row, masked `polyfit`; rows with
+   too few finite points come back absent, and the count is warned
+3. `ensure_height_map(z, name, *, allow_gaps=False)` — the finiteness check becomes conditional,
+   and nothing else about it does
+4. Harness probes: a gapped phantom levelled both ways
+5. Tests, including the comparison against the ungapped answer and against zero-filling
 
 **Out of scope**
 
-- **B-064** — the provenance of `1.7` and `2.5`
-- **B-062** — recall 0.000 on `afm_sparse_low_snr`, which this does not move (3 → 3)
-- `M3-T19` — the `low` mypy finding in the LoG threshold estimator
+- **Gap-tolerant detection, substrate or measurement.** Filed as **B-065**; it needs a decision
+  about what a substrate under a gap is, which is science, not plumbing
+- **Interpolation.** A separate feature with its own method decision — **B-066**
+- **B-064** — the constants. Next task, same session
+- Detecting gaps automatically from a loader. `_read_nanoscope_z` produces no NaN today
+
+---
+
+## Expected blast radius, before measuring
+
+- **Zero golden differences from behaviour.** `allow_gaps` defaults to `False`, so every existing
+  call is byte-identical. The file changes only by the probes this task adds.
+- If any recorded value moves, the default path was touched and the task is wrong.
 
 ---
 
 ## Definition of done
 
-- [x] `int()` gone; `_integer_radius` is the only rounding in the function
-- [x] Tests — **18**; restoring `int()` turns 11 red
-- [x] `make check` green — 452 tests; delta **730 differences**, quantified by magnitude
-- [x] ADR-0035; **B-064 filed**; `Backlog.md` (B-063 → done, and its overstated estimate
-      corrected), `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T24: the rough estimate stops truncating its own radius`
-
----
-
-## What it turned up
-
-**This plan's blast-radius estimate was ~70× too small, and both of its specific predictions were
-right.** It said the substrate moves on one phantom and the heights on one — both true. What it
-modelled was what `build_substrate_map` *returns*; what it missed is that `sizes` also feeds
-`estimate_log_params`, so the LoG **sigma range** shifts wherever the rough radius did. 379 of the
-730 differences are `log_detection`. **`afm_dense_overlapping` gains a detected particle with a
-byte-identical substrate**, which isolates it cleanly.
-
-The lesson belongs to the two-stage design rather than to this defect: the second stage is robust
-to the first — the final radius moved on one phantom of five — but the *diagnostics* the first
-stage emits are wired into the detector, and nothing in the code says so.
-
-**A test caught an overstatement in its own docstring.** The first draft asserted that truncation
-and the correct value differ on every radius tried; at an equivalent radius of 3.432 both give 6.
-That case is now a named test, because it is also the reason the defect was hard to see.
+- [ ] Both levelling functions take `allow_gaps`; the default path is untouched
+- [ ] A masked fit recovers the ungapped answer to a measured tolerance, and beats zero-filling
+- [ ] Rows that cannot be fitted are absent and counted, not silently zeroed
+- [ ] Tests, including that the default still refuses a gapped map with ADR-0030's message
+- [ ] `make check` green; delta quantified — expected: **added keys only**
+- [ ] ADR-0036; **B-065 and B-066 filed**; `Backlog.md` (B-060 → done), `STATE.md`, `Progress.md`,
+      `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M3-T25: levelling can fit around a gap`
 
 ---
 
 ## Notes
 
-This is the fourth `int()` this milestone has removed from a scientific path — after ADR-0024's
-`min_size_pixel`, ADR-0020's un-rounded `disk()` radius and M3-T23's zero. The pattern is always
-the same: a truncation written where a float was meant, invisible because it produces a plausible
-integer.
+ADR-0030 is not superseded. Its rule — a height map is finite — remains the default and remains
+what every other entry point enforces. This adds a named exception that a caller has to ask for,
+which is the difference between a contract with an escape hatch and a contract with a hole.
