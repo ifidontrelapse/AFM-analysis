@@ -1,86 +1,91 @@
 # CURRENT TASK
 
-**ID:** `M3-T08`
-**Title:** `flatten_lines` promotes the way `flatten_plane` does
-**Milestone:** M3 — Numerical correctness, sixteenth task
-**Defect:** **D-13** (medium) · **ADR:** **ADR-0029**
+**ID:** `M3-T13`
+**Title:** A typed error taxonomy, and validation at every numerical entry point
+**Milestone:** M3 — Numerical correctness, seventeenth task
+**Defect:** **D-15** (medium) · **ADR:** **ADR-0030**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned — no code written yet.
 
 ---
 
 ## Why this task is next
 
-Every `critical` and every `high` defect is closed. `STATE.md` names the remaining `medium`
-ones in order — **T08, T13, T14** — and T08 is the only one of the three that is a *number*
-rather than a contract: T13 designs an error taxonomy and T14 unifies a schema, both of which
-touch every entry point. This one is one line in one function.
+Two `medium` tasks are left and this is the one four other tasks have been deferring *to* by
+name: M3-T06, M3-T07, M3-T08, M3-T17 and M3-T20 each declined to invent a rejection rule on the
+grounds that D-15 owns all of them at once. A taxonomy of one is not a taxonomy, so the debt was
+deliberately collected here.
 
-It is also the task this laptop can finish. There are no weights and no `data/` here, so
-anything that has to execute YOLO or SAM2, or re-read the 628 local scans, cannot be verified;
-`flatten_lines` is pure NumPy/SciPy and the whole gate runs on the CI-shaped environment.
+## The defect, as the harness already records it
+
+Eleven degenerate inputs × five entry points, today:
+
+| Input | `flatten_plane` | `flatten_lines` | `build_substrate_map` | `detect_particles` | `estimate_log_threshold_adaptive` |
+|---|---|---|---|---|---|
+| `empty` (0×0) | ok | ok | ValueError | ValueError | ValueError |
+| `single_pixel` | ok | LinAlgError | ValueError | **ok** | ok |
+| `one_dimensional` | ValueError | IndexError | **TypeError** | **ok** | ValueError |
+| `three_dimensional` | ValueError | ValueError | **RuntimeError** | **ok** | ok |
+| `with_nan` | ValueError | **ok** | ValueError | **ok** | ok |
+| `with_inf` | ValueError | **ok** | ValueError | **ok** | ok |
+| constant / negative | ok | ok | ValueError · ok | ok | ok |
+
+**Five different exception types, none of them ours, and `detect_particles` returns a clean empty
+result for a 1-D array, a 3-D array, a NaN map and an infinite map.** That last row is the reason
+this is not a cosmetics task: an unusable input and an empty sample are the same answer today.
+
+The audit's own table says the same thing in prose: `AttributeError: 'str' object has no
+attribute 'image'`, `too many values to unpack (expected 2)` from `flatten_plane`, `array must not
+contain infs or NaNs` from `scipy.lstsq`, a Russian message from Otsu, and — for an all-zero array
+— no error at all.
 
 ---
 
-## The defect
+## The decisions this task has to make
 
-`nanoscope/core/science/preprocessing/flatten.py:46`
+### 1. What the taxonomy is
 
-```python
-result = np.empty_like(z)          # <- keeps the input's dtype
-for i, row in enumerate(z):
-    coeffs = np.polyfit(xi, row, poly_order)
-    result[i] = row - np.polyval(coeffs, xi)   # <- float64 residuals, truncated on assignment
+```
+NanoscopeError(Exception)                    every error this library raises on purpose
+├── InvalidInputError(…, ValueError)         the caller passed something no analysis can run on
+│   ├── InvalidImageError                    the array: shape, dtype, emptiness, finiteness
+│   └── InvalidParameterError                a scalar argument outside its domain
+├── UnsupportedRequestError(…, ValueError)   the (modality, detector, mode) combination has no path
+├── DataFormatError(…, ValueError)           a file or header we cannot read
+├── MissingFileError(…, FileNotFoundError)   the file is not there
+└── AnalysisFailedError(…, ValueError)       the input was valid; the analysis has no answer
 ```
 
-`np.polyfit` and `np.polyval` compute in float64 whatever they are given, so the residual is
-fractional by construction — a levelled row is *mostly* fractional, since the trend it subtracts
-is the row's own fit. Assigning it into an integer array rounds every value toward zero.
+**Every project error also inherits the builtin it replaces at that site.** `except ValueError`
+in a notebook keeps working, which matters because the notebooks are the only callers this
+library has. It is the `json.JSONDecodeError` pattern, and it makes the taxonomy adoptable in one
+commit instead of a migration.
 
-Measured here on a `uint8` ramp: residual max **0.368**, recorded output **all zeros**. The audit
-measured its own ramp and got the same shape of answer (correct 0.5625, actual all zeros).
+### 2. What a height map is
 
-**`flatten_plane` does not have the defect** — it returns `z - plane` with `plane` float64, so
-NumPy promotes for it. The two halves of "flattening" therefore disagree about dtype, which is
-what makes this a defect rather than a preference: `flatten_plane(z).dtype` is `float64` for a
-`uint8` input and `flatten_lines(z).dtype` is `uint8`.
+**2-D, numeric, non-empty, and finite.** The first three are structural. The fourth is a decision:
 
-**Boolean input is worse than truncation, and the audit did not measure it.** `result[i] = row -
-polyval(...)` into a `bool` array stores `residual != 0`, so the "levelled topography" comes back
-as a mask of where the residual was non-zero — max **1.0** where the real residual max is 0.45.
-
-### Who reaches it
-
-Not the documented chain: `flatten_lines(flatten_plane(z))` already receives float64, which is
-why the golden's five AFM phantoms have never seen this. Live callers are the ones that hand
-`flatten_lines` an array directly:
-
-- **`load_microscopy_image` returns `uint8`** — `cv2.imread(..., IMREAD_GRAYSCALE)` — and it is
-  the only file entry point for SEM/TEM. Levelling one of those images is a `flatten_lines` call
-  on integer data.
-- **`load_afm(fmt="npy")`** passes through whatever the `.npy` holds, integers included.
-- `README.md`, `project.md` and `PROJECT_CONTEXT.md` all document `flatten_lines` as a public
-  function callable on its own.
-
----
-
-## The decision this task has to make
-
-The task title in `TASKS.md` says "must promote dtype like `flatten_plane` does", and that is a
-rule, not a hint. `flatten_plane`'s rule is NumPy's own: the input dtype combined with float64.
-
-| Option | |
+| | |
 |---|---|
-| `np.promote_types(z.dtype, np.float64)` ✅ | *Is* `flatten_plane`'s rule, written out. Integers and bools become float64; float64 stays; a wider float stays wide |
-| `dtype=np.float64`, unconditionally | Identical for every dtype `np.polyfit` accepts today, and *demotes* a `longdouble` input, which `flatten_plane` preserves. Two rules that agree by coincidence are two rules |
-| Cast the input — `z = z.astype(float)` first | Copies the array to compute a result that was going to be allocated anyway |
-| Raise on non-float input | An 8-bit image is not a malformed input; it is what the SEM/TEM loader returns by construction. And typed input validation is **M3-T13**, wholesale |
+| Reject non-finite input at the entry ✅ | `flatten_plane` — step one of the documented chain — *already* rejects it, via `scipy.lstsq`. This makes the existing contract early, typed and identical everywhere, instead of a rule the first step happens to enforce and the second silently ignores |
+| Accept it and let each function cope | Is today's behaviour: `flatten_lines` propagates NaN, `detect_particles` reports zero particles, `build_substrate_map` raises. Three answers to one question |
+| Mask the non-finite values and fit around them | A real feature — a dropped scan line is a real thing — but it is a *scientific* change to what levelling computes, and this task is about rejections. File it |
 
-**float32 in becomes float64 out**, and that is declared drift rather than an accident: it is
-what `flatten_plane` already does with a float32 input, and what NumPy would do if the expression
-were written `z - trend` instead of assigned into a pre-allocated buffer.
+**This supersedes part of ADR-0018 on exactly one input.** That ADR ruled that a non-positive or
+`nan` maximum returns a default threshold rather than raising, because "zero particles is an
+answer". That stays true for a *flat* or *negative* map, which is valid data with nothing in it.
+A NaN map is not valid data, and the two cases were only ever conflated because the guard looked
+at the maximum instead of at the input.
+
+### 3. Where the check lives
+
+One `ensure_height_map` in `core/validation.py`, called at each entry point, rather than a
+hand-written check per function. The cost is a `np.isfinite(...).all()` pass — O(n), sub-millisecond
+at 512×512 — and it will be measured, not assumed.
+
+The harness records `raised_in`, which becomes the validator's name for every rejected input. No
+attribution is lost: the golden's key already names the entry point that was called.
 
 ---
 
@@ -88,72 +93,58 @@ were written `z - trend` instead of assigned into a pre-allocated buffer.
 
 **In scope**
 
-1. The one line in `flatten_lines`, plus a docstring that states the returned dtype
-2. A harness block that records levelling across dtypes — the integer case the audit's own
-   remediation note (R9) asked for: *"Golden covers float; add an integer case"*
-3. Unit tests, including the dtype-agreement invariant between the two functions
+1. `nanoscope/core/errors.py` — the taxonomy, no numpy import
+2. `nanoscope/core/validation.py` — `ensure_height_map`, `ensure_positive`, and the one
+   arity check the maths states (`flatten_lines` needs `poly_order + 1` columns)
+3. Validation applied at the numerical entry points: `flatten_plane`, `flatten_lines`,
+   `get_substrate_map`, `estimate_radius_otsu`, `estimate_rough_radius`, `build_substrate_map`,
+   `estimate_log_threshold`, `estimate_log_threshold_adaptive`, `detect_particles`,
+   `LogDetector.detect`, `YoloDetector.detect`, `measure_all_baseline`,
+   `measure_geometry_from_mask`, and `run_pipeline`'s `data` argument
+4. The nineteen existing deliberate `raise ValueError` sites re-typed to the taxonomy. They
+   already name the parameter and its value; what they lack is a type a caller can catch
 
 **Out of scope**
 
-- **Typed validation** of `z` — non-numeric dtypes, 1-D, 3-D, NaN. `np.promote_types` raises its
-  own `TypeError` on a string array one line earlier than `np.polyfit` did; making that a project
-  error is **M3-T13**, which owns every numerical entry point at once
-- `flatten_plane`. It is correct here and nothing in it moves
-- **B-059** (`nan <= 0` in `measure_all_baseline`), a different defect in a different file, which
-  gets its own commit (ADR-0010)
+- **Masked / NaN-tolerant fitting.** Filed as **B-060**, because it changes what levelling
+  *computes*, not what it rejects
+- **B-059** (`nan <= 0` in `measure_all_baseline`) — a wrong number, not a missing rejection, and
+  ADR-0010 keeps one defect to one commit
+- The measurement schema (**M3-T14**) and the evaluation harness (**M3-T15**)
+- Any new *capability* rule. `validate_request` already owns which combinations exist (M2-T10);
+  it changes exception type here and nothing else
 
 ---
 
 ## Expected blast radius, before measuring
 
-- **The five AFM phantoms and both image phantoms: no change.** Every recorded `flatten_lines`
-  call in a phantom chain is fed `flatten_plane`'s float64 output.
-- **`degenerate_inputs`: dtype changes.** All twelve are float32, so the entries that succeed
-  today record `dtype: float32` and will record `float64`, with the value statistics moving in
-  the last bits of float32 precision. That is the drift this ADR declares.
-- **New keys** for the dtype block.
-- mypy and ruff: no expected movement.
+- **`degenerate_inputs` moves substantially**: error types become ours, `raised_in` becomes the
+  validator, and — because ADR-0022 compares a message only when we wrote it — a batch of keys
+  moves from `error_message_unchecked` back to `error_message`. Several `ok` cells become errors.
+- **The seven phantoms must not move at all.** Every one of them is a valid image; if a recorded
+  value changes, the validation is rejecting something real and the task is wrong.
+- mypy: no expected movement. ruff: none.
 
 ---
 
 ## Definition of done
 
-- [x] `flatten_lines` allocates with `np.promote_types(z.dtype, np.float64)`; the docstring says
-      so and says why
-- [x] Harness records levelling for `uint8` / `int32` / `bool` / `float32` / `float64` inputs of
-      one real phantom image, both functions, dtype included
-- [x] Tests — 17; restoring `np.empty_like(z)` turns **14** red, the three survivors being the
-      float64 cases, which never had the defect
-- [x] `make check` green — 249 tests; delta: **13 differences — 8 dtypes, 4 sums, 1 added group**;
-      mypy unchanged at 12
-- [x] ADR-0029; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T08: flatten_lines promotes the way flatten_plane does`
-
----
-
-## What it turned up
-
-**The audit understated the defect in two directions.** It measured a `uint8` ramp whose
-residuals were all under 1, got "all zeros", and filed it as truncation. On an image with real
-structure the residuals are tens of nanometres and **an integer output wraps the negative ones** —
-`uint8(-47.34)` is 209. On the newly recorded 8-bit phantom **100 % of pixels are wrong, by up to
-257**, and every pit came back rendered as a peak. That is not a degraded map; it is features that
-are not there. And **boolean input was never measured at all**: levelling a mask returned a mask
-of where the residual was non-zero.
-
-**The four moved sums are the fix as a physical property.** A least-squares residual sums to zero
-over the range it was fitted on — that is what "the trend was removed" means. Storing it in
-float32 left the sum at **1e-6**; it now lands at float64 round-off. The fit never changed, only
-where the answer was written down.
-
-**mypy is unchanged at 12, and that is the second time this milestone.** A dtype that is correct
-for one input and wrong for another has no static shadow, exactly as M3-T02's unit error had none.
-Between them they mark the class of defect the type checker cannot be the guard for.
+- [ ] The taxonomy exists, every class documented with what raises it
+- [ ] Every entry point in the list validates its image argument; the nineteen existing raises
+      carry a project type
+- [ ] `run_pipeline("not-data", cfg)` — the audit's first row — raises a typed error naming the
+      argument and the type it got, before anything is constructed
+- [ ] Tests: one per audit row, plus the taxonomy's catchability (`except ValueError` still
+      catches everything it caught before) and the phantom-untouched property
+- [ ] `make check` green; delta quantified, and **no phantom value moved**
+- [ ] ADR-0030; **B-060 filed**; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`,
+      ADR index, `Backlog.md`
+- [ ] Commit: `M3-T13: a typed error taxonomy, and validation at the entry`
 
 ---
 
 ## Notes
 
-The claim this task can and cannot make: it fixes what levelling *returns* for an integer image.
-Whether levelling an 8-bit SEM image is the right preprocessing step at all is a different
-question, and nothing in the gate answers it — **M3-T15** again.
+The measure of this task is not how many checks it adds. It is that after it, the answer to
+"what does this library do with input it cannot use" is one sentence instead of a table with five
+exception types in it.
