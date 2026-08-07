@@ -13,6 +13,7 @@ import logging
 import numpy as np
 import pytest
 
+from nanoscope.core.errors import InvalidImageError
 from nanoscope.core.science.detection.log import (
     DEFAULT_THRESHOLD,
     detect_particles,
@@ -52,9 +53,8 @@ class TestThresholdStaysDimensionless:
             np.full((64, 64), -5.0),
             _bumps(-10.0),
             _bumps(0.0),
-            np.where(np.arange(64 * 64).reshape(64, 64) == 100, np.nan, 1.0),
         ],
-        ids=["zeros", "constant_negative", "negative_structure", "positive", "with_nan"],
+        ids=["zeros", "constant_negative", "negative_structure", "positive"],
     )
     def test_the_threshold_is_always_in_the_unit_interval(self, z: np.ndarray) -> None:
         threshold = estimate_log_threshold_adaptive(z, PARAMS)
@@ -74,12 +74,21 @@ class TestDetectParticles:
         assert "no positive signal above the substrate" in caplog.text
         assert "try lowering the threshold" not in caplog.text
 
-    def test_a_nan_maximum_is_caught_rather_than_propagated(self) -> None:
-        """`nan > 0` is False, so `not z_max > 0` catches it. The old division
-        turned one nan pixel into an entirely nan image."""
+    def test_a_nan_map_is_refused_before_the_maximum_is_taken(self) -> None:
+        """One nan pixel used to become an entirely nan image, via the division
+        by `z_max`. ADR-0018 caught it with `not z_max > 0` and answered "no
+        particles"; **ADR-0030 refuses the map instead**, and says how many
+        values were not finite.
+
+        The change is deliberate and narrow. A flat or negative map is valid
+        data with nothing in it, and still gets ADR-0018's answer — that is the
+        test three lines up. A map with a nan in it is not data this library can
+        work with, and "no particles found" was the wrong sentence for it."""
         z = _bumps()
         z[10, 10] = np.nan
-        assert detect_particles(z, 1.0, SIZES).shape == (0, 4)
+
+        with pytest.raises(InvalidImageError, match="1 nan"):
+            detect_particles(z, 1.0, SIZES)
 
     def test_the_sizes_argument_is_still_validated_first(self) -> None:
         """The guard sits after `estimate_log_params`, deliberately: a caller

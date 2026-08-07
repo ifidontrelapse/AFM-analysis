@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from nanoscope.core.errors import UnsupportedRequestError
+
 # The modes, spelled as they appear in `PipelineConfig.mode`.
 _DETECT = "detect"
 _BASELINE = "baseline"
@@ -68,25 +70,28 @@ def validate_request(modality: str, detector: str, mode: str, has_predictor: boo
     """Check a request **before any inference runs**. Returns the matching row.
 
     Raises:
-        ValueError: with the same wording `src/pipeline.py` used before M2-T10,
-            so callers matching on the message are unaffected.
+        UnsupportedRequestError: with the same wording `src/pipeline.py` used
+            before M2-T10, so callers matching on the message are unaffected —
+            and, since ADR-0030, a `ValueError` as well, so callers matching on
+            the *type* are unaffected too. Nothing here is malformed: the
+            request is well-formed and this version has no path for it.
     """
     if detector not in ("log", "yolo"):
-        raise ValueError(f"Unknown detector: {detector!r}")
+        raise UnsupportedRequestError(f"Unknown detector: {detector!r}")
 
     row = find(modality, detector, mode)
     if row is None:
         # Order matters: report the most specific reason, the way the old
         # sequential `if`s did, rather than a generic "unsupported combination".
         if mode == _BASELINE and modality != "afm":
-            raise ValueError("mode='baseline' is only supported for AFM data")
+            raise UnsupportedRequestError("mode='baseline' is only supported for AFM data")
         if mode == _BASELINE:
-            raise ValueError("mode='baseline' requires detector='log'")
-        raise ValueError(
+            raise UnsupportedRequestError("mode='baseline' requires detector='log'")
+        raise UnsupportedRequestError(
             f"Unsupported combination: modality={modality!r}, detector={detector!r}, mode={mode!r}"
         )
 
     if row.requires_predictor and not has_predictor:
-        raise ValueError("predictor must be provided when mode='segment'")
+        raise UnsupportedRequestError("predictor must be provided when mode='segment'")
 
     return row

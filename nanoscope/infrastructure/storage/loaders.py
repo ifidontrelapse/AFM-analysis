@@ -16,6 +16,7 @@ from typing import Literal
 import numpy as np
 
 from nanoscope.core.entities import AFMRawData, MicroscopyData
+from nanoscope.core.errors import DataFormatError, InvalidParameterError, MissingFileError
 from nanoscope.core.science.io.nanoscope_spm import _read_nanoscope_z
 
 
@@ -42,7 +43,7 @@ def _given_and_positive(value: float | None, name: str) -> float | None:
     if value is None:
         return None
     if not value > 0:
-        raise ValueError(f"{name} must be positive when given, got {value!r}")
+        raise InvalidParameterError(f"{name} must be positive when given, got {value!r}")
     return value
 
 
@@ -87,7 +88,7 @@ def load_afm(
             scan_size_nm=_given_and_positive(scan_size_nm, "scan_size_nm"),
         )
 
-    raise ValueError(f"Unsupported format: {fmt}")
+    raise DataFormatError(f"Unsupported format: {fmt}")
 
 
 def load_microscopy_image(
@@ -110,7 +111,7 @@ def load_microscopy_image(
 
     image = cv2.imread(str(file_path), cv2.IMREAD_GRAYSCALE)
     if image is None:
-        raise FileNotFoundError(f"Could not read image: {file_path}")
+        raise MissingFileError(f"Could not read image: {file_path}")
 
     return MicroscopyData(
         image=image,

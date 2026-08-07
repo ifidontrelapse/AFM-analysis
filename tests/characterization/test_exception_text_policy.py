@@ -19,11 +19,8 @@ import traceback
 import capture
 import pytest
 
-from nanoscope.core.science.preprocessing import (
-    estimate_radius_otsu,
-    flatten_plane,
-    get_substrate_map,
-)
+from nanoscope.core.science.measurement import measure_height
+from nanoscope.core.science.preprocessing import estimate_radius_otsu
 
 
 def _last_frame(fn, *args) -> traceback.FrameSummary:
@@ -44,20 +41,42 @@ class TestWhoWroteTheMessage:
         assert capture._we_wrote_this_message(frame)
 
     def test_an_interpreter_message_in_our_file_is_not_ours(self) -> None:
-        """The M1-T08 case exactly: `h, w = z.shape` in our own module raises a
-        sentence CPython composed, and a new interpreter may reword it."""
+        """The M1-T08 case: a line in our own module raises a sentence NumPy or
+        CPython composed, and a new version may reword it.
+
+        The example moved in M3-T13 (ADR-0030). It used to be `flatten_plane`
+        on a 1-D array — `h, w = z.shape`, CPython's "not enough values to
+        unpack" — and that input is now refused by name at the entry.
+        `measure_height` with masks of two different shapes reaches the same
+        class of message, from `ring & substrate_mask`, and is not a rejection
+        this project has written a rule for."""
         import numpy as np
 
-        frame = _last_frame(flatten_plane, np.zeros((4,), dtype=np.float32))
+        frame = _last_frame(
+            measure_height,
+            np.zeros((8, 8), dtype=np.float32),
+            np.ones((4, 4), dtype=bool),
+            np.ones((8, 8), dtype=bool),
+            0.0,
+        )
         assert "nanoscope" in frame.filename
+        assert "raise " not in (frame.line or "")
         assert not capture._we_wrote_this_message(frame)
 
     def test_a_library_raise_is_not_ours(self) -> None:
-        """scikit-image also uses an explicit `raise`, so the filename check is
-        not redundant with the `raise` check — both signals are needed."""
-        import numpy as np
+        """A library's own explicit `raise`, so the filename check is not
+        redundant with the `raise` check — both signals are needed.
 
-        frame = _last_frame(get_substrate_map, np.zeros((4, 4, 4), dtype=np.float32), 2)
+        `scipy.linalg.lstsq` is the one that mattered historically: this is the
+        exact error `flatten_plane` used to surface for a map containing NaN,
+        before ADR-0030 made that rejection ours and put the parameter's name in
+        it. The frame is still the right test subject; nothing in `nanoscope`
+        reaches it any more."""
+        import numpy as np
+        from scipy.linalg import lstsq
+
+        a = np.array([[1.0, 1.0], [1.0, np.nan]])
+        frame = _last_frame(lstsq, a, np.array([1.0, 2.0]))
         assert "raise " in (frame.line or "")
         assert "nanoscope" not in frame.filename
         assert not capture._we_wrote_this_message(frame)

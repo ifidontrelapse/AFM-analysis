@@ -6,7 +6,8 @@
 **Defect:** **D-15** (medium) · **ADR:** **ADR-0030**
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** planned — no code written yet.
+**Status:** **done 2026-08-07.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -129,17 +130,38 @@ attribution is lost: the golden's key already names the entry point that was cal
 
 ## Definition of done
 
-- [ ] The taxonomy exists, every class documented with what raises it
-- [ ] Every entry point in the list validates its image argument; the nineteen existing raises
-      carry a project type
-- [ ] `run_pipeline("not-data", cfg)` — the audit's first row — raises a typed error naming the
+- [x] The taxonomy exists, every class documented with what raises it
+- [x] Every entry point in the list validates its image argument; the existing raises carry a
+      project type
+- [x] `run_pipeline("not-data", cfg)` — the audit's first row — raises a typed error naming the
       argument and the type it got, before anything is constructed
-- [ ] Tests: one per audit row, plus the taxonomy's catchability (`except ValueError` still
-      catches everything it caught before) and the phantom-untouched property
-- [ ] `make check` green; delta quantified, and **no phantom value moved**
-- [ ] ADR-0030; **B-060 filed**; `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`,
-      ADR index, `Backlog.md`
-- [ ] Commit: `M3-T13: a typed error taxonomy, and validation at the entry`
+- [x] Tests — **109**; the centre is 7 bad inputs × 10 entry points, 70 combinations and one
+      error type, plus the same sweep proving a valid map passes all ten
+- [x] `make check` green — 359 tests; delta **129 differences, no measured value**, and **no
+      phantom value moved**
+- [x] ADR-0030; **B-060 and B-061 filed**; `STATE.md`, `Progress.md`, `TASKS.md`,
+      `PROJECT_CONTEXT.md`, ADR index, `Backlog.md`
+- [x] Commit: `M3-T13: a typed error taxonomy, and validation at the entry`
+
+---
+
+## What it turned up
+
+**The check that was too strict, caught by an older task's test.** Validating `radius_px` as
+*positive* turned M3-T20's `test_and_that_costs_the_substrate_on_a_noisy_scan` red:
+`estimate_rough_radius` returns **0** on an unscaled noisy scan, and `disk(0)` makes the opening
+the identity. That is a defect — the "substrate" comes back equal to the image — but it is the
+one **ADR-0025 measured and recorded**, so rejecting it here would have moved a number inside a
+validation task. The check is non-negative and the question is filed as **B-061**. A regression
+suite earning its keep in the direction that matters: stopping a change, not confirming one.
+
+**ADR-0022's `_unchecked` category is now empty — 15 foreign messages to 0.** Not by deleting the
+mechanism, which stays right, but because the entry points stopped handing out other projects'
+sentences for inputs this project has an opinion about.
+
+**Two existing tests had to change their subject**, and both say so in their docstrings rather
+than being quietly rewritten: ADR-0018's NaN test and M3-T08's boolean test. A superseded rule is
+worth more when the test that used to prove it explains what replaced it.
 
 ---
 

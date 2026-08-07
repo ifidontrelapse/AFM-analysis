@@ -24,7 +24,9 @@ from typing import Any
 import numpy as np
 
 from nanoscope.core.entities import Detection
+from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.science.detection import BaseDetector
+from nanoscope.core.validation import ensure_height_map, ensure_positive
 from nanoscope.core.values import Polarity
 
 logger = logging.getLogger(__name__)
@@ -236,12 +238,12 @@ class YoloDetector(BaseDetector):
             One `Detection` per box.
 
         Raises:
-            ValueError: if `confidences` is given and its length does not match
-                `boxes`. Zipping them would silently drop the tail, and a score
-                attached to the wrong box is worse than no score.
+            InvalidParameterError: if `confidences` is given and its length does
+                not match `boxes`. Zipping them would silently drop the tail, and
+                a score attached to the wrong box is worse than no score.
         """
         if confidences is not None and len(confidences) != len(boxes):
-            raise ValueError(
+            raise InvalidParameterError(
                 f"got {len(confidences)} confidences for {len(boxes)} boxes; "
                 "they must correspond one to one"
             )
@@ -267,6 +269,12 @@ class YoloDetector(BaseDetector):
         return detections
 
     def detect(self, z_above: np.ndarray, pixel_size_nm: float | None) -> list[Detection]:
+        # Before the weights are asked for anything: preparation resizes,
+        # normalises and casts, and every one of those has its own opinion about
+        # a 3-D array (ADR-0030).
+        z_above = ensure_height_map(z_above, "z_above")
+        ensure_positive(pixel_size_nm, "pixel_size_nm", allow_none=True)
+
         img = self._prepare_image(z_above)
         if self.use_tiling:
             return self._detect_tiled(img, z_above.shape, pixel_size_nm)

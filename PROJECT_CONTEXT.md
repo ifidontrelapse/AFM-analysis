@@ -274,6 +274,12 @@ For SPM, `_read_nanoscope_z`:
 
 `load_microscopy_image(path, modality, nm_per_pixel=None)` reads a grayscale image with OpenCV and returns `MicroscopyData`. Supported modality literals are `"sem"` and `"tem"`.
 
+### 6.1a Errors and validation: `nanoscope/core/errors.py`, `nanoscope/core/validation.py`
+
+Since M3-T13 (ADR-0030) every error the library raises on purpose is a `NanoscopeError`, and every one of them **also inherits the builtin it replaced at its site** — `InvalidImageError` and `InvalidParameterError` (both `InvalidInputError`), `UnsupportedRequestError`, `DataFormatError`, `AnalysisFailedError` are `ValueError`s; `MissingFileError` is a `FileNotFoundError`. `except ValueError` therefore still catches what it always caught.
+
+`ensure_height_map(z, name)` is called at fourteen numerical entry points and states the contract once: **a height map is a 2-D, non-empty, integer-or-real, finite array**. `ensure_mask` is its mirror (2-D boolean only); `ensure_positive` / `ensure_non_negative` cover the scalar parameters, with `allow_none=True` where "unknown" is a state (ADR-0019/0025). Zero particles on a valid image stays an answer, not an error (ADR-0018); a non-finite map is refused.
+
 ### 6.2 Flattening: `nanoscope/core/science/preprocessing/`
 
 - `flatten_plane(z)` fits `z = ax + by + c` using least squares and subtracts the plane.

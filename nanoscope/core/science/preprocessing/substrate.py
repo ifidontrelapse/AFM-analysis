@@ -22,6 +22,9 @@ from skimage.filters import threshold_otsu
 from skimage.measure import label, regionprops
 from skimage.morphology import disk, opening as morph_opening
 
+from nanoscope.core.errors import AnalysisFailedError
+from nanoscope.core.validation import ensure_height_map, ensure_non_negative, ensure_positive
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +54,20 @@ def get_substrate_map(z: np.ndarray, radius_px: float) -> np.ndarray:
             an integer, because `disk()` centres nothing else (ADR-0020)
     Returns:
         substrate topography
+    Raises:
+        InvalidImageError: if `z` is not a usable map (ADR-0030).
+        InvalidParameterError: if `radius_px` is negative. **Zero is allowed**,
+            and that is a deliberate line: `disk(0)` is a single pixel, so the
+            opening is the identity and the "substrate" comes back equal to the
+            image. It looks like a result and is not one — but it is *reachable
+            today*, from `estimate_rough_radius` on an unscaled noisy scan, and
+            it is the behaviour ADR-0025 measured and recorded. Rejecting it
+            here would move a number, which this task must not do. The real
+            question — a rough radius of 0 means the estimate found nothing —
+            is filed as **B-061**.
     """
+    z = ensure_height_map(z)
+    ensure_non_negative(radius_px, "radius_px")
     return morph_opening(z, disk(_integer_radius(radius_px))).astype(np.float32)
 
 
@@ -80,17 +96,27 @@ def estimate_radius_otsu(
         `typical_radius_nm` are `None` when `pixel_size_nm` is.
 
     Raises:
-        ValueError: if Otsu finds no objects at all, or if the filter removes
-            every one of them (ADR-0017 / D-05). The second case used to return
-            `nan` and fail several calls later.
+        InvalidImageError, InvalidParameterError: if the arguments are not a
+            usable map, a positive-or-`None` scale and a non-negative minimum
+            size (ADR-0030).
+        AnalysisFailedError: if Otsu finds no objects at all, or if the filter
+            removes every one of them (ADR-0017 / D-05). The second case used to
+            return `nan` and fail several calls later. It is not an
+            `InvalidInputError`: the image was fine, the analysis has no answer.
     """
+    z_above = ensure_height_map(z_above, "z_above")
+    ensure_positive(pixel_size_nm, "pixel_size_nm", allow_none=True)
+    ensure_non_negative(min_size_nm, "min_size_nm")
+
     thresh = threshold_otsu(z_above)
     binary = z_above > thresh
     labeled = label(binary)  # merge adjacent pixels into objects
     props = regionprops(labeled)  # object properties, including area
 
     if len(props) == 0:
-        raise ValueError("Otsu found no objects. Check the preprocessing and the image quality.")
+        raise AnalysisFailedError(
+            "Otsu found no objects. Check the preprocessing and the image quality."
+        )
 
     radii_px = np.array([p.equivalent_diameter_area / 2 for p in props])
 
@@ -124,7 +150,7 @@ def estimate_radius_otsu(
     radii_px, radii_nm = radii_px[keep], radii_nm[keep]
 
     if radii_px.size == 0:
-        raise ValueError(
+        raise AnalysisFailedError(
             f"Otsu found {n_found} objects, none with a radius of at least "
             f"min_size_nm={min_size_nm} nm (the largest is {largest_nm:.3g} nm). "
             "Lower the minimum size, or check the preprocessing and the image quality."
@@ -166,6 +192,11 @@ def estimate_rough_radius(
     Returns:
         int: rough radius in pixels for the morphological opening
     """
+    z = ensure_height_map(z)
+    ensure_positive(pixel_size_nm, "pixel_size_nm", allow_none=True)
+    ensure_non_negative(min_size_nm, "min_size_nm")
+    ensure_positive(scale, "scale")
+
     # 0.0, not `min_size_nm`: without a scale the floor is not "the same number
     # in pixels" — that is the unit confusion ADR-0024 deleted. It is nothing.
     min_size_px = 0.0 if pixel_size_nm is None else min_size_nm / pixel_size_nm
@@ -220,8 +251,13 @@ def build_substrate_map(
         opening_radius: the radius finally used, in pixels
         sizes:          dict from estimate_radius_otsu
     """
+    z = ensure_height_map(z)
+    ensure_positive(pixel_size_nm, "pixel_size_nm", allow_none=True)
+    ensure_non_negative(min_size_nm, "min_size_nm")
+
     # Radius supplied by the caller
     if manual_radius_px is not None:
+        ensure_positive(manual_radius_px, "manual_radius_px")
         # Rounded up, and *reported* rounded up: ADR-0014 made this branch return
         # the radius it actually uses, and since ADR-0020 the radius it uses is
         # an integer. Returning the caller's 8.5 while opening with 9 would put

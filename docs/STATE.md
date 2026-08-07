@@ -13,9 +13,10 @@
 
 **Every `critical` and `high` defect the audit reproduced is now closed** — the first of M3's
 five exit criteria, met 2026-08-06. Critical: D-01, D-02, D-03, D-04, D-19. High: D-05/D-06,
-D-07 (three faces: M3-T11, T20, T17), D-08, D-12, D-18. The four criteria still open are the
-degenerate-input contract (M3-T13), one measurement schema (M3-T14), the evaluation harness
-(M3-T15), and — met already — the operator sign-offs.
+D-07 (three faces: M3-T11, T20, T17), D-08, D-12, D-18. **The degenerate-input contract closed
+2026-08-07** (M3-T13, ADR-0030): every numerical entry point refuses the same things, with a typed
+error naming the parameter. The two criteria still open are one measurement schema (M3-T14) and
+the evaluation harness (M3-T15); the operator sign-offs are met.
 
 Fix the defects the audit reproduced. **The rules change here:** every task gets its own
 commit, its own ADR, its own golden update, and a quantified before/after delta in
@@ -32,13 +33,31 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected.** **Every `critical` and every `high` defect in M3 is closed, and D-13 with
-them.** What remains is **M3-T13** (typed error taxonomy, D-15) and **M3-T14** (one measurement
-schema across the four producers, D-16/D-17 — and the `bbox` default whose `type: ignore` is
-written to expire itself) — plus **M3-T15**, the evaluation harness, without which "the detector
-got better" is still not a measurable claim, and which four tasks have now had to write "not
-claimed" for. **B6 → M3-T16** is the last operator answer waiting to be executed, and **B-040**
-goes last of everything because it rewrites every SHA above it.
+**None selected.** **Every `critical` and every `high` defect in M3 is closed, and D-13 and D-15
+with them.** What remains is **M3-T14** (one measurement schema across the four producers,
+D-16/D-17 — and the `bbox` default whose `type: ignore` is written to expire itself) — plus
+**M3-T15**, the evaluation harness, without which "the detector got better" is still not a
+measurable claim, and which four tasks have now had to write "not claimed" for. **B6 → M3-T16**
+is the last operator answer waiting to be executed, and **B-040** goes last of everything because
+it rewrites every SHA above it.
+
+**`M3-T13` done 2026-08-07 (ADR-0030)** — **D-15 fixed: one answer to "this input cannot be
+used".** Seven classes in `core/errors.py`, **each also inheriting the builtin it replaced at its
+site**, so every `except ValueError` in the notebooks keeps catching what it caught and the
+taxonomy lands in one commit instead of a migration; and one `ensure_height_map` called at
+**fourteen** entry points. A height map is 2-D, non-empty, integer-or-real, and **finite** — that
+last one being the decision, since `flatten_plane` already enforced it through `scipy.lstsq` while
+`flatten_lines` propagated NaN and `detect_particles` answered a NaN map with "no particles".
+Delta: **129 differences and not one measured value** — 32 exception types, 28 messages that
+became ours, 15 `raised_in`, and **13 cells that used to answer an input they could not use**.
+`TypeError`, `IndexError`, `LinAlgError` and `RuntimeError` each collapse into one of ours, and
+**foreign messages in the golden go 15 → 0**, emptying the category ADR-0022 created for them.
+The twelve phantom-level differences are exception types on two probes that were already failing.
+**Supersedes ADR-0018 on non-finite input only** — a flat or negative map still answers "no
+particles" — and M3-T08 on boolean input, now refused rather than corrected. 109 tests; the centre
+is 7 bad inputs × 10 entry points, **70 combinations and one error type**, with the same sweep
+proving a valid map passes all ten. **B-060** and **B-061** filed rather than smuggled in. mypy
+unchanged at 12.
 
 **`M3-T08` done 2026-08-07 (ADR-0029)** — **D-13 fixed: levelling returns the residuals it
 computed.** `np.empty_like(z)` kept the input's dtype, so float64 residuals were cast back on
@@ -158,6 +177,32 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 ## Completed
 
 ### M3 — Numerical correctness (in progress)
+
+- **M3-T13** ✅ (2026-08-07, **ADR-0030**) — **D-15 fixed: the library has one way of saying no.**
+  The audit's table was five inputs and five behaviours; the harness's own matrix was worse —
+  eleven degenerate inputs against five entry points produced `ValueError`, `TypeError`,
+  `IndexError`, `LinAlgError` and `RuntimeError`, and `detect_particles` answered a 1-D array, a
+  3-D array, a NaN map and an infinite map with **a clean empty result**, so an unusable input and
+  an empty sample were the same answer. `core/errors.py` now holds seven classes, **each also
+  inheriting the builtin it replaced at its site** — the `json.JSONDecodeError` pattern, which is
+  what makes this one commit rather than a migration of every `except` clause in the notebooks —
+  and `core/validation.py` holds the one `ensure_height_map` that fourteen entry points call. A
+  height map is 2-D, non-empty, integer-or-real and **finite**; the last is the decision, and it
+  **supersedes ADR-0018 on non-finite input only**, a flat or negative map still being valid data
+  with nothing in it. It also supersedes M3-T08 on boolean input one commit later: a mask is
+  refused rather than levelled, so D-13's boolean pathology is unreachable instead of corrected.
+  Delta: **129 differences, no measured value among them** — 32 exception types, 28 messages that
+  became ours, 15 `raised_in`, 13 cells that used to answer, 11 results that stopped being
+  returned. **Foreign messages in the golden: 15 → 0**, which empties the `_unchecked` category
+  ADR-0022 created; the mechanism stays, because the next library upgrade can refill it. The
+  twelve phantom-level differences are exception types on two probes that were already failing —
+  **no phantom value moved**, which had to hold, since every phantom is a valid image. 109 tests,
+  centred on 7 bad inputs × 10 entry points — **70 combinations, one error type** — and the same
+  sweep proving a valid map passes all ten, because validation that rejects real data would be
+  worse than the defect it fixes. Two findings filed rather than fixed: **B-060** (levelling that
+  fits around a dropped scan line) and **B-061** (a rough opening radius of 0, which is reachable,
+  makes the opening the identity, and is what ADR-0025 recorded — so refusing it would move a
+  number). **mypy unchanged at 12.**
 
 - **M3-T08** ✅ (2026-08-07, **ADR-0029**) — **D-13 fixed: levelling returns the residuals it
   computed.** `flatten_lines` pre-allocated with `np.empty_like(z)`, and the residual of a row's
@@ -609,6 +654,11 @@ them**. What is left is `medium` and below: T13, T14, plus T15 (the evaluation h
 does, so an 8-bit image — which is what the SEM/TEM loader returns — levels to its residuals
 rather than to a wrapped integer map.
 
+**And the library now has one way of saying no** (M3-T13). Fourteen entry points, one contract,
+seven exception classes that each also *are* the builtin they replaced. The thing that made D-15
+scientific rather than cosmetic is closed with it: `detect_particles` can no longer answer a NaN
+map, a 1-D array or a 3-D array with "no particles found".
+
 **The YOLO input path is now correct in three respects** — the data survives preparation, the
 sample keeps its shape, and the polarity matches the modality — and none of those claims extends
 to detection quality, which nothing in the gate can measure; **M3-T15 is the task that would
@@ -633,8 +683,7 @@ requires. The branch was only ever a label. If the rule is meant to bind the bra
 an amendment saying so; it is recorded here rather than left as a silent violation.
 
 All fourteen task branches were green on CI before they were deleted (#44–#50, #52, #54–#56), and
-the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61**
-(407 s), which is the tip.
+the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61** (407 s).
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
 rather than path-hacked.
@@ -678,15 +727,14 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **The two `medium` tasks left, in order: T13, T14.** Rewrite `docs/CURRENT_TASK.md` first,
-   every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
+1. **One `medium` task left: T14.** Rewrite `docs/CURRENT_TASK.md` first, every time. **M3-T15** (the evaluation harness) is the one that unblocks every claim about
    detection *quality* — M3-T03, T10, T21 and now T08 each had to say "not claimed" because it
    does not exist yet
-2. **M3-T13 inherits a list.** Four tasks have now deferred a rejection to it by name: the
-   degenerate inputs the harness records with whatever error NumPy happens to raise (T07, T08),
-   the loaders' absent-versus-wrong distinction (T20, T17), and the empty-after-filter case that
-   already raises properly (T06) — which is the shape the rest should take. **B6 → M3-T16** is the
-   last operator answer waiting; **B-040** goes last of all, because it rewrites every SHA above it
+2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
+   new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
+   refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
+   result). **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last of all,
+   because it rewrites every SHA above it
 3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
    exit criteria. `src/` is gone, so the only thing left is the 12 errors that arrived
    inside the moved science; they belong to M3 and M2-T12
@@ -701,19 +749,19 @@ None of the remaining questions blocks M1 or M2.
 
 | Indicator | Value | Target | Source |
 |---|---|---|---|
-| Tracked files | **107** (was 2 854) | see note | `git ls-files \| wc -l` |
+| Tracked files | **111** (was 2 854) | see note | `git ls-files \| wc -l` |
 | Tracked working tree | **7.6 MB** ✅ (was 17 MB) | — | `git ls-files -z \| xargs -0 du -ch` |
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **249, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **359, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **12**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **19** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12, D-13 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **18** (was 28) — D-01, D-03, D-21, D-05, D-06, D-11, D-07, D-10, D-12, D-13, D-15 closed; M3-T21 opened | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

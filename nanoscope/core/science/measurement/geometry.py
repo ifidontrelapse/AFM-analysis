@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from nanoscope.core.validation import ensure_mask, ensure_positive
+
 
 def measure_geometry_from_mask(
     mask: np.ndarray,
@@ -35,6 +37,9 @@ def measure_geometry_from_mask(
             aspect_ratio       (major_axis / minor_axis)
     """
     from skimage.measure import label, regionprops
+
+    mask = ensure_mask(mask)
+    ensure_positive(nm_per_pixel, "nm_per_pixel", allow_none=True)
 
     props = regionprops(label(mask))
     if not props:

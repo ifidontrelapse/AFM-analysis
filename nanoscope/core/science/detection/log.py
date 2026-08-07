@@ -17,7 +17,9 @@ from skimage.feature import blob_log
 from skimage.filters import threshold_otsu
 
 from nanoscope.core.entities import Detection
+from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.science.detection.base import BaseDetector
+from nanoscope.core.validation import ensure_height_map, ensure_positive
 from nanoscope.core.values import Polarity
 
 # Module-level logger, the stdlib way (M2-T11). No handler is configured here:
@@ -29,6 +31,13 @@ logger = logging.getLogger(__name__)
 #: module has always used in that situation; ADR-0018 only gave it a name and a
 #: third call site.
 DEFAULT_THRESHOLD = 0.05
+
+
+def _ensure_percentile(percentile: float) -> None:
+    """`np.percentile` accepts only [0, 100], and answers anything else with a
+    message about `q`, a name no caller of this module ever typed."""
+    if not 0.0 <= percentile <= 100.0:
+        raise InvalidParameterError(f"percentile must be between 0 and 100, got {percentile!r}.")
 
 
 def estimate_log_params(sizes: dict) -> dict:
@@ -44,7 +53,20 @@ def estimate_log_params(sizes: dict) -> dict:
     Returns:
         dict with min_sigma and max_sigma, in pixels
     """
-    radii_px = sizes["radii_px"]
+    if not isinstance(sizes, dict) or "radii_px" not in sizes:
+        raise InvalidParameterError(
+            "sizes must be the dict estimate_radius_otsu returns, with a 'radii_px' entry; "
+            f"got {type(sizes).__name__}"
+            + (f" with keys {sorted(sizes)}" if isinstance(sizes, dict) else "")
+            + "."
+        )
+    radii_px = np.asarray(sizes["radii_px"])
+    if radii_px.size == 0:
+        raise InvalidParameterError(
+            "sizes['radii_px'] is empty, so there is no sigma range to derive. "
+            "estimate_radius_otsu raises rather than returning an empty set (ADR-0017); "
+            "a hand-built sizes dict has to hold at least one radius."
+        )
 
     min_sigma = radii_px.min() / np.sqrt(2) * 0.5  # half the smallest radius
     max_sigma = radii_px.max() / np.sqrt(2) * 2.0  # twice the largest radius
@@ -72,6 +94,8 @@ def estimate_log_threshold(z_above: np.ndarray) -> float:
     Returns:
         threshold for blob_log (dimensionless, 0..1)
     """
+    z_above = ensure_height_map(z_above, "z_above")
+
     otsu_thresh = threshold_otsu(z_above)
     substrate_px = z_above[z_above < otsu_thresh]
     noise_std = float(substrate_px.std())
@@ -107,6 +131,9 @@ def estimate_log_threshold_adaptive(
     conservative default is returned instead of a threshold derived from a
     division by zero (ADR-0018 / D-11).
     """
+    z_above = ensure_height_map(z_above, "z_above")
+    _ensure_percentile(percentile)
+
     z_max = float(z_above.max())
     if not z_max > 0:
         logger.warning(
@@ -185,6 +212,13 @@ def detect_particles(
         blobs: np.ndarray shape (N, 4) — [y, x, sigma_px, radius_nm].
         `radius_nm` is NaN throughout when `pixel_size_nm` is None.
     """
+    z_above = ensure_height_map(z_above, "z_above")
+    ensure_positive(pixel_size_nm, "pixel_size_nm", allow_none=True)
+    ensure_positive(threshold, "threshold", allow_none=True)
+    _ensure_percentile(percentile)
+    if not 0.0 <= overlap <= 1.0:
+        raise InvalidParameterError(f"overlap must be between 0 and 1, got {overlap!r}.")
+
     params = estimate_log_params(sizes)
 
     # The sizes dict is validated first, above: a caller passing nonsense should
@@ -318,6 +352,11 @@ class LogDetector(BaseDetector):
         is assumed to describe the particles either way, since a radius does not
         change sign.
         """
+        # Before the inversion, not after: `z_above.max() - z_above` on a 3-D
+        # array is a 3-D array, and the first thing to complain would then be
+        # `blob_log`, about a shape the caller never mentioned (ADR-0030).
+        z_above = ensure_height_map(z_above, "z_above")
+
         if self.polarity is Polarity.DARK_ON_BRIGHT:
             # One inversion, at the entrance, so everything downstream keeps the
             # single convention it was written for: particles are the high side.

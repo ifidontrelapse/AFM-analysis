@@ -22,6 +22,9 @@ import pandas as pd
 from scipy.ndimage import binary_dilation
 from skimage.filters import threshold_otsu
 
+from nanoscope.core.errors import InvalidImageError
+from nanoscope.core.validation import ensure_height_map, ensure_mask
+
 logger = logging.getLogger(__name__)
 
 #: The baseline measurement table, column by column, in the order the rows are
@@ -137,6 +140,10 @@ def measure_height(
     Returns:
         dict: height_nm, baseline_nm, area_px, ring_px, baseline_source
     """
+    ensure_height_map(z_flat, "z_flat")
+    ensure_mask(mask_particle, "mask_particle")
+    ensure_mask(substrate_mask, "substrate_mask")
+
     clean_ring = get_clean_ring(mask_particle, substrate_mask, outer_px, inner_erode_px)
 
     # Choose the baseline
@@ -158,6 +165,25 @@ def measure_height(
         "ring_px": int(clean_ring.sum()),
         "baseline_source": baseline_source,
     }
+
+
+def _ensure_blobs(blobs: object) -> np.ndarray:
+    """`detect_particles` output: (N, 4) of [y, x, sigma_px, radius_nm].
+
+    An empty result is legal — zero particles is an answer (ADR-0018) — and
+    `np.empty((0, 4))` satisfies this. What is rejected is an array of the wrong
+    width, which used to fail as an `IndexError` inside the row loop, after the
+    substrate had been computed.
+    """
+    if not isinstance(blobs, np.ndarray):
+        raise InvalidImageError(
+            f"blobs must be the (N, 4) array detect_particles returns, got {type(blobs).__name__}."
+        )
+    if blobs.ndim != 2 or blobs.shape[1] != 4:
+        raise InvalidImageError(
+            f"blobs must have shape (N, 4) — [y, x, sigma_px, radius_nm] — got {blobs.shape}."
+        )
+    return blobs
 
 
 def measure_all_baseline(
@@ -188,6 +214,15 @@ def measure_all_baseline(
         (ADR-0027 / D-08). Rows are dropped for two ordinary reasons: a mask that
         runs past the image edge, and a non-positive height.
     """
+    z_flat = ensure_height_map(z_flat, "z_flat")
+    z_above = ensure_height_map(z_above, "z_above")
+    if z_flat.shape != z_above.shape:
+        raise InvalidImageError(
+            f"z_flat and z_above must describe the same image; got {z_flat.shape} "
+            f"and {z_above.shape}."
+        )
+    blobs = _ensure_blobs(blobs)
+
     # Substrate mask — computed once for the whole image. It accounts for ALL
     # particles, including the ones detection missed.
     otsu_thresh = threshold_otsu(z_above)

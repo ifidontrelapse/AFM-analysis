@@ -18,6 +18,8 @@ import re
 
 import numpy as np
 
+from nanoscope.core.errors import DataFormatError
+
 
 def _read_nanoscope_z(file_path: str) -> tuple[float | None, float | None, np.ndarray]:
     """Decode a Bruker Nanoscope file into a calibrated height map.
@@ -46,7 +48,7 @@ def _read_nanoscope_z(file_path: str) -> tuple[float | None, float | None, np.nd
 
     blocks = header.split("\\*Ciao image list")
     if len(blocks) < 2:
-        raise ValueError("Ciao image list blocks not found")
+        raise DataFormatError("Ciao image list blocks not found")
 
     # Look for the Height block explicitly, not just the first one
     blk = None
@@ -68,24 +70,24 @@ def _read_nanoscope_z(file_path: str) -> tuple[float | None, float | None, np.nd
     bpp = find_int(r"Bytes/pixel\s*:\s*(\d+)")
 
     if None in (data_offset, data_length, samps, lines, bpp):
-        raise ValueError("Header fields missing in SPM file")
+        raise DataFormatError("Header fields missing in SPM file")
 
     # `samps` is the divisor two dozen lines below, and the reshape's row width.
     # Zero is a malformed header, and it used to surface as a ZeroDivisionError
     # from the same expression this task fixes (ADR-0026).
     if not samps > 0:
-        raise ValueError(f"header states a non-positive Samps/line: {samps}")
+        raise DataFormatError(f"header states a non-positive Samps/line: {samps}")
 
     # The number AFTER the parentheses is the real Z range of the scan, in volts
     zscale_match = re.search(r"@2:Z scale:[^\n]*\([^)]+\)\s*([\d.eE+-]+)\s*V", blk)
     if not zscale_match:
-        raise ValueError("Z scale voltage not found")
+        raise DataFormatError("Z scale voltage not found")
     z_scale_v = float(zscale_match.group(1))  # 9.238140 V
 
     # Zsens — an exact pattern, so it does not match ZsensSens
     zsens_match = re.search(r"@Sens\.\s*Zsens\s*:\s*V\s+([\d.eE+-]+)\s*nm/V", header)
     if not zsens_match:
-        raise ValueError("Zsens nm/V not found")
+        raise DataFormatError("Zsens nm/V not found")
     nm_per_v = float(zsens_match.group(1))  # 11.42934 nm/V
 
     z_scale = z_scale_v * nm_per_v / 65536
@@ -111,7 +113,7 @@ def _read_nanoscope_z(file_path: str) -> tuple[float | None, float | None, np.nd
         # Stated and impossible is not the same as absent: `Scan Size: 0 0 nm`
         # would make every physical value zero rather than unknown (ADR-0026).
         if not scan_size_nm > 0:
-            raise ValueError(f"header states a non-positive Scan Size: {scan_size_nm} nm")
+            raise DataFormatError(f"header states a non-positive Scan Size: {scan_size_nm} nm")
     else:
         scan_size_nm = None
 

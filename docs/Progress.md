@@ -7,6 +7,96 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-07 — M3-T13 · **D-15 fixed: one answer to "this input cannot be used"**
+
+**Task:** `M3-T13`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0030**.
+**Defect:** D-15, medium — and the task five others deferred a rejection to by name (T06, T07,
+T08, T17, T20).
+
+### The defect, as the harness had been recording it all along
+
+The audit printed five inputs and five behaviours. The matrix underneath was worse: eleven
+degenerate inputs against five entry points, producing **`ValueError`, `TypeError`, `IndexError`,
+`LinAlgError` and `RuntimeError`** — four of them from libraries the caller never named — and
+`detect_particles` answering a 1-D array, a 3-D array, a NaN map and an infinite map with a clean
+empty result.
+
+**That last part is the scientific defect, not the cosmetic one.** A run that finds nothing is an
+ordinary outcome, and it was indistinguishable from a run that never had a chance. TEM finding 0
+of 22 particles (D-12) went unquestioned for exactly as long as it did because zero is a
+believable answer.
+
+### The delta — 129 differences, not one of them a value
+
+| | |
+|---|---|
+| `error_type` changed | **32** |
+| `error_message` now compared, having been recorded-but-unchecked | **28** |
+| `raised_in` changed | 15 |
+| cells that used to succeed and now raise | **13** |
+| `error_type` / `raised_in` added on those | 26 |
+| `result` removed on the 11 that used to return one | 11 |
+| `stdout_lines` removed, `value` changed (`flatten_dtypes.bool`) | 4 |
+
+`TypeError`, `IndexError`, `LinAlgError` and `RuntimeError` each appear exactly once in the
+transition table, collapsing into `InvalidImageError` or `InvalidParameterError`. The matrix
+became one column.
+
+**Foreign exception messages in the golden: 15 → 0.** ADR-0022 built the `error_message_unchecked`
+category last week because CPython 3.14 reworded a message and the golden called it drift. The
+category is now empty — every message the harness records is one this project wrote, compared
+exactly, on 45 keys where there were 17. The mechanism stays: the policy is right and the next
+library upgrade can refill it.
+
+**Twelve differences sit under phantoms and none is a measurement.** They are the exception types
+of two probes the harness added to record *failures* — M3-T06's empty-after-filter case and
+M3-T05's length-mismatch case. Every phantom is a valid image, so validation is a no-op on all
+seven, which is the property that had to hold.
+
+### What was decided
+
+**Every class inherits the builtin it replaced at its site.** `InvalidImageError` is a
+`ValueError`; `MissingFileError` is a `FileNotFoundError` and deliberately *not* a `ValueError`.
+The notebooks are the only callers this library has, and a silent change to what their `except`
+clauses catch is the worst possible way to deliver an error taxonomy.
+
+**A height map is 2-D, non-empty, integer-or-real, and finite.** Finiteness is the half that is a
+choice: `flatten_plane` has always rejected NaN through `scipy.lstsq`, while `flatten_lines`
+propagated it. Rejecting at the entry makes the existing contract the library's instead of the
+first step's — and it **supersedes ADR-0018 on that one input**, which is written into both ADRs
+rather than left for someone to discover. A flat or negative map is still valid data with nothing
+in it, and still answers "no particles".
+
+**A boolean array is not a height map** — which supersedes part of M3-T08, one commit later. That
+task made levelling promote instead of storing residuals in a `bool` array, where they became a
+mask; the promotion rule stands for every dtype that *is* a height map, and the mask is now
+refused at the entry, so the pathology is unreachable rather than corrected.
+
+### Two things found and filed, not fixed
+
+**B-061 — a rough opening radius of 0 is reachable and looks like a result.** The first version of
+this change validated `radius_px` as *positive*, and one of M3-T20's tests went red:
+`estimate_rough_radius` returns 0 on an unscaled noisy scan, `disk(0)` is a single pixel, and the
+opening is then the identity — the "substrate" comes back equal to the image. That is exactly the
+degenerate path **ADR-0025 measured and recorded**. Refusing it here would have moved a number
+inside a validation task, so the check is non-negative and the real question is filed.
+
+**B-060 — levelling that fits around a dropped scan line.** Refusing NaN is the honest reading of
+what the code already did. It is not the best behaviour available, and a masked least-squares fit
+would be better; it changes what levelling *computes*, so it is a numerical task with its own ADR.
+
+### Gate
+
+`make check` green — **359 tests** (109 new), 129 declared golden differences and nothing else.
+mypy unchanged at 12: a missing check has no static shadow either.
+
+### What is next
+
+**M3-T14** — one measurement schema across the four producers (D-16/D-17), the last `medium` — and
+then **M3-T15**, the evaluation harness that four ADRs have had to write "not claimed" for.
+
+---
+
 ## 2026-08-07 — M3-T08 · **D-13 fixed: levelling returns the residuals it computed**
 
 **Task:** `M3-T08`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0029**.

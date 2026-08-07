@@ -12,6 +12,9 @@ from __future__ import annotations
 import numpy as np
 from scipy.linalg import lstsq
 
+from nanoscope.core.errors import InvalidParameterError
+from nanoscope.core.validation import ensure_height_map
+
 
 def flatten_plane(z: np.ndarray) -> np.ndarray:
     """
@@ -21,7 +24,12 @@ def flatten_plane(z: np.ndarray) -> np.ndarray:
         z: 2D array representing the AFM Z-map.
     Returns:
         Flattened Z-map with the best-fit plane removed.
+    Raises:
+        InvalidImageError: if `z` is not a 2-D, non-empty, numeric, finite array
+            (ADR-0030). `scipy.lstsq` rejected the non-finite half of that
+            before, in its own words; the rest reached `h, w = z.shape`.
     """
+    z = ensure_height_map(z)
     h, w = z.shape
     # Coordinate grids for X and Y
     xi, yi = np.meshgrid(np.arange(w), np.arange(h))
@@ -47,7 +55,20 @@ def flatten_lines(z: np.ndarray, poly_order: int = 1) -> np.ndarray:
             they were sub-unit, and to *wrapped* values where they were not, a
             negative residual becoming a bright one. A boolean input came back as
             a mask of where the residual was non-zero.
+    Raises:
+        InvalidImageError: if `z` is not a 2-D, non-empty, numeric, finite array.
+        InvalidParameterError: if `poly_order` is negative, or if a row is too
+            short to fit it — a polynomial of order k needs k+1 points, and
+            `np.polyfit` answered that with `LinAlgError` from inside lstsq.
     """
+    z = ensure_height_map(z)
+    if poly_order < 0:
+        raise InvalidParameterError(f"poly_order must be zero or greater, got {poly_order!r}.")
+    if z.shape[1] <= poly_order:
+        raise InvalidParameterError(
+            f"poly_order={poly_order} needs at least {poly_order + 1} points per row; "
+            f"z has {z.shape[1]} column(s)."
+        )
     result = np.empty_like(z, dtype=np.promote_types(z.dtype, np.float64))
     xi = np.arange(z.shape[1])
     for i, row in enumerate(z):

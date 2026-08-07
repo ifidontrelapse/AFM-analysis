@@ -37,6 +37,7 @@ Use `TEMPLATE.md` for new records.
 | [0027](ADR-0027-an-empty-measurement-table-keeps-its-columns.md) | An empty measurement table keeps its columns | Accepted | 2026-08-06 |
 | [0028](ADR-0028-a-detection-carries-its-own-score.md) | A detection carries its own score, or none | Accepted | 2026-08-06 |
 | [0029](ADR-0029-flatten-lines-promotes-like-flatten-plane.md) | `flatten_lines` promotes the way `flatten_plane` does | Accepted | 2026-08-07 |
+| [0030](ADR-0030-a-typed-error-taxonomy-at-the-entry.md) | A typed error taxonomy, checked at the entry | Accepted | 2026-08-07 |
 
 ## When to write one
 

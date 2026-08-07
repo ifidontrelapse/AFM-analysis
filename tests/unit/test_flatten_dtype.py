@@ -17,9 +17,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from nanoscope.core.errors import InvalidImageError
 from nanoscope.core.science.preprocessing import flatten_lines, flatten_plane
 
-DTYPES = ["uint8", "int16", "int32", "bool", "float32", "float64"]
+DTYPES = ["uint8", "int16", "int32", "float32", "float64"]
 
 
 def _tilted_ramp(h: int = 32, w: int = 32) -> np.ndarray:
@@ -50,16 +51,22 @@ def test_an_integer_image_keeps_its_residuals() -> None:
     np.testing.assert_array_equal(levelled, _reference(z))
 
 
-def test_a_boolean_image_is_not_returned_as_a_mask() -> None:
+def test_a_boolean_image_is_refused_rather_than_levelled() -> None:
     """Worse than truncation, and unmeasured by the audit: `result[i] = <float>`
-    into a bool array stores `!= 0`, so every non-zero residual became 1.0."""
+    into a bool array stored `!= 0`, so every non-zero residual became 1.0 and
+    levelling a mask returned a mask.
+
+    M3-T08 fixed that by promoting, and **M3-T13 (ADR-0030) went further**: a
+    boolean array is not a height map, so it is refused at the entry and the
+    pathology is unreachable rather than corrected. The promotion rule still
+    holds for every dtype that *is* one — that is the parametrized test below."""
     z = _tilted_ramp() > 128
 
-    levelled = flatten_lines(z)
+    with pytest.raises(InvalidImageError, match="dtype bool"):
+        flatten_lines(z)
 
-    assert np.issubdtype(levelled.dtype, np.floating)
-    assert set(np.unique(levelled)) - {0.0, 1.0}
-    np.testing.assert_array_equal(levelled, _reference(z))
+    with pytest.raises(InvalidImageError, match="dtype bool"):
+        flatten_plane(z)
 
 
 @pytest.mark.parametrize("dtype", DTYPES)

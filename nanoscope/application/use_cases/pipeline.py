@@ -24,6 +24,7 @@ from nanoscope.core.entities import (
     PipelineResult,
     PreprocessingResult,
 )
+from nanoscope.core.errors import InvalidInputError, UnsupportedRequestError
 from nanoscope.core.science.detection import LogDetector
 from nanoscope.core.science.measurement import measure_all_baseline
 from nanoscope.core.values import default_polarity
@@ -51,6 +52,15 @@ def run_pipeline(
     Returns:
         PipelineResult
     """
+    # The audit's first row: `run_pipeline("not-data", cfg)` answered with
+    # `AttributeError: 'str' object has no attribute 'image'` — the name of a
+    # field on the class the caller did *not* pass (D-15, ADR-0030).
+    if not isinstance(data, (PreprocessingResult, MicroscopyData)):
+        raise InvalidInputError(
+            f"data must be a PreprocessingResult (AFM) or a MicroscopyData (SEM/TEM), "
+            f"got {type(data).__name__}."
+        )
+
     # ── Unpack modality-specific fields ──────────────────────────────────────
     # Annotated, not inferred: SEM/TEM carries `nm_per_pixel: float | None`, and
     # without this the variable takes the AFM branch's `float` and mypy reports
@@ -102,7 +112,7 @@ def run_pipeline(
         blobs = None
 
     else:  # pragma: no cover — validate_request rejected this before we got here
-        raise ValueError(f"Unknown detector: {cfg.detector!r}")
+        raise UnsupportedRequestError(f"Unknown detector: {cfg.detector!r}")
 
     # ── Detect-only early exit ────────────────────────────────────────────────
     if cfg.mode == "detect":
