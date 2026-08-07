@@ -633,7 +633,8 @@ requires. The branch was only ever a label. If the rule is meant to bind the bra
 an amendment saying so; it is recorded here rather than left as a silent violation.
 
 All fourteen task branches were green on CI before they were deleted (#44–#50, #52, #54–#56), and
-the surviving branch is the same commit CI ran on as **#56**.
+the surviving branch was the same commit CI ran on as **#56**. **M3-T08 is green as #61**
+(407 s), which is the tip.
 
 **There is no `src/`.** One package, `nanoscope`, 41 modules across four layers, installed
 rather than path-hacked.

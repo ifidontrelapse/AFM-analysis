@@ -89,7 +89,9 @@ raised before.
 ### Gate
 
 `make check` green — 249 tests (17 new), golden 13 declared differences and nothing else, ruff
-clean, format clean. **mypy unchanged at 12**: a dtype that is right for one input and wrong for
+clean, format clean. **CI green as run #61, 407 s**, on the machine that has no torch and a
+different Python patch release, which is the run that matters for a change whose whole subject is
+dtype. **mypy unchanged at 12**: a dtype that is right for one input and wrong for
 another has no static shadow, which is the second time this milestone that a real defect was
 invisible to the type checker (M3-T02 was the first, a unit error).
 
