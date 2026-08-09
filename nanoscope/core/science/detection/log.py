@@ -159,7 +159,7 @@ def estimate_log_threshold_adaptive(
         return DEFAULT_THRESHOLD
 
     # Peak response in the neighbourhood of each blob centre
-    responses = []
+    peaks: list[float] = []
     for blob in raw:
         y, x, sigma = blob
         r = max(int(sigma), 1)
@@ -167,9 +167,9 @@ def estimate_log_threshold_adaptive(
         y2 = min(z_norm.shape[0], int(y) + r)
         x1 = max(0, int(x) - r)
         x2 = min(z_norm.shape[1], int(x) + r)
-        responses.append(float(z_norm[y1:y2, x1:x2].max()))
+        peaks.append(float(z_norm[y1:y2, x1:x2].max()))
 
-    responses = np.array(responses)
+    responses = np.array(peaks)
     threshold = float(np.percentile(responses, percentile))
 
     logger.debug(
@@ -189,7 +189,7 @@ def detect_particles(
     pixel_size_nm: float | None,
     sizes: dict,
     overlap: float = 0.3,
-    threshold: float = None,
+    threshold: float | None = None,
     percentile: float = 20.0,
 ) -> np.ndarray:
     """

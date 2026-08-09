@@ -6,7 +6,8 @@
 **Defect:** **M3-T19** (found by mypy in M1-T04) · **ADR:** none — see "No ADR, and why"
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **planned 2026-08-09.**
+**Status:** **done 2026-08-09.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -88,10 +89,30 @@ and the mypy count before and after.
 
 ## Definition of done
 
-- [ ] No rebinding in `estimate_log_threshold_adaptive`
-- [ ] Both defaults annotated `float | None`
-- [ ] Tests — explicit `None` at both entry points, equal to the omitted argument
-- [ ] `make check` green; delta **zero, golden byte-identical**
-- [ ] `make types` reports **6**
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M3-T19: the annotations stop lying about None`
+- [x] No rebinding in `estimate_log_threshold_adaptive`
+- [x] Both defaults annotated `float | None`
+- [x] Tests — explicit `None` at both entry points, equal to the omitted argument
+- [x] `make check` green; delta **zero, golden byte-identical**
+- [x] `make types` reports **6**
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M3-T19: the annotations stop lying about None`
+
+---
+
+## What it turned up
+
+**The filed defect was one instance of a class.** M3-T19 was written down as three mypy errors
+about a rebinding; the same fault — an annotation that does not describe the value the code
+carries — was sitting in the signature of the same function and in `build_substrate_map`, stated
+the other way round as an implicit Optional. Fixing what was filed would have left half of it.
+
+**Zero delta, for once by construction.** Every previous M3 task predicted a golden delta and
+measured it. This one could not move a number: no executable line changed. The measurement that
+matters here is mypy's count, **12 → 6**, and the six that remain are not annotation drift — four
+are `pipeline.py`'s detect-mode `ndarray | None` and the `if/elif` detector dispatch, which are
+M4's questions, and two are third-party overloads.
+
+**M3's engineering queue is now empty except `M3-T16`, which is blocked on B6.** All five exit
+criteria are met; the Roadmap's three stale checkboxes (M3-T13, T14, T15, all closed 2026-08-07)
+were ticked in the same commit. What is left in the milestone is four findings that each need an
+operator's decision, not an afternoon: **B-062**, **B-065**, **B-066**, **B-067**.

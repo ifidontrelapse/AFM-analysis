@@ -7,6 +7,71 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-09 — M3-T19 · **the annotations stop lying about `None`; M3's exit criteria are met**
+
+**Task:** `M3-T19`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** none — an annotation is
+not executed and no decision was made (the **M3-T18** precedent).
+**Defect:** M3-T19, found by mypy in M1-T04 and the last unblocked engineering item in M3.
+
+### What was filed, and what was there
+
+Filed: three mypy errors in `estimate_log_threshold_adaptive`, where `responses` starts as a
+`list[float]` and is rebound to an ndarray before `.min()`/`.max()` are called on it.
+
+Found while reading for it, twice, stated the other way round:
+
+```python
+def detect_particles(..., threshold: float = None, ...)            # log.py:192
+def build_substrate_map(..., manual_radius_px: float = None, ...)  # substrate.py:301
+```
+
+Both bodies test the parameter for `None` two dozen lines later (`log.py:237`,
+`substrate.py:334`) — "not supplied, work it out" is the *documented* meaning of the default, and
+the annotation denied that it could happen. **One defect class — an annotation that does not
+describe the value the code carries — and six of mypy's twelve errors.** Fixing only what was
+filed would have left half of it.
+
+### Delta: zero, by construction
+
+Not zero as measured, zero as a property: **no executable line changed.** The golden was left
+untouched rather than rewritten. The measurement this task owes the gate is mypy's count instead —
+**12 → 6** — and the six that remain are not annotation drift: four are `pipeline.py` (three
+`ndarray | None` arguments and the `if/elif` detector dispatch, both M4's questions) and two are
+third-party overloads (`cv2.normalize`, `Axes.imshow`).
+
+The two new tests pin the *meaning* the annotation now claims: an explicit `None` at either entry
+point gives the same answer as omitting the argument. `float | None` would otherwise be a claim
+nobody checks — the golden harness passes `threshold=None` and no unit test ever did.
+
+### Recorded, not filed
+
+`r = max(int(sigma), 1)` at `log.py:165` is a truncation of exactly the family M3-T24 hunted. It
+sizes a **peak-lookup window**, not a physical radius, so a pixel of it is not a defect anyone can
+demonstrate. It is written down in `CURRENT_TASK.md` rather than turned into a backlog entry,
+because the backlog is for findings with a consequence.
+
+### M3's exit criteria
+
+Three of the five checkboxes in `Roadmap.md` were still unticked while the tasks behind them had
+closed on 2026-08-07 — the degenerate-input contract (M3-T13), one measurement schema (M3-T14),
+and the evaluation harness (M3-T15). Ticked in this commit with the evidence. **All five criteria
+are met.**
+
+### Gate
+
+`make check` green — **478 tests** (2 new), **zero golden differences**. mypy **12 → 6**.
+
+### What is next
+
+**M3 has nothing left that does not need a decision.** `M3-T16` is blocked on **B6**. The four open
+findings — **B-062** (recall 0.000 on `afm_sparse_low_snr`), **B-065** (a gap-tolerant *pipeline*),
+**B-066** (deliberate interpolation), **B-067** (a margin from the radius distribution's upper
+tail) — are each an algorithm choice with an operator's view attached, not an afternoon. The two
+real options are to take one of them with a decision made first, or to close M3 and open **M4**,
+which the roadmap explicitly allows to run in parallel.
+
+---
+
 ## 2026-08-08 — M3-T26 · **B-064 closed: the opening-radius constants are measured**
 
 **Task:** `M3-T26`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** **ADR-0037**.

@@ -621,9 +621,13 @@ Also enforced, and each proven to fail on a real violation:
 Nine pre-commit hooks run on every commit (M1-T07); `pytest` and mypy are deliberately not
 among them — the golden alone takes 190 s, and a hook that slow is a hook people bypass.
 
-mypy reports **20 errors**, all inside `nanoscope`, all inherited with the moved code and
-none silenced. New code is strict from its first line; the moved scientific core runs at
-default strictness under a declared override that shrinks as M3 lands.
+mypy reports **6 errors**, all inside `nanoscope`, all inherited with the moved code and
+none silenced (20 at the M2 baseline; M3-T19 took the last six annotation faults out on
+2026-08-09). New code is strict from its first line; the moved scientific core runs at
+default strictness under a declared override that shrinks as M3 lands. What is left is not
+annotation drift: three are `pipeline.py` passing `ndarray | None` where an array is
+required, one is the `LogDetector`/`YoloDetector` `if/elif` dispatch in the same file — both
+questions M4 owns — and two are third-party overloads (`cv2.normalize`, `Axes.imshow`).
 
 ## 15. Known implementation gaps and risks
 

@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-08 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-09 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -11,12 +11,15 @@
 
 **M3 — Numerical correctness**
 
-**Every `critical` and `high` defect the audit reproduced is now closed** — the first of M3's
-five exit criteria, met 2026-08-06. Critical: D-01, D-02, D-03, D-04, D-19. High: D-05/D-06,
-D-07 (three faces: M3-T11, T20, T17), D-08, D-12, D-18. **The degenerate-input contract closed
-2026-08-07** (M3-T13, ADR-0030): every numerical entry point refuses the same things, with a typed
-error naming the parameter. The two criteria still open are one measurement schema (M3-T14) and
-the evaluation harness (M3-T15); the operator sign-offs are met.
+**All five of M3's exit criteria are met** (the last three ticked 2026-08-09, having closed on
+2026-08-07). Every `critical` and `high` defect the audit reproduced is closed — critical: D-01,
+D-02, D-03, D-04, D-19; high: D-05/D-06, D-07 (three faces: M3-T11, T20, T17), D-08, D-12, D-18.
+The degenerate-input contract (M3-T13, ADR-0030), one measurement schema (M3-T14, ADR-0031) and
+the evaluation harness (M3-T15, ADR-0032) are done, and the operator sign-offs were given on
+2026-08-05.
+
+**The milestone is not formally closed, and that is a decision waiting on the operator** — see
+"Current task" below.
 
 Fix the defects the audit reproduced. **The rules change here:** every task gets its own
 commit, its own ADR, its own golden update, and a quantified before/after delta in
@@ -33,10 +36,27 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected, and M3's engineering queue is empty.** Every numerical defect the audit
+**None selected. `M3-T19` closed 2026-08-09 and it was the last item in M3 that needed no
+decision.**
+
+**`M3-T19` done 2026-08-09 (no ADR — an annotation is not executed; the M3-T18 precedent).** Filed
+as three mypy errors about a `list[float]` rebound to an ndarray; reading the file for it found
+the same class twice more, stated the other way round — `threshold: float = None` and
+`manual_radius_px: float = None`, **implicit Optionals whose bodies branch on `None` two dozen
+lines later**. Six of mypy's twelve errors, one defect class: *an annotation that does not describe
+the value the code carries*. Delta: **zero, by construction — no executable line changed**; the
+golden was left untouched. mypy **12 → 6**, and the remainder is not annotation drift (four in
+`pipeline.py`, M4's; two third-party overloads). 2 tests pin what `float | None` now claims: an
+explicit `None` equals the omitted argument. Recorded, not filed: `r = max(int(sigma), 1)` at
+`log.py:165` sizes a peak-lookup window, not a physical radius.
+
+**The decision in front of the operator: take one of the four open findings, or close M3 and open
+M4.** The roadmap allows M4 to run in parallel with M3 (§"Sequencing", point 3). Every remaining
+M3 item is an algorithm choice, not an afternoon.
+
+The state before this session, still accurate: Every numerical defect the audit
 reproduced is closed, detection quality is measured, and **B-059, B-060, B-061, B-063 and B-064**
-are closed with them. Inside M3's task list only **M3-T16** (blocked on **B6**) and **M3-T19**
-(`low`) remain.
+are closed with them. Inside M3's task list only **M3-T16** (blocked on **B6**) remains.
 
 **Everything else open needs a decision, not an afternoon:** **B-062** (recall 0.000 — wants an
 operator's view of a sensitivity trade-off), **B-065** (a gap-tolerant *pipeline* — needs an

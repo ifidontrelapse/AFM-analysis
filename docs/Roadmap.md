@@ -131,9 +131,15 @@ harness that scores detection against phantom ground truth.
       D-04 (M3-T02), D-19 (M1-T01). High: D-05/D-06 (M3-T06), D-07 (M3-T11, T20, T17 — three
       faces), D-08 (M3-T12), D-12 (M3-T10), D-18 (M2-T09). What remains in M3 is `medium`
       and below
-- [ ] Degenerate-input contract documented and tested for every numerical entry point
-- [ ] One measurement schema across all four producers
-- [ ] Evaluation harness reports precision/recall/localisation per phantom
+- [x] Degenerate-input contract documented and tested for every numerical entry point —
+      **2026-08-07** (M3-T13, ADR-0030): seven error classes, one `ensure_height_map` at
+      **fourteen** entry points, 7 bad inputs x 10 entry points proven to give one error type
+- [x] One measurement schema across all four producers — **2026-08-07** (M3-T14, ADR-0031):
+      a core every producer emits plus blocks present-in-full or absent-in-full, `method`
+      naming the producer; three faults found where the audit named one
+- [x] Evaluation harness reports precision/recall/localisation per phantom — **2026-08-07**
+      (M3-T15, ADR-0032): `core/science/evaluation.py`, one-to-one optimal assignment, a
+      scale-free match radius; **all five criteria are now met**
 - [x] Operator has signed off on D-04 semantics (**B2**, ADR-0024) and D-12 polarity
       (**B3**, ADR-0023) — answered 2026-08-05, both executed
 

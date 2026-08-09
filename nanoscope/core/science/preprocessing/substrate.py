@@ -298,7 +298,7 @@ def build_substrate_map(
     z: np.ndarray,
     pixel_size_nm: float | None,
     min_size_nm: float = 5,
-    manual_radius_px: float = None,
+    manual_radius_px: float | None = None,
     opening_scale: float = DEFAULT_OPENING_SCALE,
 ) -> tuple:
     """
