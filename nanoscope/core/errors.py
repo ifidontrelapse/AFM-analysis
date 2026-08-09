@@ -73,6 +73,21 @@ class MissingFileError(NanoscopeError, FileNotFoundError):
     """A file that is not there, or that the image decoder returned nothing for."""
 
 
+class ProjectFormatError(NanoscopeError, ValueError):
+    """A directory that does not describe a project this version can open.
+
+    Four cases, one error, because they are one statement to the operator —
+    *this is not something I can open* — and each message names which
+    (M4-T01, ADR-0038): no manifest, an unparseable one, one missing a required
+    field, or one declaring a format version newer than this application knows.
+
+    A `ValueError` and not a `FileNotFoundError` even when the manifest is
+    absent: the claim is about the *directory*, which exists. "There is no
+    `project.json` here" is how a directory says it is not a project, not an
+    accident of a path.
+    """
+
+
 class AnalysisFailedError(NanoscopeError, ValueError):
     """The input was valid and the analysis could not produce a result.
 

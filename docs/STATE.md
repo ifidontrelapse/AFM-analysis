@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-09 · **Branch:** `sci/m3-numerical-correctness` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-09 · **Branch:** `feat/m4-application-layer` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -34,9 +34,23 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**`M4-T01` — specify the project directory format (layout, schema version, compatibility rules).**
-Selected 2026-08-09; plan in `docs/CURRENT_TASK.md`. ADR-0003 fixed the layout and explicitly
-deferred the *contract* — the version number and the compatibility rules — to this task.
+**None selected. `M4-T01` done 2026-08-09 (ADR-0038); `M4-T02` — SQLite schema v1 and the
+forward-migration mechanism — is the obvious next one**, because it owns `schema_version`, the
+number M4-T01 decided the home and the rules for.
+
+**`M4-T01` done 2026-08-09 (ADR-0038) — the project format is a versioned contract.** First of the
+milestone because everything else in M4 writes into a project, and left implicit the format
+becomes whatever the first task to land happens to do. Three decisions: **two independent version
+numbers** (`format_version` in the manifest, `schema_version` as the database's `PRAGMA
+user_version` — the layout must be readable *without opening the database*); **`project.json` is
+the identity file**, not a database row, or ADR-0003's "corruption is contained" is a slogan; and
+**refuse newer, accept older**, because a forward migration cannot be written by the past. The
+spec (`docs/ProjectFormat.md`) ships with the executable half
+(`infrastructure/storage/project_format.py`), since a contract nothing executes drifts within two
+tasks. **Found while writing the tests:** "a reader ignores fields it does not know" is a
+data-loss guard, not politeness — an older application rewriting a newer manifest would have
+deleted every unrecognised field silently; they are now carried through, with a test. 21 tests,
+delta **zero, golden byte-identical**, mypy unchanged at 6.
 
 **`M3-T19` done 2026-08-09, the last task of M3** (no ADR — an annotation is not executed; the
 M3-T18 precedent). Filed as three mypy errors about a `list[float]` rebound to an ndarray; reading the file for it found

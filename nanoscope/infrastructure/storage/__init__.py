@@ -1,13 +1,41 @@
-"""Reading images off a disk.
+"""Reading images off a disk, and the shape of the directory they live in.
 
 The first adapter in the project: everything here takes a path and opens it.
-M2-T08 puts an `ImageLoader` port in front of these functions; until then they are
+M2-T08 puts an `ImageLoader` port in front of the loaders; until then they are
 called directly, exactly as they were from `src/afm_io.py`.
+
+`project_format` joined them in M4-T01 — the executable half of the project
+directory contract (`docs/ProjectFormat.md`, ADR-0038).
 """
 
 from nanoscope.infrastructure.storage.loaders import (
     load_afm,
     load_microscopy_image,
 )
+from nanoscope.infrastructure.storage.project_format import (
+    DATABASE_NAME,
+    DIRECTORIES,
+    FORMAT_VERSION,
+    MANIFEST_NAME,
+    ProjectManifest,
+    check_compatible,
+    new_manifest,
+    open_manifest,
+    read_manifest,
+    write_manifest,
+)
 
-__all__ = ["load_afm", "load_microscopy_image"]
+__all__ = [
+    "DATABASE_NAME",
+    "DIRECTORIES",
+    "FORMAT_VERSION",
+    "MANIFEST_NAME",
+    "ProjectManifest",
+    "check_compatible",
+    "load_afm",
+    "load_microscopy_image",
+    "new_manifest",
+    "open_manifest",
+    "read_manifest",
+    "write_manifest",
+]

@@ -248,7 +248,10 @@ MyProject/
 └── database.sqlite metadata only, no binaries
 ```
 
-See ADR-0003 and M4-T01 for the format specification.
+**The format is specified in `docs/ProjectFormat.md`** (M4-T01, ADR-0038) — the manifest
+`project.json` is what makes a directory a project, `format_version` and the database's
+`schema_version` are independent, and a newer version is refused rather than guessed at. See
+also ADR-0003 for the layout decision underneath it.
 
 ### 4.5 Jobs, undo/redo, autosave
 

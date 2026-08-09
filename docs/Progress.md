@@ -7,6 +7,68 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-09 — M4-T01 · **the project format is a versioned contract**
+
+**Task:** `M4-T01`, the first of M4. **Branch:** `feat/m4-application-layer` — M4 changes no
+scientific output, so `sci/` no longer applies. **ADR:** **ADR-0038**.
+
+### Why first
+
+Everything else in M4 writes into a project — the schema (T02), the repositories (T03), the
+lifecycle use cases (T04/T05), CSV export (T11), the log sinks (T14). Left implicit, the format
+becomes *whatever the first task to land happens to do*, and unlike every other contract in this
+repository **the operator's data is on the far side of this one**. ADR-0003 fixed the layout and
+deferred the contract here by name; the deferral was blocking.
+
+### The three decisions
+
+**Two independent version numbers.** `format_version` describes the directory and lives in the
+manifest; `schema_version` describes the tables and lives in the database, as SQLite's own
+`PRAGMA user_version` (M4-T02 owns it). A single shared number would make every schema bump claim
+the layout had changed — and, decisively, **the layout has to be readable without opening the
+database**.
+
+**`project.json` is the identity file.** A directory is a project if and only if it carries one;
+never inferred from `images/` or `database.sqlite` being present. Not in the database, because
+ADR-0003's own consequence — *corruption is contained* — is a slogan if a project with a damaged
+database cannot say what it is.
+
+**Refuse newer, accept older.** A forward migration cannot be written by the past: opening a
+project written by a later version means guessing what its fields mean, and the guess gets written
+back to disk. One integer rather than semver — one reader, shipped with the writer, asking one
+question.
+
+### What writing the tests turned up
+
+**A rule that reads like politeness is a data-loss guard.** "A reader must ignore fields it does
+not know" is unremarkable until you write the *writer*: the manifest was a three-field dataclass,
+so an older application rewriting a newer project's `project.json` would have **deleted every
+field it did not recognise, silently**. Unknown fields are now carried through, with a test. *An
+additive change is only additive if it survives the round trip.*
+
+**A non-integer version is refused, not coerced.** `"2"` compares as neither newer nor older than
+`1`, and `True` **is** an `int` in Python — both would sail past a naive check as compatible.
+
+### Delta
+
+**Zero, and no numerical code was touched at all** — the golden is byte-identical, which is M4's
+risk profile working as stated. New: one module (`infrastructure/storage/project_format.py`), one
+error class (`ProjectFormatError`, inside the ADR-0030 taxonomy, one error for four refusals), one
+document (`docs/ProjectFormat.md`), one ADR. **21 tests** over every row of the matrix, each
+refusal checked for naming the path or both versions.
+
+### Gate
+
+`make check` green — **500 tests** (478 → 500: 21 new, plus one the `no print in library code`
+sweep adds automatically for the new module), zero golden differences. mypy unchanged at 6.
+
+### What is next
+
+**M4-T02** — SQLite schema v1 and the forward-migration mechanism. It owns `schema_version`, the
+number this task decided the home and the rules for.
+
+---
+
 ## M3 — milestone summary
 
 **Closed 2026-08-09** on the operator's decision, with `M3-T16` left open and blocked on **B6**.

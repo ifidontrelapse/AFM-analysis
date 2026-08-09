@@ -20,6 +20,7 @@ silently ignore it.
 | `docs/Backlog.md` | Everything not scheduled yet | Whenever an idea appears |
 | `docs/Progress.md` | Append-only session log | **Every session** |
 | `docs/Architecture.md` | Target architecture and layer contracts | On architectural change |
+| `docs/ProjectFormat.md` | The project directory format — a public contract (M4-T01) | On a format change, with a version bump |
 | `docs/Development.md` | Environment, commands, workflow | On tooling change |
 | `docs/ADR/` | One file per architectural decision | On every decision |
 | `docs/audit/` | Phase 0 audit + characterization baseline (historical, do not edit) | Frozen |

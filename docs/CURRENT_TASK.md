@@ -3,10 +3,11 @@
 **ID:** `M4-T01`
 **Title:** The project directory format as a versioned public contract
 **Milestone:** M4 — Application layer, first task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0038** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0038**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output, so the `sci/` prefix
 no longer applies (PROJECT_RULES §7)
-**Status:** **planned 2026-08-09.**
+**Status:** **done 2026-08-09.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -103,12 +104,39 @@ Everything that needs a database waits for the task that has one.
 
 ## Definition of done
 
-- [ ] `docs/ProjectFormat.md` — the contract, versioned, with the compatibility matrix
-- [ ] ADR-0038 recording the three decisions and what was rejected
-- [ ] `project_format.py` — constants, manifest read/write, `check_compatible`
-- [ ] `ProjectFormatError`, in the existing taxonomy rather than beside it
-- [ ] Tests over the whole matrix, including the unparseable manifest
-- [ ] `make check` green; golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `Architecture.md` §4.4 (pointing at the spec),
+- [x] `docs/ProjectFormat.md` — the contract, versioned, with the compatibility matrix
+- [x] ADR-0038 recording the three decisions and what was rejected
+- [x] `project_format.py` — constants, manifest read/write, `check_compatible`
+- [x] `ProjectFormatError`, in the existing taxonomy rather than beside it
+- [x] Tests over the whole matrix, including the unparseable manifest
+- [x] `make check` green — 500 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `Architecture.md` §4.4 (pointing at the spec),
       `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M4-T01: the project format is a versioned contract`
+- [x] Commit: `M4-T01: the project format is a versioned contract`
+
+---
+
+## What it turned up
+
+**One rule in the spec turned out to be a data-loss guard, not documentation.** "A reader must
+ignore fields it does not know" reads like politeness until you write the writer: the manifest was
+a three-field dataclass, so an older application rewriting a newer project's `project.json` would
+have **deleted every field it did not recognise**, silently. The manifest now carries unknown
+fields through, and a test proves it. *An additive change is only additive if it survives the
+round trip.*
+
+**Refusing a non-integer version is not pedantry.** `"2"` compares as neither newer nor older than
+`1`, and `True` **is** an `int` in Python — both would pass a naive `>` check as "compatible".
+
+**The version question answered itself once it was asked out loud.** One number for the directory
+and the database looks simpler until you notice the layout has to be readable *without opening the
+database* — which is ADR-0003's own containment promise, and a single shared number cannot deliver
+it.
+
+---
+
+## Notes
+
+M4's risk profile held: the science was called by nothing here and the golden is byte-identical.
+The next task, **M4-T02**, owns `schema_version`, the tables, and the first real migration — this
+task fixed only where that number lives and what an unknown one does.
