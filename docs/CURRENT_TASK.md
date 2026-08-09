@@ -1,44 +1,59 @@
 # CURRENT TASK
 
-**ID:** `M3-T19`
-**Title:** The annotations that lie about `None` — the last unblocked engineering item in M3
-**Milestone:** M3 — Numerical correctness, twenty-fifth task
-**Defect:** **M3-T19** (found by mypy in M1-T04) · **ADR:** none — see "No ADR, and why"
-**Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
-deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-09.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M4-T01`
+**Title:** The project directory format as a versioned public contract
+**Milestone:** M4 — Application layer, first task
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0038** (to be written)
+**Branch:** `feat/m4-application-layer` — M4 changes no scientific output, so the `sci/` prefix
+no longer applies (PROJECT_RULES §7)
+**Status:** **planned 2026-08-09.**
 
 ---
 
-## Why this task is next
+## Why this task is first
 
-It is the only thing left in M3 that needs no decision. `M3-T16` waits on **B6**; **B-062**,
-**B-065**, **B-066** and **B-067** each need an operator's view or a new algorithm, and none of
-them is an afternoon.
+Everything else in M4 writes into a project: the SQLite schema (M4-T02), the repositories
+(M4-T03), the use cases (M4-T04/T05), exports (M4-T11), logs (M4-T14). If the layout is decided
+implicitly by whichever of them lands first, the format ends up as "whatever the code does" — and
+ADR-0003 already committed the opposite in writing:
 
-M3-T19 as filed is three mypy errors in `log.py`:
+> *Project format becomes a public contract with a version number, specified in M4-T01.*
 
-```python
-responses = []                      # list[float]
-...
-responses = np.array(responses)     # rebound to ndarray  → error [assignment]
-responses.min(), responses.max()    # → 2 × error [attr-defined]
-```
+ADR-0003 fixed the **layout** (a directory, images as files, SQLite for metadata only, relative
+paths, a disposable `cache/`) and deliberately deferred the **contract**: what the version number
+means, what happens when the application meets a project it does not recognise, and what a reader
+is allowed to assume about a directory that claims to be a project.
 
-Reading the file for it turned up the same *kind* of fault two functions down, and again one file
-over:
+**The risk profile of M4 is the inverse of M3's.** The scientific core is called, not modified,
+so no task here should move a golden number at all — a red golden in M4 is a bug in M4.
 
-```python
-def detect_particles(..., threshold: float = None, ...)          # log.py:192
-def build_substrate_map(..., manual_radius_px: float = None, ...) # substrate.py:301
-```
+---
 
-Both bodies already branch on `None` (`log.py:237`, `substrate.py:334`) — the *documented* meaning
-of the default is "not supplied, compute it". The annotation says the opposite: that the parameter
-is always a number. Same defect as the rebinding, stated the other way round — **an annotation
-that does not describe the value the code actually carries** — and mypy reports 6 of its 12 errors
-against those two patterns.
+## The decisions this task has to make
+
+**1. One version or two?** The directory *layout* and the SQLite *schema* can change
+independently — adding an `exports/` convention is not adding a column. ADR-0003 says "every
+schema has a version" and says nothing about the layout's.
+
+| | |
+|---|---|
+| **Two independent versions** ✅ | `format_version` in the manifest describes the directory; `schema_version` in the database describes the tables (`PRAGMA user_version`, which SQLite already provides). They change for different reasons and are read at different moments — the layout must be readable *without opening the database*, which is the whole point of a directory the operator owns |
+| One version covering both | Simpler to state, and wrong the first time a migration touches only one of them: every schema bump would falsely claim the directory changed |
+
+**2. Where does the format version live?** In a `project.json` manifest at the project root —
+**not** in the database. A project whose `database.sqlite` is corrupt must still identify itself,
+which is ADR-0003's own "corruption is contained" consequence taken seriously.
+
+**3. What does an unrecognised version do?** ADR-0003's compliance section already states the
+rule for newer versions ("refused with a clear message rather than silently migrated"). This task
+states the full matrix and makes it executable:
+
+| The project says | The application does |
+|---|---|
+| a **newer** major version | refuse, naming both versions — a forward migration cannot be written by the past |
+| an **older** version | open, and migrate forward when a migration exists (M4-T02 owns migrations; this task owns the *rule*) |
+| the **same** version | open |
+| no manifest, or unparseable | refuse as "not a project directory" — never guess from the presence of `images/` |
 
 ---
 
@@ -46,73 +61,54 @@ against those two patterns.
 
 **In scope**
 
-1. `log.py` — stop rebinding: the accumulator keeps its list type, the array gets its own name
-2. `log.py:192` — `threshold: float | None = None`, which also removes the caller's error at
-   `log.py:381` (`LogDetector.threshold` is already `float | None`)
-3. `substrate.py:301` — `manual_radius_px: float | None = None`
-4. Two tests: an **explicit** `None` is accepted at both entry points and gives the same answer as
-   omitting the argument — the meaning the annotation now states
+1. `docs/ProjectFormat.md` — the contract: layout, the manifest's fields and their meanings,
+   the two version numbers, the compatibility matrix, the path rules (relative, always), what is
+   authoritative when the filesystem and the index disagree, and what `cache/` guarantees
+2. **ADR-0038** — two independent versions, the manifest as the identity file, refuse-newer
+3. `nanoscope/infrastructure/storage/project_format.py` — the executable half:
+   `FORMAT_VERSION`, the directory names as constants, a `ProjectManifest` dataclass,
+   `read_manifest`, `write_manifest`, and one `check_compatible` that implements the matrix and
+   raises a typed error naming both versions
+4. `ProjectFormatError` in `core/errors.py` — Architecture §4.6 already lists `StorageError` in
+   the target taxonomy; this is that slot, named for what it actually reports
+5. Tests over the matrix: same / older / newer / absent / unparseable, and a round trip
 
 **Out of scope**
 
-- The remaining 6 mypy errors. Four are in `pipeline.py`: three pass `ndarray | None` into
-  functions that require an array — a real question about what detect mode returns — and one is
-  the `if/elif` detector dispatch the port exists to remove. Both are M4's, not a rename.
-  `yolo.py:124` and `plots.py:37` are third-party overloads
-- `r = max(int(sigma), 1)` at `log.py:165`. It is a truncation in the family M3-T24 hunted, but it
-  sizes a *neighbourhood window for a peak lookup*, not a physical radius, and changing it moves
-  numbers. Not smuggled in (ADR-0010); recorded here and not filed, because a window that is one
-  pixel small on a blob's peak is not a defect anyone can demonstrate
+- **Creating a project.** `CreateProject` is M4-T04 and needs the repository underneath it. This
+  task can describe and validate a project directory; it does not own the lifecycle
+- **The SQLite schema and its migrations** — M4-T02. This task fixes only that a schema version
+  exists, where it lives, and what an unknown one does
+- **An integrity check that reconciles dangling rows** — ADR-0003 requires one; it belongs with
+  the repository in M4-T03, because it needs the tables to check against
 
 ---
 
-## No ADR, and why
+## Why the spec ships with code
 
-M3's gate (ADR-0010) is "one defect, one commit, one ADR, one golden update" and it exists because
-these tasks *move numbers*. This one cannot: an annotation is not executed. **No decision is
-made** — the annotations are being made to agree with the branches already in the code, and where
-the code and the annotation disagreed, the code was right. **M3-T18 set this precedent** and is
-recorded as such in `TASKS.md`.
-
-What this task still owes the gate is the *measurement*: the golden delta, stated and verified,
-and the mypy count before and after.
+A specification nothing executes drifts from the code within two tasks, and this one is a
+*contract* — the case where drift is most expensive, because the operator's data is on the other
+side of it. The code here is deliberately thin: constants, a manifest, and the version check.
+Everything that needs a database waits for the task that has one.
 
 ---
 
-## Expected blast radius, before measuring
+## Expected blast radius
 
-- **Zero golden differences**, and unlike previous tasks that predicted zero, here it is a
-  property of the change rather than an expectation: no executable line changes.
-- **mypy 12 → 6.** If it lands anywhere else, something other than an annotation moved.
+- **Zero golden differences**, and no numerical code is touched at all. If the golden moves,
+  something imported the science by accident
+- One new module, one new error class, one new document, one ADR
 
 ---
 
 ## Definition of done
 
-- [x] No rebinding in `estimate_log_threshold_adaptive`
-- [x] Both defaults annotated `float | None`
-- [x] Tests — explicit `None` at both entry points, equal to the omitted argument
-- [x] `make check` green; delta **zero, golden byte-identical**
-- [x] `make types` reports **6**
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M3-T19: the annotations stop lying about None`
-
----
-
-## What it turned up
-
-**The filed defect was one instance of a class.** M3-T19 was written down as three mypy errors
-about a rebinding; the same fault — an annotation that does not describe the value the code
-carries — was sitting in the signature of the same function and in `build_substrate_map`, stated
-the other way round as an implicit Optional. Fixing what was filed would have left half of it.
-
-**Zero delta, for once by construction.** Every previous M3 task predicted a golden delta and
-measured it. This one could not move a number: no executable line changed. The measurement that
-matters here is mypy's count, **12 → 6**, and the six that remain are not annotation drift — four
-are `pipeline.py`'s detect-mode `ndarray | None` and the `if/elif` detector dispatch, which are
-M4's questions, and two are third-party overloads.
-
-**M3's engineering queue is now empty except `M3-T16`, which is blocked on B6.** All five exit
-criteria are met; the Roadmap's three stale checkboxes (M3-T13, T14, T15, all closed 2026-08-07)
-were ticked in the same commit. What is left in the milestone is four findings that each need an
-operator's decision, not an afternoon: **B-062**, **B-065**, **B-066**, **B-067**.
+- [ ] `docs/ProjectFormat.md` — the contract, versioned, with the compatibility matrix
+- [ ] ADR-0038 recording the three decisions and what was rejected
+- [ ] `project_format.py` — constants, manifest read/write, `check_compatible`
+- [ ] `ProjectFormatError`, in the existing taxonomy rather than beside it
+- [ ] Tests over the whole matrix, including the unparseable manifest
+- [ ] `make check` green; golden byte-identical
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `Architecture.md` §4.4 (pointing at the spec),
+      `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M4-T01: the project format is a versioned contract`
