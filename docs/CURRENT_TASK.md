@@ -1,88 +1,43 @@
 # CURRENT TASK
 
-**ID:** `M3-T26`
-**Title:** The opening-radius constants are named, exposed, and measured
-**Milestone:** M3 — Numerical correctness, twenty-fourth task
-**Defect:** **B-064** (filed by M3-T24) · **ADR:** **ADR-0037**
+**ID:** `M3-T19`
+**Title:** The annotations that lie about `None` — the last unblocked engineering item in M3
+**Milestone:** M3 — Numerical correctness, twenty-fifth task
+**Defect:** **M3-T19** (found by mypy in M1-T04) · **ADR:** none — see "No ADR, and why"
 **Branch:** `sci/m3-numerical-correctness` (the consolidated branch — see the declared
 deviation from PROJECT_RULES §7 in `STATE.md`)
-**Status:** **done 2026-08-08.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** **planned 2026-08-09.**
 
 ---
 
 ## Why this task is next
 
-The last engineering finding open in M3. `M3-T16` waits on **B6**, **B-062** wants an operator's
-view, **B-065** and **B-066** were filed an hour ago and each needs a decision this does not.
+It is the only thing left in M3 that needs no decision. `M3-T16` waits on **B6**; **B-062**,
+**B-065**, **B-066** and **B-067** each need an operator's view or a new algorithm, and none of
+them is an afternoon.
 
-Two numbers set every opening radius in the project:
+M3-T19 as filed is three mypy errors in `log.py`:
 
 ```python
-estimate_rough_radius(..., scale: float = 1.7)          # a parameter, undocumented beyond one line
-opening_radius = max(_integer_radius(sizes["typical_radius_px"] * 2.5), 5)   # a bare literal
+responses = []                      # list[float]
+...
+responses = np.array(responses)     # rebound to ndarray  → error [assignment]
+responses.min(), responses.max()    # → 2 × error [attr-defined]
 ```
 
-Neither is derived anywhere. The only documentation is the March 2026 docstring — *"a multiplier
-so the disk is safely larger than a particle"* — and **both were chosen with the `int()`
-truncation M3-T24 removed still in place**, so whatever tuning they got was done against an
-estimate that was systematically small: the effective margin was `1.7 × int(r)/r`, which at
-r = 4.9 is **1.39**, not 1.7.
+Reading the file for it turned up the same *kind* of fault two functions down, and again one file
+over:
 
-What makes this a task rather than a preference is that **M3-T15 can now score a candidate.**
+```python
+def detect_particles(..., threshold: float = None, ...)          # log.py:192
+def build_substrate_map(..., manual_radius_px: float = None, ...) # substrate.py:301
+```
 
----
-
-## What the measurement says
-
-Swept over the five AFM phantoms, scoring against ground truth.
-
-### The rough factor barely matters
-
-| `scale` | mean recall | mean precision | mean localisation | mean radius error |
-|---|---:|---:|---:|---:|
-| 1.3 | 0.7686 | 0.9958 | 0.5714 px | 0.4986 px |
-| **1.7** | 0.7686 | 0.9958 | 0.5718 px | **0.4939 px** |
-| 2.4 | 0.7686 | 0.9958 | 0.5718 px | 0.4943 px |
-
-**Recall and precision are identical from 1.3 to 2.4.** The response is flat because the second
-stage re-estimates from Otsu, which is what M3-T24 measured from the other direction — and it is
-*why nobody noticed the truncation for five months*. A constant whose value does not matter does
-not get audited.
-
-### The final factor is a real trade-off
-
-| factor | dense recall | flat / tilted / coarse recall | mean radius error | radii |
-|---|---:|---|---:|---|
-| 1.5 | **0.886** | 1.000 | 0.890 px | 11, 11, 10, 5, 7 |
-| 2.0 | 0.843 | 1.000 | 0.642 px | 15, 15, 13, 6, 9 |
-| **2.5** | 0.843 | 1.000 | **0.494 px** | 19, 19, 16, 8, 11 |
-| 3.0 | 0.829 | 1.000 | 0.619 px | 22, 22, 19, 9, 13 |
-| 4.0 | 0.800 | 0.967 | 0.579 px | 29, 29, 25, 12, 17 |
-
-**A smaller opening finds more particles; a larger one measures their radii better.** The recall
-cost is entirely on `afm_dense_overlapping` — a bigger disk steps over two touching particles as
-one — and 1.5 buys three more detections there for an **80 % worse** radius error.
-
-**2.5 minimises the radius error on both hard phantoms** (`tilted` 0.718, `dense` 0.642) and is
-within 0.13 px of the best on the two easy ones, where the error falls monotonically with the
-factor. It is also the only value in the sweep that is not beaten on the metric it is best at.
-
----
-
-## The decision this task has to make
-
-**Keep both values — and stop them being anonymous.**
-
-| | |
-|---|---|
-| **Keep 1.7 and 2.5, name them, expose the second, record the measurement** ✅ | The sweep says 2.5 sits at the optimum of the metric that varies and the rough factor's value is nearly irrelevant. A constant that survives measurement is worth more than one nobody questioned |
-| Move the final factor to 1.5 | Buys 3 detections on one phantom for 80 % worse radii on four. And the phantom it helps is the one that argues for a *different* substrate strategy, not a smaller disk |
-| Make them adaptive — track the largest particle, not the median | The right question for a polydisperse sample, and it is a different algorithm with its own ADR. **Filed as B-067**, with the measurement that motivates it |
-
-**What changes in the code:** the bare `2.5` becomes a named, documented parameter, matching the
-rough factor that already is one. A magic literal inside a branch is not a decision anyone can
-revisit — the whole reason this finding took two tasks to reach.
+Both bodies already branch on `None` (`log.py:237`, `substrate.py:334`) — the *documented* meaning
+of the default is "not supplied, compute it". The annotation says the opposite: that the parameter
+is always a number. Same defect as the rebinding, stated the other way round — **an annotation
+that does not describe the value the code actually carries** — and mypy reports 6 of its 12 errors
+against those two patterns.
 
 ---
 
@@ -90,60 +45,53 @@ revisit — the whole reason this finding took two tasks to reach.
 
 **In scope**
 
-1. `DEFAULT_ROUGH_SCALE = 1.7` and `DEFAULT_OPENING_SCALE = 2.5` as named module constants, each
-   documented with what the sweep measured
-2. `build_substrate_map(..., opening_scale: float = DEFAULT_OPENING_SCALE)` — the literal becomes
-   a parameter
-3. Tests: the defaults are unchanged, the parameter reaches `disk()`, and the **trade-off
-   direction** is pinned as a property — a larger opening merges touching particles
-4. The `5` floor gets a name too; it is the third undocumented number on that line
+1. `log.py` — stop rebinding: the accumulator keeps its list type, the array gets its own name
+2. `log.py:192` — `threshold: float | None = None`, which also removes the caller's error at
+   `log.py:381` (`LogDetector.threshold` is already `float | None`)
+3. `substrate.py:301` — `manual_radius_px: float | None = None`
+4. Two tests: an **explicit** `None` is accepted at both entry points and gives the same answer as
+   omitting the argument — the meaning the annotation now states
 
 **Out of scope**
 
-- **Changing either value.** The measurement says keep them
-- **B-067** — an adaptive margin that tracks the largest particle
-- **B-062** — `afm_sparse_low_snr` scores 0 at *every* factor in the sweep, which is more evidence
-  that its problem is the detector's threshold and not the substrate
+- The remaining 6 mypy errors. Four are in `pipeline.py`: three pass `ndarray | None` into
+  functions that require an array — a real question about what detect mode returns — and one is
+  the `if/elif` detector dispatch the port exists to remove. Both are M4's, not a rename.
+  `yolo.py:124` and `plots.py:37` are third-party overloads
+- `r = max(int(sigma), 1)` at `log.py:165`. It is a truncation in the family M3-T24 hunted, but it
+  sizes a *neighbourhood window for a peak lookup*, not a physical radius, and changing it moves
+  numbers. Not smuggled in (ADR-0010); recorded here and not filed, because a window that is one
+  pixel small on a blob's peak is not a defect anyone can demonstrate
+
+---
+
+## No ADR, and why
+
+M3's gate (ADR-0010) is "one defect, one commit, one ADR, one golden update" and it exists because
+these tasks *move numbers*. This one cannot: an annotation is not executed. **No decision is
+made** — the annotations are being made to agree with the branches already in the code, and where
+the code and the annotation disagreed, the code was right. **M3-T18 set this precedent** and is
+recorded as such in `TASKS.md`.
+
+What this task still owes the gate is the *measurement*: the golden delta, stated and verified,
+and the mypy count before and after.
 
 ---
 
 ## Expected blast radius, before measuring
 
-- **Zero golden differences.** The defaults are the current values and the arithmetic is
-  unchanged; this is a naming and plumbing change with a measurement attached.
-- If anything moves, a default was mistyped.
+- **Zero golden differences**, and unlike previous tasks that predicted zero, here it is a
+  property of the change rather than an expectation: no executable line changes.
+- **mypy 12 → 6.** If it lands anywhere else, something other than an annotation moved.
 
 ---
 
 ## Definition of done
 
-- [x] Both factors and the floor are named constants with the sweep in their docstrings
-- [x] `opening_scale` is a parameter; the default reproduces today exactly
-- [x] Tests — **12**, including the trade-off property and the defaults asserted literally
-- [x] `make check` green — 476 tests; delta **zero, golden byte-identical**
-- [x] ADR-0037 carrying the full sweep; **B-067 filed**; `Backlog.md` (B-064 → done), `STATE.md`,
-      `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M3-T26: the opening-radius constants are named, exposed and measured`
-
----
-
-## What it turned up
-
-**The flat response of the rough factor explains the previous task.** Recall and precision are
-identical from 1.3 to 2.4 — so ADR-0035's truncation, which shifted that factor's *effective*
-value to 1.39, could never have shown up in any quality metric. **A constant whose value does not
-measurably matter does not get audited**, and that is a general lesson about where defects hide,
-not a fact about this one.
-
-**B-067 came out of the sweep rather than out of reading.** `afm_tilted_polydisperse` is the only
-phantom that loses a detection as the factor grows, and it is the polydisperse one — which is the
-signature of a margin derived from the *median* particle being too small for the large half of the
-distribution.
-
----
-
-## Notes
-
-The outcome "the constants were already right" is a real result, not a wasted task: it is the
-difference between a number nobody has checked and a number someone has. The sweep goes in the
-ADR so the next person to change it starts from data.
+- [ ] No rebinding in `estimate_log_threshold_adaptive`
+- [ ] Both defaults annotated `float | None`
+- [ ] Tests — explicit `None` at both entry points, equal to the omitted argument
+- [ ] `make check` green; delta **zero, golden byte-identical**
+- [ ] `make types` reports **6**
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [ ] Commit: `M3-T19: the annotations stop lying about None`
