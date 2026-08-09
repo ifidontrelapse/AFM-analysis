@@ -7,6 +7,66 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## M3 — milestone summary
+
+**Closed 2026-08-09** on the operator's decision, with `M3-T16` left open and blocked on **B6**.
+Twenty-five of twenty-six tasks done; **twenty-four ADRs**, ADR-0014 through ADR-0037.
+
+| Exit criterion | Result |
+|---|---|
+| Every critical and high defect closed, each with commit + ADR + golden update | ✅ 2026-08-06. Critical D-01, D-02, D-03, D-04, D-19; high D-05/D-06, D-07 (three faces), D-08, D-12, D-18 |
+| Degenerate-input contract documented and tested at every numerical entry point | ✅ M3-T13, ADR-0030. Seven error classes, one `ensure_height_map` at fourteen entry points, 7 bad inputs × 10 entry points proven to give one error type |
+| One measurement schema across all four producers | ✅ M3-T14, ADR-0031. Blocks present-in-full or absent-in-full, `method` naming the producer |
+| Evaluation harness reports precision / recall / localisation per phantom | ✅ M3-T15, ADR-0032. One-to-one optimal assignment, a scale-free match radius |
+| Operator sign-off on D-04 semantics and D-12 polarity | ✅ 2026-08-05, both executed |
+
+**Every defect the July audit reproduced is closed except `D-24`** — the stale README, which M9
+owns. Twenty-three of twenty-four, across M1, M2 and M3.
+
+**What M3 actually bought.** The pipeline computes what it claims to compute, and every change to
+what it computes is *stated*: 26 tasks, each with its own commit, its own ADR and a measured
+before/after delta against seeded phantoms. Tests 119 → **478**. mypy **20 → 6**. The two changes
+that moved the most numbers moved them for reasons written down before they were measured —
+M3-T09's 696 values (opening radii round up) and M3-T24's 730 (the rough estimate stops
+truncating itself).
+
+**The pattern that repeated, and is the milestone's real finding.** Five times, closing a defect
+meant first extending the harness that had missed it — M3-T05, T07, T12, T22, T25 each shipped a
+golden probe for behaviour nobody had recorded. **A characterization suite pins what you thought
+to record.** The corollary showed up in M3-T26: `scale=1.7` survived five months of review because
+its value made no measurable difference, and *a constant whose value does not matter does not get
+audited*.
+
+**Eight substitute values deleted.** `1.0` for a missing confidence, `1.0` for an unknown pixel
+scale, a fabricated scan size, `nan` where a raise belonged, an empty tuple for an absent bbox,
+`2.4997` for a threshold, a `NaN` height presented as a measurement, and zero-fill for a dropped
+scan line. The rule that emerged and held: **absent is a state, not a number.**
+
+**What M3 got wrong, and corrected in the open.** M3-T24's plan predicted a delta ~70× smaller
+than it measured — the rough radius also feeds the LoG sigma range, which nobody had traced.
+ADR-0025's diagnosis of `afm_sparse_low_snr` was corrected by M3-T23: losing the scale did two
+things and the filter was the smaller one. Both corrections sit where the original claim was made.
+
+**What M3 did not do, and named instead of hiding.** `M3-T16` needs real multi-version Nanoscope
+files (**B6**). Four findings are open because each is an algorithm choice with an operator's view
+attached: **B-062** (recall 0.000 on `afm_sparse_low_snr` — six particles, none found), **B-065**
+(a gap-tolerant *pipeline*, not just levelling), **B-066** (deliberate interpolation), **B-067**
+(an opening margin from the radius distribution's upper tail). They stay in M3's list; the
+roadmap allows M4 to run in parallel.
+
+**Not claimed, and said throughout: a phantom is not a sample.** Every quality number in this
+milestone is measured against synthetic ground truth. What it licenses is *comparison* — this
+version against that one — not an accuracy claim about a real scan.
+
+### Next
+
+**M4 — application layer**, and the risk profile inverts: the domain is called, not modified, so
+no task in M4 should move a golden number at all. `M4-T01` is first — the project directory
+format as a versioned public contract, which ADR-0003 already sketched and explicitly deferred
+to this task.
+
+---
+
 ## 2026-08-09 — M3-T19 · **the annotations stop lying about `None`; M3's exit criteria are met**
 
 **Task:** `M3-T19`. **Branch:** `sci/m3-numerical-correctness`. **ADR:** none — an annotation is

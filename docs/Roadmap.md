@@ -19,7 +19,7 @@ so that every change has a safety net beneath it.
 | **M0** | Engineering foundation | Documentation, rules, task system | no | — |
 | **M1** | Hygiene & quality gates | A repository that can be worked in | no | M0 |
 | **M2** | Domain extraction | Clean Architecture skeleton, science moved verbatim | **no — enforced** | M1 |
-| **M3** | Numerical correctness | Fix the 24 audited defects, deliberately | **yes — intentionally** | M2 |
+| **M3** ✅ | Numerical correctness | Fix the 24 audited defects, deliberately | **yes — intentionally** | M2 |
 | **M4** | Application layer | Projects, persistence, jobs, devices, models | no | M2 |
 | **M5** | GUI shell | Qt6 application that opens, shows, and navigates | no | M4 |
 | **M6** | Analysis workflow | Detect / segment / measure / export from the UI | no | M5 |
@@ -111,7 +111,12 @@ strings; retire dead code.
 
 ---
 
-## M3 — Numerical correctness
+## M3 — Numerical correctness ✅
+
+**Closed 2026-08-09.** All five exit criteria met; 25 of 26 tasks done, ADR-0014…ADR-0037.
+`M3-T16` stays open and blocked on **B6**, and four findings (**B-062**, **B-065**, **B-066**,
+**B-067**) stay in the list because each is an algorithm choice needing an operator's view.
+Milestone summary in `docs/Progress.md`.
 
 **Goal.** The pipeline computes what it claims to compute.
 

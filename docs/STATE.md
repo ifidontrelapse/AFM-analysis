@@ -9,21 +9,19 @@
 
 ## Current milestone
 
-**M3 — Numerical correctness**
+**M4 — Application layer**
 
-**All five of M3's exit criteria are met** (the last three ticked 2026-08-09, having closed on
-2026-08-07). Every `critical` and `high` defect the audit reproduced is closed — critical: D-01,
-D-02, D-03, D-04, D-19; high: D-05/D-06, D-07 (three faces: M3-T11, T20, T17), D-08, D-12, D-18.
-The degenerate-input contract (M3-T13, ADR-0030), one measurement schema (M3-T14, ADR-0031) and
-the evaluation harness (M3-T15, ADR-0032) are done, and the operator sign-offs were given on
-2026-08-05.
+Projects, images, jobs, devices, models, settings and logs exist and are persisted, with no UI
+attached. **The risk profile inverts here:** the scientific core is *called*, not modified, so no
+task in M4 should move a golden number at all — a red golden in M4 is a bug in M4, which is why
+ADR-0010's one-defect-one-commit rule does not need to be restated for it.
 
-**The milestone is not formally closed, and that is a decision waiting on the operator** — see
-"Current task" below.
-
-Fix the defects the audit reproduced. **The rules change here:** every task gets its own
-commit, its own ADR, its own golden update, and a quantified before/after delta in
-`docs/Progress.md`. Never bundled (ADR-0010).
+**M3 closed 2026-08-09** on the operator's decision — 25 of 26 tasks, ADR-0014…ADR-0037, all five
+exit criteria met, tests 119 → 478, mypy 20 → 6, and **every defect the July audit reproduced
+closed except D-24** (the stale README, M9). Left open on purpose: `M3-T16` (blocked on **B6**)
+and four findings that are each an algorithm choice needing an operator's view — **B-062**,
+**B-065**, **B-066**, **B-067**. They stay in M3's list; the roadmap allows M4 to run in parallel.
+Milestone summary in `docs/Progress.md`.
 
 **M2 closed 2026-08-04** — sixteen tasks, 2 021 lines of science moved into four named
 layers, and **not one number changed**. Five of six exit criteria met in full; the sixth
@@ -36,11 +34,12 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M3-T19` closed 2026-08-09 and it was the last item in M3 that needed no
-decision.**
+**`M4-T01` — specify the project directory format (layout, schema version, compatibility rules).**
+Selected 2026-08-09; plan in `docs/CURRENT_TASK.md`. ADR-0003 fixed the layout and explicitly
+deferred the *contract* — the version number and the compatibility rules — to this task.
 
-**`M3-T19` done 2026-08-09 (no ADR — an annotation is not executed; the M3-T18 precedent).** Filed
-as three mypy errors about a `list[float]` rebound to an ndarray; reading the file for it found
+**`M3-T19` done 2026-08-09, the last task of M3** (no ADR — an annotation is not executed; the
+M3-T18 precedent). Filed as three mypy errors about a `list[float]` rebound to an ndarray; reading the file for it found
 the same class twice more, stated the other way round — `threshold: float = None` and
 `manual_radius_px: float = None`, **implicit Optionals whose bodies branch on `None` two dozen
 lines later**. Six of mypy's twelve errors, one defect class: *an annotation that does not describe
@@ -50,13 +49,12 @@ golden was left untouched. mypy **12 → 6**, and the remainder is not annotatio
 explicit `None` equals the omitted argument. Recorded, not filed: `r = max(int(sigma), 1)` at
 `log.py:165` sizes a peak-lookup window, not a physical radius.
 
-**The decision in front of the operator: take one of the four open findings, or close M3 and open
-M4.** The roadmap allows M4 to run in parallel with M3 (§"Sequencing", point 3). Every remaining
-M3 item is an algorithm choice, not an afternoon.
+**The operator's decision, 2026-08-09: close M3 and open M4** rather than take one of the four
+open findings. The roadmap allows the two to run in parallel (§"Sequencing", point 3).
 
-The state before this session, still accurate: Every numerical defect the audit
-reproduced is closed, detection quality is measured, and **B-059, B-060, B-061, B-063 and B-064**
-are closed with them. Inside M3's task list only **M3-T16** (blocked on **B6**) remains.
+The state carried forward: every numerical defect the audit reproduced is closed, detection
+quality is measured, and **B-059, B-060, B-061, B-063 and B-064** are closed with them. Inside
+M3's task list only **M3-T16** (blocked on **B6**) remains.
 
 **Everything else open needs a decision, not an afternoon:** **B-062** (recall 0.000 — wants an
 operator's view of a sensitivity trade-off), **B-065** (a gap-tolerant *pipeline* — needs an

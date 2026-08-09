@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-08 · **Active:** **every numerical defect the audit reproduced is closed, detection quality is measured, and B-059, B-061 and B-063 with them** (M3-T22 → T24). What is left in M3 is `M3-T16` (**blocked on B6**), `M3-T19` (low), **B-062** (wants an operator view), and the findings M3-T25/T26 filed — **B-065**, **B-066**, **B-067**. `M3-T08`, `M3-T13` and `M3-T14` closed 2026-08-07, `M3-T02`, `M3-T20`, `M3-T17`, `M3-T12`, `M3-T05` on 2026-08-06, `M3-T09`, `M3-T10`, `M3-T21` and `B-058` on 2026-08-05
+**Updated:** 2026-08-09 · **Active:** **M4 — application layer.** M3 closed 2026-08-09 with 25 of 26 tasks done and all five exit criteria met (`M3-T19` last, 2026-08-09); `M3-T16` stays open and blocked on **B6**, and **B-062**, **B-065**, **B-066**, **B-067** stay in M3 as algorithm choices needing an operator's view. Every defect the July audit reproduced is closed except **D-24** (the stale README, M9). `M4-T01` is the current task
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -69,7 +69,7 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 ---
 
-## M3 — Numerical correctness
+## M3 — Numerical correctness ✅ (closed 2026-08-09)
 
 > **Gate for every task in this milestone:** its own commit, its own ADR, its own golden
 > update, and a quantified before/after delta in `Progress.md`. Never bundled.
