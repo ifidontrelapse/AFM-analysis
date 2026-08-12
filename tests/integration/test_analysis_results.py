@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from conftest import revert_to
 
 from nanoscope.application.use_cases import run_analysis
 from nanoscope.core.entities import Detection, PipelineConfig, PipelineResult
@@ -220,15 +221,10 @@ class TestTheMigrationThatBroughtTheseTables:
         with SqliteProjectRepository.create(root, "P") as repo:
             (root / "images" / "a.spm").write_bytes(b"AFM")
             recorded = repo.add_image("images/a.spm", modality=Modality.AFM)
-            # Back to the world as M4-T02 left it: every table above v1 dropped,
-            # and the version number with them. Dropping *all* of them is the
-            # point — a database that claims v1 while carrying a v3 table is not
-            # a v1 database, and the migration would rightly fail on it.
-            repo._conn.execute("DROP TABLE annotations")
-            repo._conn.execute("DROP TABLE detections")
-            repo._conn.execute("DROP TABLE analysis_runs")
-            repo._conn.execute("PRAGMA user_version = 1")
-            repo._conn.commit()
+            # Back to the world as M4-T02 left it. Every table above v1 goes:
+            # a database that claims v1 while carrying a v4 table is not a v1
+            # database, and the migration is right to refuse it.
+            revert_to(repo._conn, 1)
 
         with SqliteProjectRepository.open(root) as repo:
             assert schema_version(repo._conn) == SCHEMA_VERSION

@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from conftest import revert_to
 
 from nanoscope.core.entities import Annotation, AnnotationSource
 from nanoscope.core.errors import InvalidParameterError
@@ -188,9 +189,7 @@ class TestTheMigrationThatBroughtThem:
         with SqliteProjectRepository.create(root, "P") as repo:
             (root / "images" / "a.spm").write_bytes(b"AFM")
             recorded = repo.add_image("images/a.spm", modality=Modality.AFM)
-            repo._conn.execute("DROP TABLE annotations")
-            repo._conn.execute("PRAGMA user_version = 2")
-            repo._conn.commit()
+            revert_to(repo._conn, 2)
 
         with SqliteProjectRepository.open(root) as repo:
             assert repo.list_images() == [recorded]

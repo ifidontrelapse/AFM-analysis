@@ -26,6 +26,7 @@ The rest ship with their first adapter, each with the task that brings one:
 | `ImageLoader` | a loader class, once `application` has a use case that needs one | M2-T10 / M6 |
 | `Segmenter` | the first SAM2 wrapper that is a class rather than a function | M4 |
 | `DeviceProvider` | `DeviceManager` — CPU / CUDA / ROCm / MPS | M4-T12 |
+| `SettingsStore` | ✅ **arrived** with `JsonSettings` and the repository | M4-T10 |
 | `TrainingProvider` | local and remote training | M7 |
 
 This table is the commitment; an empty `Protocol` would only have been the
@@ -36,5 +37,6 @@ to talk about a project without importing `sqlite3` (M4-T04).
 
 from nanoscope.core.ports.detector import Detector
 from nanoscope.core.ports.project_repository import ProjectRepository
+from nanoscope.core.ports.settings import SettingsStore
 
-__all__ = ["Detector", "ProjectRepository"]
+__all__ = ["Detector", "ProjectRepository", "SettingsStore"]

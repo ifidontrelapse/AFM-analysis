@@ -131,6 +131,20 @@ _V3 = (
     "CREATE INDEX annotations_by_image ON annotations(image_id)",
 )
 
+# The preferences that belong to this project rather than to the operator
+# (M4-T10). A key/value table, and `value` is JSON text so a boolean comes back
+# a boolean — a settings store that returns everything as a string makes every
+# reader parse, and one of them gets it wrong (ADR-0047).
+_V4 = (
+    """
+    CREATE TABLE settings (
+        key         TEXT PRIMARY KEY,
+        value       TEXT NOT NULL,
+        updated_utc TEXT NOT NULL
+    )
+    """,
+)
+
 #: Every step from an empty file to the current schema, in order. A step is its
 #: target version and the statements that reach it; they run in one transaction
 #: and the version moves with them.
@@ -138,7 +152,12 @@ _V3 = (
 #: Adding a step is the only way the schema changes. Never edit a step that has
 #: shipped — a project on disk has already run it, and rewriting it makes two
 #: databases that both claim the same version.
-MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = ((1, _V1), (2, _V2), (3, _V3))
+MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
+    (1, _V1),
+    (2, _V2),
+    (3, _V3),
+    (4, _V4),
+)
 
 #: What this application writes and can read. Derived from the list rather than
 #: declared beside it, because a constant that can disagree with the migrations
