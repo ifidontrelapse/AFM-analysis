@@ -81,7 +81,8 @@ AFM-analysis/
 │   ├── gui/                            # PySide6 — the only package that imports Qt
 │   │   ├── launcher.py                 # QApplication + the event loop (M5-T02)
 │   │   ├── main_window.py              # menus, docks, status bar, layout (M5-T02)
-│   │   └── theme/                      # tokens.py + style.qss, one colour table (M5-T03)
+│   │   ├── theme/                      # tokens.py + style.qss, one colour table (M5-T03)
+│   │   └── panels/project_explorer.py  # images, and the removal that counts first (M5-T04)
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
@@ -91,7 +92,7 @@ AFM-analysis/
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01) — 153 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02, T03) — 36 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…T04) — 48 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

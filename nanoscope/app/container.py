@@ -26,6 +26,7 @@ from nanoscope.application.jobs import JobRunner
 from nanoscope.application.settings import Settings
 from nanoscope.application.use_cases import open_project
 from nanoscope.core.entities.project import OpenedProject
+from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import DeviceKind
 from nanoscope.infrastructure.device import DeviceManager
 from nanoscope.infrastructure.storage import JsonSettings, SqliteProjectRepository
@@ -57,7 +58,10 @@ class Nanoscope:
         self.devices = devices or DeviceManager()
         self.jobs = JobRunner(max_workers=max_workers)
         self.commands = CommandStack()
-        self.repository: SqliteProjectRepository | None = None
+        #: Typed as the **port**: the GUI may not import `infrastructure`
+        #: (Architecture §3.2), and a container that hands out a concrete
+        #: adapter is a container that makes the rule unenforceable (M5-T04).
+        self.repository: ProjectRepository | None = None
 
     # ── The open project ──────────────────────────────────────────────────────
 

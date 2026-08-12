@@ -7,6 +7,41 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T04 · **a panel that counts what a deletion would cost**
+
+**Task:** `M5-T04`. **ADR:** **ADR-0055**. **ADR-0044's obligation is discharged where it was
+addressed.**
+
+That ADR decided annotations cascade with their image, then wrote a note to a task that did not
+exist yet: *`annotations_for` exists to be counted before the deletion, by a confirmation dialog
+that can say "this image has 12 annotations"*. Nothing could remove an image until this panel.
+
+### The decisions
+
+**The dialog says the count and what survives** — three facts, all non-obvious: the annotations go,
+**they cannot be recomputed**, and **the file itself stays** in `images/` and will then be reported
+as untracked. The third is the one an operator gets wrong in the other direction: a dialog saying
+only "delete?" leaves them believing their scan is gone, and it is still there.
+
+**No dialog when there is nothing to lose.** A confirmation that always appears is one nobody reads
+by the third time — and then the one that mattered is clicked through as well. The guard is worth
+having *because* it is rare, and making it rare is the only way to keep it worth reading.
+
+**A missing file is marked, not hidden.** The integrity report is already in hand, so the row says
+so and greys itself: a panel that lists an image whose file is gone without saying so is a panel
+that lies quietly.
+
+**`Nanoscope.repository` is now typed as the port.** `gui/` may not import `infrastructure`, and a
+container that hands out a concrete adapter makes that rule unenforceable — mypy would infer the
+SQLite class into every panel, and the guard that checks *imports* would never notice. The first
+panel is where that becomes real, so it changed here rather than in a tidy-up.
+
+### Numbers
+
+11 panel tests, **900** in the suite; golden byte-identical; mypy unchanged at 6.
+
+---
+
 ## 2026-08-13 — M5-T03 · **one source of colour truth, and a contrast floor that can fail**
 
 **Task:** `M5-T03`. **ADR:** **ADR-0054**, implementing ADR-0002's "dark theme only, design tokens

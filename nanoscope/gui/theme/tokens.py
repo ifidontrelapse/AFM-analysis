@@ -19,6 +19,11 @@ fights. One accent, used for what is selected and what is running.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from PySide6.QtGui import QColor
+
 #: The surfaces, darkest first. `BACKGROUND` is behind everything, `SURFACE` is
 #: panels and docks, `RAISED` is what sits on top of a panel — a toolbar, a
 #: header row, a selected item's backdrop.
@@ -83,6 +88,18 @@ TEXT_ON_BACKGROUND: tuple[tuple[str, str], ...] = (
     (WARNING, SURFACE),
     (DANGER, SURFACE),
 )
+
+
+def qcolor(token: str) -> QColor:
+    """A token as a `QColor`, for the places Qt wants an object rather than CSS.
+
+    Here rather than in each panel so a widget still never writes a colour: it
+    names a token and asks for it (ADR-0054).
+    """
+    from PySide6.QtGui import QColor
+
+    return QColor(token)
+
 
 #: The floor: WCAG AA for body text. Not a suggestion — the test that enforces it
 #: is the reason the palette above was adjusted rather than eyeballed.

@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.core.errors import NanoscopeError
+from nanoscope.gui.panels import ProjectExplorer
 
 if TYPE_CHECKING:
     from nanoscope.app.container import Nanoscope
@@ -49,7 +50,6 @@ STATE_SETTING = "window.state"
 #: Each dock, and the task that fills it. Written as data so the next task
 #: replaces one line instead of hunting for its placeholder.
 DOCKS: tuple[tuple[str, str, Qt.DockWidgetArea], ...] = (
-    ("Project", "The project explorer arrives in M5-T04.", Qt.DockWidgetArea.LeftDockWidgetArea),
     (
         "Properties",
         "Image and run properties arrive in M5-T06.",
@@ -57,6 +57,10 @@ DOCKS: tuple[tuple[str, str, Qt.DockWidgetArea], ...] = (
     ),
     ("Log", "The log panel arrives in M5-T08.", Qt.DockWidgetArea.BottomDockWidgetArea),
 )
+
+#: The one dock with a panel in it (M5-T04). The others are still placeholders,
+#: and each names the task that replaces it.
+PROJECT_DOCK = "Project"
 
 
 class MainWindow(QMainWindow):
@@ -77,6 +81,12 @@ class MainWindow(QMainWindow):
     # ── Building ──────────────────────────────────────────────────────────────
 
     def _build_docks(self) -> None:
+        self.explorer = ProjectExplorer(self._app, self)
+        project_dock = QDockWidget(PROJECT_DOCK, self)
+        project_dock.setObjectName("dock.project")
+        project_dock.setWidget(self.explorer)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, project_dock)
+
         for title, message, area in DOCKS:
             dock = QDockWidget(title, self)
             #: Named so `saveState()` can find it again — a dock without an
@@ -94,6 +104,11 @@ class MainWindow(QMainWindow):
         self.open_action.setShortcut("Ctrl+O")
         self.open_action.triggered.connect(self.choose_project)
 
+        self.remove_action = QAction("&Remove Image from Project", self)
+        self.remove_action.triggered.connect(self.explorer.remove_selected)
+        self.remove_action.setEnabled(False)
+        self.explorer.image_selected.connect(lambda _: self.remove_action.setEnabled(True))
+
         self.close_action = QAction("&Close Project", self)
         self.close_action.triggered.connect(self.close_project)
         self.close_action.setEnabled(False)
@@ -105,6 +120,8 @@ class MainWindow(QMainWindow):
         for action in (self.open_action, self.close_action):
             file_menu.addAction(action)
             toolbar.addAction(action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.remove_action)
         file_menu.addSeparator()
         file_menu.addAction(quit_action)
 
@@ -137,6 +154,7 @@ class MainWindow(QMainWindow):
             self._refuse(str(refusal))
             return None
 
+        self.explorer.show_project(opened)
         self.setWindowTitle(f"{opened.name} — nanoscope")
         self.close_action.setEnabled(True)
         self.statusBar().showMessage(_summarise(opened))
@@ -144,6 +162,8 @@ class MainWindow(QMainWindow):
 
     def close_project(self) -> None:
         self._app.close_project()
+        self.explorer.show_project(None)
+        self.remove_action.setEnabled(False)
         self.setWindowTitle("nanoscope")
         self.close_action.setEnabled(False)
         self.statusBar().showMessage("No project open")

@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M5-T03`
-**Title:** One source of colour truth, and a contrast check that can fail
-**Milestone:** M5 — GUI shell, third task
-**Defect:** — · **ADR:** ADR-0002 decided dark-only; **ADR-0054** records how it is built
+**ID:** `M5-T04`
+**Title:** The project explorer, and the confirmation ADR-0044 asked for
+**Milestone:** M5 — GUI shell, fourth task
+**Defect:** — · **ADR:** **ADR-0055**
 **Branch:** `feat/m5-gui-shell`
 **Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,40 +11,47 @@
 
 ## Why this task is next
 
-ADR-0002: *"Dark theme only. One theme, defined by design tokens plus a QSS stylesheet in
-`gui/theme/`. No runtime theme switching, no light variant."* M5-T02 deliberately kept Qt's
-defaults so the theme would arrive as one visible change rather than as a diff nobody can see.
+M5-T02 left a dock saying "the project explorer arrives in M5-T04". More importantly, **ADR-0044
+ended on an obligation addressed to this task by name**: annotations cascade when an image is
+removed, and
 
-It is also the last task before panels start landing (M5-T04, T05, T08). A panel written against
-no theme is a panel restyled twice.
+> *`annotations_for` exists to be counted **before** the deletion, by a confirmation dialog that
+> can say "this image has 12 annotations".*
+
+Until now nothing could remove an image, so the obligation had nowhere to land. This is the first
+panel that can, so it is the task that pays it.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Where does a colour live, and how is "one source of truth" *enforced*?** In
-`gui/theme/tokens.py`, and enforced by a **test that fails on a raw hex value in the stylesheet.**
+**1. What does the confirmation actually say?** The **count**, and what it means.
 
-A rule that says "do not hardcode colours" and is checked by review is a rule that lasts until the
-first hurried commit. The QSS carries `@token` placeholders, substituted at load; a literal `#1e1e1e`
-anywhere in it turns a test red.
+Not "Are you sure?" — which is a dialog people click through — but *"scan_01.spm has 12 annotations.
+Removing the image deletes them. The file itself stays in `images/`."* Three facts, because all
+three are non-obvious: annotations are hand work that cannot be recomputed (ADR-0044), the file is
+**not** deleted (ADR-0040's `remove_image` leaves it), and what remains becomes an untracked file
+the integrity check will report.
 
-**2. QSS alone, or QSS plus a palette?** Both, from the same tokens.
+An image with **no** annotations is removed without a dialog. A confirmation that always appears is
+one nobody reads by the third time, and then the one that mattered is clicked through too.
 
-A stylesheet does not reach everything Qt draws — tooltips, dialog buttons, the text cursor, the
-disabled states of built-in widgets. `Fusion` plus a `QPalette` built from the tokens gives a
-coherent base; QSS refines what the palette cannot express. Two consumers, one table of values.
+**2. Does the panel talk to the repository or to a viewmodel?** To the container, as `MainWindow`
+does. M5-T06 owns the viewmodel layer, and inventing half of one here — for a panel with a list and
+two actions — is the abstraction this project keeps declining.
 
-**3. Is the theme readable?** **Checked, not asserted.** Relative luminance and a contrast ratio are
-ten lines of arithmetic, and they turn "the dark theme is fine" from an opinion into a test: every
-text-on-background pair in the tokens must clear **4.5:1**, the WCAG AA threshold for body text.
+What *does* change: `Nanoscope.repository` is typed as the **port**, not the SQLite class. The GUI
+may not import `infrastructure` (Architecture §3.2), and a container that hands out a concrete
+adapter is a container that makes the rule unenforceable.
 
-This is the one thing in a theme task worth being strict about. A dark theme that looks good on the
-author's monitor and is unreadable on a laboratory projector is the normal outcome, and the only
-defence is a number.
+**3. What does the panel show?** Name, modality, scale — and **which files are missing**, marked
+from the integrity report the container already carries. A dock that lists an image whose file is
+gone, without saying so, is a panel that lies quietly.
 
-**4. Runtime switching?** No — ADR-0002 already decided it, and the tokens being a Python module
-rather than a settings key is what keeps it decided.
+**4. Is removal undoable?** No, and that is ADR-0045's rule rather than an omission: the command
+stack holds annotation edits, and removing an image is guarded by the confirmation in decision 1
+instead. Making it undoable means holding a deleted image's rows in memory to reinsert them, which
+is a bigger promise than a dialog.
 
 ---
 
@@ -52,48 +59,30 @@ rather than a settings key is what keeps it decided.
 
 **In scope**
 
-1. `gui/theme/tokens.py` — colours, spacing, radii, the type scale; each colour with its purpose
-2. `gui/theme/style.qss` — the stylesheet, in `@token` placeholders only
-3. `gui/theme/__init__.py` — `apply_theme(app)`: Fusion, the palette, the substituted QSS
-4. `MainWindow` and the launcher wired to it
-5. **ADR-0054** — tokens as the only source, palette *and* QSS, the contrast floor
-6. Tests: every placeholder resolves, **no raw hex in the QSS**, contrast ≥ 4.5:1 for text pairs,
-   the theme applies to a real `QApplication`
+1. `gui/panels/project_explorer.py` — the list, the selection signal, the remove action
+2. The confirmation, counting annotations before it asks
+3. `MainWindow` wiring: the dock's placeholder replaced, the panel populated on open and cleared
+   on close
+4. `Nanoscope.repository` typed as `ProjectRepository`
+5. **ADR-0055** — what the confirmation says and when it appears, the port in the container
+6. Tests: population, a missing file marked, selection emitted, the confirmation counting
+   correctly, cancelling changing nothing, and removal without annotations not asking at all
 
 **Out of scope**
 
-- **A light theme or a switcher** — ADR-0002 said no, twice
-- **Icons** — they arrive with the panels that need them
-- **Per-widget polish** for panels that do not exist yet
+- **The image viewer** — M5-T05 consumes the selection signal this task emits
+- **Importing images from the panel** — a file dialog and a job; M5-T07's shape
+- **A viewmodel layer** — M5-T06
 
 ---
 
 ## Definition of done
 
-- [x] Tokens, stylesheet and loader, with no colour written twice
-- [x] A contrast test that would fail on an unreadable pair
-- [x] A test that fails on a raw hex value in the QSS
-- [x] ADR-0054
-- [x] `make check` green — 888 tests, golden byte-identical
+- [x] A panel listing the project's images, with missing files marked
+- [x] The confirmation says the count, the consequence and what survives
+- [x] No dialog when there is nothing to lose
+- [x] ADR-0055
+- [x] Headless tests, including cancelled and unguarded removals
+- [x] `make check` green — 902 tests, golden byte-identical
 - [x] Docs, the ADR index
-- [x] Commit: `M5-T03: one source of colour truth, and a contrast check that can fail`
-
----
-
-## What it turned up
-
-**The substitution ran over the stylesheet's own comment** — the one explaining what an `@{token}`
-is. A checker that reads prose as code fails on the documentation telling it what it does. Comments
-are stripped before substitution now, which Qt does not mind because it ignores them anyway.
-
-**`@space_mdpx` parsed as one token name.** Token names and CSS units are both lowercase letters,
-so the placeholder needed a delimiter — `@{space_md}px`. Found by writing it the ambiguous way
-first and getting a `KeyError` naming a token nobody had defined, which is at least the failure
-mode the loader was designed for.
-
-**The contrast floor changed the palette rather than the other way round.** The greens and ambers
-are lighter than a first instinct because 4.5:1 said so, which is the entire argument for having a
-number instead of an eye.
-
-**Verified rather than assumed:** a wheel was built and inspected, and `style.qss` is in it. A
-theme that only works from a checkout is not a theme.
+- [x] Commit: `M5-T04: a panel that counts what a deletion would cost`

@@ -40,9 +40,18 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T03` done 2026-08-13 (ADR-0054); `M5-T04` — the project explorer — is next**,
-and it carries one of M4's outstanding obligations: counting annotations before `remove_image`
-discards them (ADR-0044).
+**None selected. `M5-T04` done 2026-08-13 (ADR-0055); `M5-T05` — the image viewer — is next**, and
+it consumes the selection signal this task emits.
+
+**`M5-T04` done 2026-08-13 (ADR-0055) — a panel that counts what a deletion would cost. ADR-0044's
+obligation is discharged where it was addressed:** the confirmation says the **count**, that the
+annotations cannot be recomputed, and that **the file itself stays** — the fact an operator
+otherwise gets wrong in the other direction. **No dialog when there is nothing to lose**, because a
+confirmation that always appears is one nobody reads by the third time. A missing file is **marked,
+not hidden**. Removal stays **not undoable** (ADR-0045's rule: undo holds edits, and reinserting a
+deleted image's rows, runs and annotations is a larger promise than a dialog). **`Nanoscope.repository`
+is now typed as the port**, because a container handing out a concrete adapter makes "the GUI may
+not import infrastructure" unenforceable. 11 tests, **900** in the suite.
 
 **`M5-T03` done 2026-08-13 (ADR-0054, implementing ADR-0002) — one source of colour truth, and a
 contrast floor that can fail.** The stylesheet carries `@{token}` placeholders and **no colour of
@@ -1275,9 +1284,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M5-T04` — the project explorer**, which is where ADR-0044's obligation lands: an image can
-   now be removed from a panel, and the confirmation has to count the annotations it would take
-   with it. **`M5-T07`** still owes ADR-0043's thread hop for job listeners
+1. **`M5-T05` — the image viewer**: zoom, pan, colormap, LUT range, scale bar, nm readout. It
+   consumes M5-T04's selection signal and is where a scan is finally *seen*. **`M5-T07`** still
+   owes ADR-0043's thread hop for job listeners
 2. **`make types` joins `make check` as blocking.** M4 is over, so the M1 exit criterion deferred
    "while the legacy core is `src/`" is now only about the **6** inherited errors: four in
    `use_cases/pipeline.py` — three of which are the `Detector` port's absence, which M5-T01's
@@ -1301,7 +1310,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **888, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **900, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -24,7 +24,13 @@ from PySide6.QtWidgets import QDockWidget, QMenu, QMessageBox, QToolBar
 
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
-from nanoscope.gui.main_window import DOCKS, GEOMETRY_SETTING, STATE_SETTING, MainWindow
+from nanoscope.gui.main_window import (
+    DOCKS,
+    GEOMETRY_SETTING,
+    PROJECT_DOCK,
+    STATE_SETTING,
+    MainWindow,
+)
 from nanoscope.infrastructure.storage import SqliteProjectRepository
 
 pytestmark = pytest.mark.usefixtures("qt_app")
@@ -60,14 +66,21 @@ class TestTheWindowIsBuilt:
         assert [bar.objectName() for bar in window.findChildren(QToolBar)] == ["toolbar.main"]
         assert window.statusBar().currentMessage() == "No project open"
 
-    def test_every_dock_is_there_and_says_which_task_fills_it(self, app: Nanoscope) -> None:
+    def test_every_dock_is_there(self, app: Nanoscope) -> None:
+        window = MainWindow(app)
+
+        docks = {dock.windowTitle() for dock in window.findChildren(QDockWidget)}
+
+        assert docks == {PROJECT_DOCK, *(title for title, _, _ in DOCKS)}
+
+    def test_the_docks_without_a_panel_yet_say_which_task_fills_them(self, app: Nanoscope) -> None:
         """An empty panel is a promise when it names its task, and a bug when it
-        does not."""
+        does not. The Project dock is no longer on this list — M5-T04 filled
+        it, which is what the promise was for."""
         window = MainWindow(app)
 
         docks = {dock.windowTitle(): dock for dock in window.findChildren(QDockWidget)}
 
-        assert set(docks) == {title for title, _, _ in DOCKS}
         for title, message, _ in DOCKS:
             assert "M5-T" in message
             assert message in docks[title].widget().text()
@@ -175,7 +188,7 @@ class TestTheLayoutIsRemembered:
         window = MainWindow(app)
 
         assert window.statusBar().currentMessage() == "No project open"
-        assert len(window.findChildren(QDockWidget)) == len(DOCKS)
+        assert len(window.findChildren(QDockWidget)) == len(DOCKS) + 1  # + the Project dock
 
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)
