@@ -1,60 +1,75 @@
 # CURRENT TASK
 
-**ID:** `M4-T01`
-**Title:** The project directory format as a versioned public contract
-**Milestone:** M4 — Application layer, first task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0038**
-**Branch:** `feat/m4-application-layer` — M4 changes no scientific output, so the `sci/` prefix
-no longer applies (PROJECT_RULES §7)
-**Status:** **done 2026-08-09.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M4-T02`
+**Title:** SQLite schema v1 and the forward-migration mechanism
+**Milestone:** M4 — Application layer, second task
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0039** (to be written)
+**Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
+**Status:** planned 2026-08-12, implementation next.
 
 ---
 
-## Why this task is first
+## Why this task is next
 
-Everything else in M4 writes into a project: the SQLite schema (M4-T02), the repositories
-(M4-T03), the use cases (M4-T04/T05), exports (M4-T11), logs (M4-T14). If the layout is decided
-implicitly by whichever of them lands first, the format ends up as "whatever the code does" — and
-ADR-0003 already committed the opposite in writing:
+M4-T01 decided *where* the schema version lives — `PRAGMA user_version`, in the database, separate
+from the manifest's `format_version` — and deliberately owned nothing else about the database:
 
-> *Project format becomes a public contract with a version number, specified in M4-T01.*
+> *`schema_version` … lives in `database.sqlite`, as `PRAGMA user_version`, and M4-T02 owns it.*
 
-ADR-0003 fixed the **layout** (a directory, images as files, SQLite for metadata only, relative
-paths, a disposable `cache/`) and deliberately deferred the **contract**: what the version number
-means, what happens when the application meets a project it does not recognise, and what a reader
-is allowed to assume about a directory that claims to be a project.
+Everything above this task reads or writes rows. `ProjectRepository` (M4-T03) needs tables to
+implement; `CreateProject` / `ImportImages` (M4-T04) need a database to create and open. If the
+schema arrives with the first repository, the migration mechanism arrives *after* the first
+tables — which is the one order that cannot work, because the mechanism's first job is creating
+them.
 
-**The risk profile of M4 is the inverse of M3's.** The scientific core is called, not modified,
-so no task here should move a golden number at all — a red golden in M4 is a bug in M4.
+The same argument as M4-T01, one layer down: **the operator's data is on the far side of this
+too.** A schema without a migration path is a schema that can never change.
 
 ---
 
 ## The decisions this task has to make
 
-**1. One version or two?** The directory *layout* and the SQLite *schema* can change
-independently — adding an `exports/` convention is not adding a column. ADR-0003 says "every
-schema has a version" and says nothing about the layout's.
+**1. What shape is a migration?** An ordered sequence of steps, each a version number and the
+statements that reach it, applied in order, forward only.
 
 | | |
 |---|---|
-| **Two independent versions** ✅ | `format_version` in the manifest describes the directory; `schema_version` in the database describes the tables (`PRAGMA user_version`, which SQLite already provides). They change for different reasons and are read at different moments — the layout must be readable *without opening the database*, which is the whole point of a directory the operator owns |
-| One version covering both | Simpler to state, and wrong the first time a migration touches only one of them: every schema bump would falsely claim the directory changed |
+| **An ordered list in code, `SCHEMA_VERSION` derived from its last entry** ✅ | One place to add a step; the constant cannot drift from the list because it *is* the list's last element. A test asserts the versions are contiguous from 1 |
+| A constant plus a `dict` of migrations | Two things to update, and the failure mode is a schema that claims a version nothing produces |
+| `.sql` files discovered on disk | Ordering by filename, a packaging problem, and a schema that depends on files shipping correctly |
 
-**2. Where does the format version live?** In a `project.json` manifest at the project root —
-**not** in the database. A project whose `database.sqlite` is corrupt must still identify itself,
-which is ADR-0003's own "corruption is contained" consequence taken seriously.
+**2. Atomicity.** A migration that fails halfway must leave the database at the version it
+started at. Python's `sqlite3` opens an implicit transaction only for DML — **DDL runs in
+autocommit** — so `CREATE TABLE` is *not* wrapped for free. Each step therefore runs under an
+explicit `BEGIN` / `COMMIT`, with `PRAGMA user_version` set inside the same transaction (it is
+stored in the database header and is transactional). A test breaks a step on purpose and asserts
+the version did not move.
 
-**3. What does an unrecognised version do?** ADR-0003's compliance section already states the
-rule for newer versions ("refused with a clear message rather than silently migrated"). This task
-states the full matrix and makes it executable:
+**3. What is in v1?** Only what has a caller: an `images` table. Adding a table is what the
+mechanism in decision 1 exists for, so guessing at `measurements`, `jobs`, `settings` and `logs`
+now buys nothing and commits us to columns written before their first reader. Each later task
+brings its own migration.
 
-| The project says | The application does |
-|---|---|
-| a **newer** major version | refuse, naming both versions — a forward migration cannot be written by the past |
-| an **older** version | open, and migrate forward when a migration exists (M4-T02 owns migrations; this task owns the *rule*) |
-| the **same** version | open |
-| no manifest, or unparseable | refuse as "not a project directory" — never guess from the presence of `images/` |
+**4. Journal mode: not WAL.** WAL adds `database.sqlite-wal` and `-shm` to a directory whose
+layout is a published contract, and a project copied while a WAL is unflushed is ADR-0003's
+"half-copied project" with committed data in a file the operator may not have copied. One desktop
+writer needs none of what WAL buys.
+
+**5. Foreign keys on, per connection.** SQLite defaults them **off**, per connection, so a
+`REFERENCES` clause with no `PRAGMA foreign_keys = ON` is decoration. The pragma belongs in the
+connect helper, outside any transaction (it is a silent no-op inside one).
+
+**6. Which error?** `ProjectFormatError`, the same one M4-T01 raised for a newer
+`format_version`. To the operator a newer schema is the same sentence — *this is not something I
+can open* — and ADR-0038 already made that class carry four cases for exactly that reason.
+
+**7. Constraints the database enforces, not the code.** Two rules from the format contract become
+`CHECK` clauses, because a rule enforced by care is a rule already broken somewhere:
+
+- a stored path is relative — ADR-0003's *"the application must be careful never to write an
+  absolute path"* becomes a constraint that refuses one
+- `modality` is one of the three `Modality` members, pinned by a test that reads the enum, so the
+  duplication cannot drift
 
 ---
 
@@ -62,81 +77,41 @@ states the full matrix and makes it executable:
 
 **In scope**
 
-1. `docs/ProjectFormat.md` — the contract: layout, the manifest's fields and their meanings,
-   the two version numbers, the compatibility matrix, the path rules (relative, always), what is
-   authoritative when the filesystem and the index disagree, and what `cache/` guarantees
-2. **ADR-0038** — two independent versions, the manifest as the identity file, refuse-newer
-3. `nanoscope/infrastructure/storage/project_format.py` — the executable half:
-   `FORMAT_VERSION`, the directory names as constants, a `ProjectManifest` dataclass,
-   `read_manifest`, `write_manifest`, and one `check_compatible` that implements the matrix and
-   raises a typed error naming both versions
-4. `ProjectFormatError` in `core/errors.py` — Architecture §4.6 already lists `StorageError` in
-   the target taxonomy; this is that slot, named for what it actually reports
-5. Tests over the matrix: same / older / newer / absent / unparseable, and a round trip
+1. `nanoscope/infrastructure/storage/database.py` — `SCHEMA_VERSION`, `MIGRATIONS`, `connect`,
+   `open_database`, `schema_version`, `migrate`
+2. The v1 `images` table
+3. **ADR-0039** — the migration mechanism, the v1 scope rule, no WAL, foreign keys on
+4. `docs/ProjectFormat.md` §3 — `schema_version` is no longer "owned by M4-T02", it is
+   implemented; and what a reader may assume about `database.sqlite`
+5. Tests: a fresh database, an idempotent second run, a newer schema refused, a broken step
+   rolled back, the pragmas, and both `CHECK` clauses
 
 **Out of scope**
 
-- **Creating a project.** `CreateProject` is M4-T04 and needs the repository underneath it. This
-  task can describe and validate a project directory; it does not own the lifecycle
-- **The SQLite schema and its migrations** — M4-T02. This task fixes only that a schema version
-  exists, where it lives, and what an unknown one does
-- **An integrity check that reconciles dangling rows** — ADR-0003 requires one; it belongs with
-  the repository in M4-T03, because it needs the tables to check against
-
----
-
-## Why the spec ships with code
-
-A specification nothing executes drifts from the code within two tasks, and this one is a
-*contract* — the case where drift is most expensive, because the operator's data is on the other
-side of it. The code here is deliberately thin: constants, a manifest, and the version check.
-Everything that needs a database waits for the task that has one.
+- **The repository** — M4-T03. This task creates and versions the tables; nothing here reads or
+  writes a row except the tests that prove the tables work
+- **Creating a project directory** — M4-T04
+- **Every other table.** By decision 3, and on purpose
+- **The integrity check** reconciling rows against files — M4-T03, which needs the repository
 
 ---
 
 ## Expected blast radius
 
-- **Zero golden differences**, and no numerical code is touched at all. If the golden moves,
-  something imported the science by accident
-- One new module, one new error class, one new document, one ADR
+- **Zero golden differences.** No numerical code is imported, let alone touched. A red golden
+  here means something pulled in the science by accident
+- One new module, one new document section, one ADR, one new test file
+- `sqlite3` is stdlib; no new dependency
 
 ---
 
 ## Definition of done
 
-- [x] `docs/ProjectFormat.md` — the contract, versioned, with the compatibility matrix
-- [x] ADR-0038 recording the three decisions and what was rejected
-- [x] `project_format.py` — constants, manifest read/write, `check_compatible`
-- [x] `ProjectFormatError`, in the existing taxonomy rather than beside it
-- [x] Tests over the whole matrix, including the unparseable manifest
-- [x] `make check` green — 500 tests, golden byte-identical
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `Architecture.md` §4.4 (pointing at the spec),
-      `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M4-T01: the project format is a versioned contract`
-
----
-
-## What it turned up
-
-**One rule in the spec turned out to be a data-loss guard, not documentation.** "A reader must
-ignore fields it does not know" reads like politeness until you write the writer: the manifest was
-a three-field dataclass, so an older application rewriting a newer project's `project.json` would
-have **deleted every field it did not recognise**, silently. The manifest now carries unknown
-fields through, and a test proves it. *An additive change is only additive if it survives the
-round trip.*
-
-**Refusing a non-integer version is not pedantry.** `"2"` compares as neither newer nor older than
-`1`, and `True` **is** an `int` in Python — both would pass a naive `>` check as "compatible".
-
-**The version question answered itself once it was asked out loud.** One number for the directory
-and the database looks simpler until you notice the layout has to be readable *without opening the
-database* — which is ADR-0003's own containment promise, and a single shared number cannot deliver
-it.
-
----
-
-## Notes
-
-M4's risk profile held: the science was called by nothing here and the golden is byte-identical.
-The next task, **M4-T02**, owns `schema_version`, the tables, and the first real migration — this
-task fixed only where that number lives and what an unknown one does.
+- [ ] `database.py` — migrations, pragmas, the version check
+- [ ] The v1 `images` table, with its two `CHECK` clauses
+- [ ] ADR-0039
+- [ ] `docs/ProjectFormat.md` updated where it defers to this task
+- [ ] Tests covering: fresh, idempotent, newer-refused, rollback, pragmas, constraints
+- [ ] `make check` green, golden byte-identical
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M4-T02: the schema has a version and a way forward`
