@@ -18,7 +18,6 @@ other dependency-direction guards live.
 from __future__ import annotations
 
 import json
-import logging
 import sys
 from pathlib import Path
 
@@ -207,8 +206,10 @@ def test_the_project_is_a_directory_an_operator_owns(tmp_path: Path, scans: Path
     assert not list(project_dir.glob("database.sqlite-*"))
 
 
-def test_nothing_in_this_layer_needs_a_display(tmp_path: Path) -> None:
-    """Headless is the criterion's word, and this is the crude proof of it: no
-    `DISPLAY`, no `QT_QPA_PLATFORM`, no Qt in `sys.modules` after a full pass."""
-    assert "PySide6" not in sys.modules
-    assert logging.getLogger().handlers is not None
+# The "no Qt" half of the criterion is asserted in
+# `tests/unit/test_import_graph.py`, statically over every module and in a
+# subprocess for transitive imports. This file used to repeat it as
+# `"PySide6" not in sys.modules`, which was the same in-process fragility
+# `test_ports.py` was repaired for in M4-T15 — and it duly broke in M5-T02, when
+# another test in this directory started monkeypatching the launcher. One
+# subprocess check is worth more than two in-process ones (M5-T02).

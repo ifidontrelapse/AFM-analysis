@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from nanoscope.app.container import DEVICE_SETTING, Nanoscope
-from nanoscope.app.main import OK, REFUSED, UNAVAILABLE, main
+from nanoscope.app.main import OK, REFUSED, main
 from nanoscope.application.settings import Scope
 from nanoscope.core.values import DeviceKind, Modality
 from nanoscope.infrastructure.storage import SqliteProjectRepository
@@ -181,14 +181,30 @@ class TestTheEntryPoint:
         assert "CPU (cpu)" in out
         assert "selected:" in out
 
-    def test_asking_for_a_window_says_there_is_none_yet(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    def test_asking_for_a_window_hands_over_to_the_launcher(
+        self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A well-formed request with no implementation in this version — the
-        one thing this application is careful to distinguish."""
-        assert run(["--gui"], tmp_path) == UNAVAILABLE
+        """`--gui` runs an event loop, so what is asserted here is the
+        **handover**: the container and the project reach the launcher, and
+        whatever it returns is the exit code.
 
-        assert "M5-T02" in capsys.readouterr().err
+        The launcher itself is exercised for real — window, event loop and all —
+        in `tests/gui/test_launcher.py`. Before M5-T02 this test called `--gui`
+        directly, and when the branch stopped being a stub it **hung** rather
+        than failed, which is the worse of the two.
+        """
+        handed: dict[str, object] = {}
+
+        def fake_run(app: object, project_dir: object = None) -> int:
+            handed["app"] = app
+            handed["project"] = project_dir
+            return 0
+
+        monkeypatch.setattr("nanoscope.gui.launcher.run", fake_run)
+
+        assert run(["--gui", "--project", str(project)], tmp_path) == OK
+        assert isinstance(handed["app"], Nanoscope)
+        assert handed["project"] == str(project)
 
     def test_asking_for_nothing_says_where_the_log_is(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

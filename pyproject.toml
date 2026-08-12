@@ -27,6 +27,10 @@ dependencies = [
     "opencv-python>=4.10.0",
     "pandas>=2.2.0",
     "patched-yolo-infer>=1.3.10",
+    # The desktop UI (ADR-0002, M5-T02). Qt is imported only by `gui/`, and the
+    # headless entry point never loads it — a guard in `tests/unit/test_import_graph.py`
+    # says so for every module outside that package.
+    "pyside6>=6.9",
     "pyspm>=0.6.3",
     "requests>=2.32.5",
     "sam-2",
@@ -75,6 +79,9 @@ ci = [
     # `opencv-python` needs libGL, which a headless runner does not have. The
     # headless build ships the same `cv2` module without the system dependency.
     "opencv-python-headless",
+    # M5's exit criterion is "GUI smoke tests pass headless in CI", which needs Qt
+    # there — run under `QT_QPA_PLATFORM=offscreen` (PROJECT_RULES §6).
+    "pyside6",
     { include-group = "dev" },
 ]
 

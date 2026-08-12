@@ -193,9 +193,8 @@ zoom/pan, colormap, LUT range and scale bar; the viewmodel layer; the background
 runner with progress and cancellation; log panel; settings dialog; headless GUI tests.
 
 **Exit criteria**
-- [~] `nanoscope` launches on Linux and opens a project created in M4 — **half met** (M5-T01,
-      ADR-0052): the console script runs, opens a project and prints it headless; the window is
-      M5-T02
+- [x] `nanoscope` launches on Linux and opens a project created in M4
+      (M5-T01 headless, M5-T02 with a window — ADR-0052, ADR-0053)
 - [ ] A scan renders with correct nm axes and a scale bar
 - [ ] A long-running job shows progress and can be cancelled without freezing the UI
 - [ ] GUI smoke tests pass headless in CI

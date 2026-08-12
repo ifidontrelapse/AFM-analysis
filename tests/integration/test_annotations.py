@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from conftest import revert_to
+from schema_history import revert_to
 
 from nanoscope.core.entities import Annotation, AnnotationSource
 from nanoscope.core.errors import InvalidParameterError

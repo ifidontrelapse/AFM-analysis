@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from conftest import revert_to
+from schema_history import revert_to
 
 from nanoscope.application.use_cases import run_analysis
 from nanoscope.core.entities import Detection, PipelineConfig, PipelineResult

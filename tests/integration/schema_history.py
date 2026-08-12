@@ -1,7 +1,12 @@
-"""Shared machinery for the integration tests (M4-T10).
+"""How to fabricate an older database, honestly (M4-T10, moved M5-T02).
 
-One helper lives here, and it exists because the same mistake was made three
-times: a test that fabricates an *older* database by dropping the tables it
+A **module**, not a `conftest.py`. It was a conftest until `tests/gui/` grew
+one too, and `from conftest import revert_to` then resolved to whichever
+directory pytest had put on `sys.path` first — importing a conftest **by module
+name** works only while there is exactly one. Fixtures belong in a conftest;
+importable helpers belong in a module with a name of their own.
+
+The helper exists because the same mistake was made three times: a test that fabricates an *older* database by dropping the tables it
 happens to know about. Every new migration step then breaks it, and the failure
 arrives as `CREATE TABLE … already exists` in a test that has nothing to do with
 the new step.

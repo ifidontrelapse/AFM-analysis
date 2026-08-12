@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-12 · **Branch:** `feat/m5-gui-shell` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-13 · **Branch:** `feat/m5-gui-shell` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -40,8 +40,23 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T01` done 2026-08-12 (ADR-0052); `M5-T02` — the main window — is next**, and
-it fills the `--gui` branch this task left with a sentence in it.
+**None selected. `M5-T02` done 2026-08-13 (ADR-0053); `M5-T03` — the dark theme — is next**, and
+it lands as one visible change because this task deliberately kept Qt's defaults.
+
+**`M5-T02` done 2026-08-13 (ADR-0053) — a window that holds the container and nothing else. W2 is
+no longer "no UI at all":** `nanoscope --gui` opens a window with menus, a toolbar, three docks and
+a status bar, and opens a project into it. **`QApplication` lives in `gui/launcher.py`**, imported
+inside the `--gui` branch, because M4-T15's guard fails if anything outside `gui/` imports Qt — and
+it is right, since the headless entry point is the one CI runs. **The layout is a setting, not a
+`QSettings`** (ADR-0047's scope rule: it follows the operator, not the work), and an unreadable one
+is ignored rather than fatal. **Every dock names the task that fills it** and carries an
+`objectName`, without which `restoreState` silently drops it. **Found: an existing test hung
+instead of failing** when `--gui` stopped being a stub — a hang is the worse of the two, so the
+entry-point test now asserts the handover and a new GUI test enters the loop with a timer that
+knows how to leave. Also found: `from conftest import` became ambiguous the moment a second
+conftest existed (the helper is now a module of its own), and the whole-layer test's
+`"PySide6" not in sys.modules` was a weaker copy of the subprocess guard — deleted. 17 GUI tests,
+**867** in the suite, **golden byte-identical**.
 
 **`M5-T01` done 2026-08-12 (ADR-0052) — one place that constructs everything.** Until it, **every
 caller of M4's eight components was a test building them by hand**. **The entry point works
@@ -1246,10 +1261,11 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M5-T02` — the main window**: menus, toolbars, dockable panels, status bar, layout
-   persistence. It adds PySide6 as a dependency and fills the `--gui` branch M5-T01 left with a
-   sentence in it. Two of M4's obligations are waiting there: counting annotations before
-   `remove_image` (ADR-0044) and marshalling a job's listener onto the main thread (ADR-0043)
+1. **`M5-T03` — the dark theme**: design tokens plus QSS, one source of colour truth (ADR-0002).
+   It arrives as one visible change because M5-T02 kept Qt's defaults. Two of M4's obligations are
+   still waiting for the tasks that own them: counting annotations before `remove_image`
+   (ADR-0044, needs M5-T04's explorer) and marshalling a job's listener onto the main thread
+   (ADR-0043, needs M5-T07)
 2. **`make types` joins `make check` as blocking.** M4 is over, so the M1 exit criterion deferred
    "while the legacy core is `src/`" is now only about the **6** inherited errors: four in
    `use_cases/pipeline.py` — three of which are the `Detector` port's absence, which M5-T01's
@@ -1273,7 +1289,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **849, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **867, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

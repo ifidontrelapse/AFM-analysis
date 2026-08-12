@@ -7,6 +7,63 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T02 · **a window that holds the container and nothing else**
+
+**Task:** `M5-T02`. **ADR:** **ADR-0053**. **W2 is no longer "no UI at all".**
+
+`nanoscope --gui` opens a window with menus, a toolbar, three docks and a status bar, and opens a
+project into it. First dependency the size of Qt, and the first line of code in `gui/` — the layer
+every rule so far was written to protect.
+
+### The decisions
+
+**`QApplication` is created in `gui/launcher.py`, imported by `app/main.py` inside the `--gui`
+branch.** Not a style preference: M4-T15's guard fails if anything outside `gui/` imports Qt
+statically, and it is right — the headless entry point is the one CI runs, the one that works
+without a display, and the one an operator uses when a project will not open.
+
+**The window holds the container and constructs nothing.** Opening a project is `Nanoscope.open`.
+This is the first widget that could break Architecture §2.3, and the shape it sets is the one every
+panel after it copies.
+
+**The layout is a setting, not a `QSettings`** — base64 into the *application* scope, because
+ADR-0047 already built a store with two scopes and a rule for choosing, and a window layout follows
+the operator rather than the work. An unreadable stored layout is ignored with a log line: the
+answer to bytes Qt cannot parse is the default layout, not a refusal to start.
+
+**Every dock names the task that fills it**, and carries an `objectName` without which
+`restoreState` silently drops it. *An empty panel is a promise when it names its task and a bug when
+it does not.*
+
+### What it turned up
+
+**An existing test hung instead of failing, and that is the finding.** M5-T01's
+`--gui` test called the flag directly, because the branch printed a sentence. When M5-T02 made it
+launch a real event loop, the test stopped returning — and a hang is worse than a failure, because
+the suite has no timeout to turn it back into one. The entry-point test now asserts the *handover*
+to the launcher, and `tests/gui/test_launcher.py` enters the loop on purpose with a timer that
+knows how to leave it.
+
+**`from conftest import revert_to` was ambiguous the moment a second conftest existed.** M4-T10's
+schema helper lived in `tests/integration/conftest.py`, and adding `tests/gui/conftest.py` made the
+bare module name resolve to whichever directory pytest put on `sys.path` first — three integration
+files failed to import. Fixtures belong in a conftest; **importable helpers belong in a module with
+a name of its own**, so it is now `tests/integration/schema_history.py`.
+
+**The whole-layer test's `"PySide6" not in sys.modules` was a weaker copy of a guard that already
+exists**, and it broke for the same in-process reason `test_ports.py` was repaired for one task
+ago. Deleted, with a comment pointing at the subprocess check that does it properly.
+
+**Offscreen Qt clamps a window to an 800x600 virtual screen**, which cost one confusing failure
+until the layout test asked for a size that fits.
+
+### Numbers
+
+17 GUI tests, **867** in the suite; mypy unchanged at 6; golden byte-identical. The real event loop
+runs and exits 0 under `QT_QPA_PLATFORM=offscreen`.
+
+---
+
 ## 2026-08-12 — M5-T01 · **one place that constructs everything**
 
 **Task:** `M5-T01`, the first of M5. **Branch:** `feat/m5-gui-shell`. **ADR:** **ADR-0052**.

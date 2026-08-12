@@ -41,18 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--project",
         metavar="PATH",
-        help="a project directory to open. Printed and closed again, until M5-T02's window exists",
+        help="a project directory to open. Printed and closed again, or shown with --gui",
     )
     parser.add_argument(
         "--devices",
         action="store_true",
         help="list the devices inference could run on, and which one would be chosen",
     )
-    parser.add_argument(
-        "--gui",
-        action="store_true",
-        help="launch the graphical interface (M5-T02; PySide6 is not installed yet)",
-    )
+    parser.add_argument("--gui", action="store_true", help="launch the graphical interface")
     parser.add_argument("--debug", action="store_true", help="log at DEBUG, and echo to stderr")
     parser.add_argument(
         "--log-file", metavar="PATH", help="where to write the application log (default: XDG state)"
@@ -75,10 +71,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             if args.devices:
                 _print_devices(app)
+            if args.gui:
+                #: The window opens the project itself, so `--gui --project X`
+                #: does not open it twice.
+                return _launch_gui(app, args.project)
             if args.project:
                 _print_project(app.open(args.project))
-            if args.gui:
-                return _launch_gui()
         except NanoscopeError as refusal:
             #: A message, not a traceback: this is the library saying no about
             #: the operator's data, which is exactly the distinction ADR-0030
@@ -127,19 +125,24 @@ def _print_integrity(report: IntegrityReport) -> None:
         print(f"  untracked: {path} (no row claims it; nothing was imported)")
 
 
-def _launch_gui() -> int:
-    """The branch M5-T02 fills.
+def _launch_gui(app: Nanoscope, project: str | None) -> int:
+    """Hand over to the window (M5-T02).
 
-    A sentence rather than an `ImportError` traceback: asking for a window this
-    version cannot open is a well-formed request with no implementation, which
-    is the one thing this application is careful to distinguish (ADR-0030).
+    Imported **here**, not at module scope: `app/main.py` is the headless entry
+    point, and M4-T15's guard says nothing outside `gui/` imports Qt. Qt loads
+    when a window is asked for, and never otherwise.
+
+    A missing PySide6 is a sentence rather than an `ImportError` traceback —
+    someone installing from a source checkout without the GUI extra is making a
+    well-formed request this installation cannot serve (ADR-0030).
     """
-    print(
-        "nanoscope: the graphical interface arrives in M5-T02; "
-        "PySide6 is not a dependency of this version yet.",
-        file=sys.stderr,
-    )
-    return UNAVAILABLE
+    try:
+        from nanoscope.gui.launcher import run
+    except ImportError as missing:  # pragma: no cover — PySide6 is a dependency
+        print(f"nanoscope: the graphical interface needs PySide6 ({missing})", file=sys.stderr)
+        return UNAVAILABLE
+
+    return run(app, project)
 
 
 if __name__ == "__main__":  # pragma: no cover — exercised by `python -m nanoscope.app.main`

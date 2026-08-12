@@ -60,6 +60,7 @@ Use `TEMPLATE.md` for new records.
 | [0050](ADR-0050-a-model-is-a-record-and-the-registry-hands-back-factories.md) | A model is a record, and the registry hands back factories | Accepted | 2026-08-12 |
 | [0051](ADR-0051-a-log-must-not-live-inside-what-it-reports-on.md) | A log must not live inside the thing whose failure it reports | Accepted | 2026-08-12 |
 | [0052](ADR-0052-the-entry-point-works-before-there-is-a-window.md) | The entry point works before there is a window | Accepted | 2026-08-12 |
+| [0053](ADR-0053-qt-starts-behind-the-launcher-and-the-layout-is-a-setting.md) | Qt starts behind the launcher, and the layout is a setting | Accepted | 2026-08-12 |
 
 ## When to write one
 

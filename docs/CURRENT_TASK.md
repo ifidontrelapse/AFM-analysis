@@ -1,56 +1,60 @@
 # CURRENT TASK
 
-**ID:** `M5-T01`
-**Title:** The composition root, and a `nanoscope` that runs before there is a window
-**Milestone:** M5 — GUI shell, first task
-**Defect:** — · **ADR:** **ADR-0052**
-**Branch:** `feat/m5-gui-shell` (M5 opens its own; M4's is closed)
-**Status:** **done 2026-08-12.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M5-T02`
+**Title:** A window that opens a project, and a layout that remembers itself
+**Milestone:** M5 — GUI shell, second task
+**Defect:** W2 (no UI at all) · **ADR:** **ADR-0053**
+**Branch:** `feat/m5-gui-shell`
+**Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
-## Why this task is first
+## Why this task is next
 
-PROJECT_RULES §2.7: *"One composition root. All wiring happens in `app/`. Nothing else constructs
-infrastructure objects."* M4 built eight things that need constructing — a repository, a device
-manager, a job runner, two settings stores, a log configuration, a model registry, a command stack
-— and **every test so far has constructed them by hand.** That is fine in a test and wrong in an
-application: it is how two places end up deciding where the settings file lives.
-
-Every M5 task after this one puts a widget on top of that wiring. Doing it in the reverse order is
-how a main window ends up owning a `DeviceManager`.
+M5-T01 left a branch with a sentence in it: `--gui` says the window arrives in M5-T02. This is
+M5-T02. It is also the first task in the project's history to add a dependency the size of Qt, and
+the first line of code in `gui/` — the layer every rule so far has been written to protect.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Does the entry point need Qt?** **No — and that is what makes it testable.**
+**1. Where does `QApplication` get created?** In `gui/`, not in `app/`.
 
-PySide6 is not even a dependency of this project yet. A `nanoscope` that only works once a window
-exists cannot be run in CI, and cannot be run by an operator debugging a project that will not
-open. So the console script works **headless today**: `nanoscope --project PATH` opens a project,
-prints what is in it, and exits. Launching a window is a branch the next task fills, and asking for
-one without PySide6 installed gets a sentence rather than a traceback.
+`app/main.py` must not import PySide6, or M4-T15's guard fails — and the guard is right: the
+headless entry point is the one CI runs. So `gui/launcher.py` owns `QApplication`, and `main.py`
+imports it **inside** the `--gui` branch. Qt is loaded when a window is asked for and never
+otherwise.
 
-**2. Is the container a class or a module of functions?** A small class — `Nanoscope` — holding
-what is expensive or stateful (the settings store, the device manager, the job runner, the open
-project) and nothing else. Not a DI framework, not a registry of providers: **the wiring here is
-eight lines, and a framework to hold eight lines is the thing this project keeps deciding not to
-build.**
+**2. What does the window *hold*?** The container, and nothing of its own.
 
-**3. Where does ADR-0040's obligation land?** Here. `open_project` has returned an integrity report
-since M4-T03, and the ADR ended by saying *a report nobody reads is a report that did nothing*.
-This is the first caller that can read it, so **the CLI prints it** — missing files named, untracked
-files named, and a clean project saying so in one line.
+`MainWindow(QMainWindow)` takes a `Nanoscope` and calls it. No repository, no device manager, no
+settings store constructed here — Architecture §2.3 and PROJECT_RULES §2.7 both say so, and this is
+the first widget that could break either.
 
-**4. What does a failure look like?** A sentence and a non-zero exit — never a traceback. A
-`NanoscopeError` is *the library saying no about the operator's data*, and ADR-0030 built that
-distinction so a surface like this one could use it: our errors are messages, anything else is a
-bug and keeps its traceback.
+**3. Where does the layout live?** In the **application** scope of M4-T10's settings, base64
+encoded.
 
-**5. Does the console script get declared now?** Yes — `[project.scripts]` in `pyproject.toml`. A
-script nobody can invoke is a function; the criterion for M5 is that **`nanoscope` launches**, and
-this is the half of it that does not need a window.
+Qt's `saveState()`/`saveGeometry()` return a `QByteArray`, and there is already a settings store
+with two scopes and a rule for choosing between them (ADR-0047): a window layout follows the
+**operator**, not the work, so it goes in `~/.config/nanoscope/settings.json` and not into the
+project. `QSettings` is deliberately not used — a second settings system, in a second location,
+with a second file format, for one value.
+
+**4. What do the docks contain today?** Placeholders that say which task fills them.
+
+The project explorer is M5-T04, the image viewer M5-T05, the log panel M5-T08. A dock with a label
+naming its task is honest; a dock with a half-built panel in it is M5-T04 started early and finished
+badly.
+
+**5. How is a window tested without a screen?** `QT_QPA_PLATFORM=offscreen`, which PROJECT_RULES §6
+already requires. No `pytest-qt`: one fixture creating a `QApplication` is what this needs, and a
+dependency for a fixture is a dependency for nothing.
+
+**6. Which of M4's obligations can be paid here?** Neither, and both get closer.
+`remove_image`'s confirmation (ADR-0044) needs the project explorer (M5-T04); the job listener's
+thread hop (ADR-0043) needs the job runner integration (M5-T07). They are named again here so they
+stay attached to the tasks that own them.
 
 ---
 
@@ -58,50 +62,55 @@ this is the half of it that does not need a window.
 
 **In scope**
 
-1. `app/container.py` — `Nanoscope`: settings, device manager, job runner, logging, open/close
-   project, and nothing else
-2. `app/main.py` + `app/__main__.py` — argv → actions, readable failures, exit codes
-3. `pyproject.toml` — the `nanoscope` console script
-4. **ADR-0052** — headless-first entry point, a container rather than a framework, our errors are
-   messages
-5. Tests: opening a real project, an integrity report printed, a directory that is not a project
-   refused with an exit code, `--version`, `--device`, and no Qt anywhere
+1. PySide6 as a dependency, and in the `ci` group — M5's criterion is *"GUI smoke tests pass
+   headless in CI"*, which needs it there
+2. `gui/main_window.py` — menus, a toolbar, four dockable panels, a status bar
+3. `gui/launcher.py` — `QApplication`, the window, the event loop; `--gui` wired to it
+4. Layout persistence through the application settings
+5. **ADR-0053** — Qt stays behind the launcher, the layout is a setting not a `QSettings`,
+   placeholders name their task
+6. Headless tests: the window builds, opens a project, reports a refusal without a traceback,
+   saves and restores its layout
 
 **Out of scope**
 
-- **The main window** — M5-T02, which fills the `--gui` branch
-- **Adding PySide6 as a dependency** — with the window that needs it
-- **A settings dialog, a log panel, a project explorer** — M5-T04, T08, T09
+- **The panels themselves** — M5-T04, T05, T08, T09
+- **The theme** — M5-T03. This task uses Qt's defaults so the theme lands as one visible change
+- **Running analyses from the window** — M5-T06/T07
 
 ---
 
 ## Definition of done
 
-- [x] `Nanoscope` constructs everything M4 built, in one place
-- [x] `nanoscope --project PATH` opens, prints, and exits cleanly; `--gui` says what is missing
-- [x] The integrity report is *shown*, discharging ADR-0040's closing obligation
-- [x] ADR-0052
-- [x] Tests, headless, including a refusal with a readable message
-- [x] `make check` green — 849 tests, golden byte-identical
+- [x] `nanoscope --gui` opens a window with menus, docks and a status bar
+- [x] The window holds the container and constructs nothing
+- [x] Layout saved and restored through M4-T10's settings
+- [x] ADR-0053
+- [x] Headless tests, and the Qt guard still green
+- [x] `make check` green — 867 tests, golden byte-identical
 - [x] Docs, the ADR index, `Roadmap.md`
-- [x] Commit: `M5-T01: one place that constructs everything`
+- [x] Commit: `M5-T02: a window that holds the container and nothing else`
 
 ---
 
 ## What it turned up
 
-**Reading the version at import time cost eleven modules, and M2-T09's guard caught it in the same
-run.** `importlib.metadata` pulls in `zipfile` and `email`, taking `import nanoscope.core.entities`
-from 250 modules to 261 — past the bound written *precisely* so a new dependency could not sneak in
-under the numpy noise floor. The version is now read through a PEP 562 module `__getattr__`: the
-cost lands on whoever asks, and the asker is the CLI, which does not care.
+**An existing test hung instead of failing.** M5-T01's `--gui` test called the flag directly,
+because the branch printed a sentence and returned. When this task made it launch a real event
+loop, the test stopped returning — and **a hang is worse than a failure**, because there is no
+timeout in the suite to turn it back into one. The entry-point test now asserts the *handover* to
+the launcher, and a new `tests/gui/test_launcher.py` enters the loop deliberately with a timer that
+knows how to leave it.
 
-**`print` needed one scoped exception, and it needed it twice.** Ruff's `T20` and M2-T11's own test
-both forbid `print` in library code, and both are right — a command-line program is the exception,
-because its stdout is a user interface rather than a diagnostic channel. Written into
-`pyproject.toml` and into the test, each with the reason, and scoped to the single module that has
-a terminal on the other end.
+**`from conftest import revert_to` was ambiguous the moment a second conftest existed.** Adding
+`tests/gui/conftest.py` made the bare module name resolve to whichever directory pytest had put on
+`sys.path` first, and three integration files failed to import. Fixtures belong in a conftest;
+**importable helpers belong in a module with a name of their own** — now
+`tests/integration/schema_history.py`.
 
-**Two of M4's three inherited obligations could not be discharged here**, and both need a widget:
-counting annotations before `remove_image` (ADR-0044), and marshalling a job's worker-thread
-listener onto the main thread (ADR-0043). They pass to M5-T02 with their ADRs attached.
+**The whole-layer test's `"PySide6" not in sys.modules` was a weaker copy of a guard that already
+exists**, and it broke for exactly the in-process reason `test_ports.py` was repaired for one task
+earlier. Deleted, with a comment pointing at the subprocess check that does it properly.
+
+**Offscreen Qt is not a screen:** it clamps windows to an 800x600 virtual display, which cost one
+confusing failure until the layout test asked for a size that fits.
