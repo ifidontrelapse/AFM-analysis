@@ -7,6 +7,62 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T08 · **undo is a session, and it says so**
+
+**Task:** `M4-T08`, the eighth of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
+**ADR-0045**. **M4's undo/redo exit criterion is met**, against a real database.
+
+### The decisions
+
+**The stack knows nothing but order.** It calls `do()`, keeps the object, clears the redo list, and
+never learns what a command *is*. A stack that knows about annotations has to be extended for
+measurements and then for settings; this one will not change when a table arrives. Redo is `do()`
+again rather than a third method — a command that cannot repeat itself was written to be undone
+once.
+
+**Undo is a session, and persisting it is a promise deliberately not made.** Replaying edits across
+sessions means replaying them against a directory that may have changed on disk in between, and
+ADR-0040 already established that this application does not assume it is the only thing touching a
+project. *An undo history that can be silently wrong is worse than one that is honestly short.* The
+durable record of what happened is M4-T14's log — history, not reversibility.
+
+**A failing undo propagates and the history does not move.** Swallowing it would leave the pointer
+describing a state that never existed, which makes the *next* undo wrong too, silently.
+
+### What it turned up
+
+**The plan was reversed by its own test, and this is the finding.** The plan said a redo should
+insert a *fresh* row — an `id=` parameter looked like a back door whose only purpose was to lie
+about identity. Then `test_a_sequence_undoes_and_redoes_whole` was written: add a box, edit the
+box, undo twice, redo twice. With a new id on the redo of the add, the redo of the edit points at a
+row that no longer exists — **undo would have been one command deep in practice, which is not
+undo**.
+
+So `restore_annotation` exists: it puts a deleted row back *as itself*, id and timestamps intact,
+and it is a **separate operation** from `add_annotation` because creating a box and undoing its
+deletion are different acts and only one of them may choose an id. Reclaiming the id is safe under
+a LIFO stack — anything created after a deletion is undone before it — and outside that discipline
+the database's own `UNIQUE` refuses the collision, which is the right answer to restoring something
+twice.
+
+**Capturing the "before" at `do()` time is not an optimisation.** A command that looked up the
+previous values when it is *undone* would restore the second edit's starting point rather than its
+own; two consecutive edits, undone in order, is the test that catches it.
+
+### Numbers
+
+- **Golden: byte-identical.** No numerical code imported
+- Tests **639 → 658**; mypy unchanged at **6**; no new dependency
+- Three commands, one stack, ~120 lines of application code
+
+### Next
+
+**M4-T09** — autosave, which is the other half of "the operator does not lose work": undo covers
+the mistake they *make*, autosave covers the one the machine makes. Everything so far commits on
+write, so the honest question is what autosave has left to do.
+
+---
+
 ## 2026-08-12 — M4-T07 · **an annotation is the one thing that cannot be recomputed**
 
 **Task:** `M4-T07`, the seventh of M4. **Branch:** `feat/m4-application-layer`. **ADR:**

@@ -493,6 +493,49 @@ class SqliteProjectRepository:
         return self.get_annotation(int(cursor.lastrowid or 0))
 
     @_serialised
+    def restore_annotation(self, annotation: Annotation) -> Annotation:
+        """Put a deleted annotation back **as itself**, id and timestamps intact.
+
+        Not `add_annotation` with an extra argument: creating a box and undoing
+        its deletion are different acts, and only one of them may choose an id.
+        Undo needs this one, because everything else on the stack refers to the
+        annotation by id — restoring it as a *new* row makes every command above
+        it point at nothing (M4-T08, ADR-0045).
+
+        Safe under a LIFO undo stack: anything created after the deletion is
+        undone before this runs, so the id it reclaims is free. Outside that
+        discipline the database's `UNIQUE` id will refuse a collision, which is
+        the correct answer to restoring something twice.
+
+        Raises:
+            InvalidParameterError: an annotation with that id already exists, or
+                its image is gone.
+        """
+        self.get_image(annotation.image_id)
+        try:
+            self._conn.execute(
+                "INSERT INTO annotations "
+                "(id, image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    annotation.id,
+                    annotation.image_id,
+                    annotation.label,
+                    *annotation.box,
+                    str(annotation.source),
+                    annotation.note,
+                    annotation.created_utc,
+                    annotation.updated_utc,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise InvalidParameterError(
+                f"cannot restore annotation {annotation.id}: {exc}"
+            ) from exc
+        self._conn.commit()
+        return self.get_annotation(annotation.id)
+
+    @_serialised
     def get_annotation(self, annotation_id: int) -> Annotation:
         """One annotation.
 

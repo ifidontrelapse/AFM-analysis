@@ -142,6 +142,10 @@ class FakeRepository:
         self.annotations.append(annotation)
         return annotation
 
+    def restore_annotation(self, annotation: Annotation) -> Annotation:
+        self.annotations.append(annotation)
+        return annotation
+
     def get_annotation(self, annotation_id: int) -> Annotation:
         return self.annotations[annotation_id - 1]
 

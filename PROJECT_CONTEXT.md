@@ -59,6 +59,7 @@ AFM-analysis/
 │   ├── application/
 │   │   ├── capabilities.py             # THE execution matrix, validated before inference
 │   │   ├── jobs.py                     # JobRunner, cooperative cancel, progress (M4-T06)
+│   │   ├── commands.py                 # CommandStack + annotation commands (M4-T08)
 │   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04),
 │   │                                   #   analysis.py (M4-T05)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
@@ -72,9 +73,11 @@ AFM-analysis/
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
-│   │                                   #   import_graph, project_format, database, jobs — 557 tests
+│   │                                   #   import_graph, project_format, database, jobs,
+│   │                                   #   commands — 570 tests
 │   ├── integration/                    # a real project: lifecycle, and analysis results that
-│   │                                   #   round-trip, jobs, annotations (M4-T03…T07) — 82 tests
+│   │                                   #   round-trip, jobs, annotations, undo
+│   │                                   #   (M4-T03…T08) — 88 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

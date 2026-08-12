@@ -170,7 +170,8 @@ the model registry and `ModelDescriptor`.
       (M4-T05, ADR-0042 — the index relational, the measurement table a file under `results/`)
 - [ ] `DeviceManager` correctly reports CPU / CUDA / ROCm / MPS on this machine and selects one
 - [ ] Model registry resolves `"yolo"` and `"sam2"` to providers via `ModelDescriptor`
-- [ ] Undo/redo proven on at least one mutating use case
+- [x] Undo/redo proven on at least one mutating use case
+      (M4-T08, ADR-0045 — annotations, against a real database)
 - [ ] Integration tests cover the whole layer; no Qt imported anywhere
 
 **Risk to scientific output:** none. The domain is called, not modified.

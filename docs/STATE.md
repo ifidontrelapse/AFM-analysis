@@ -34,8 +34,22 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T07` done 2026-08-12 (ADR-0044); `M4-T08` — the undo/redo command stack — is
-next**, which is what `update_annotation` keeping its id was for, and one of M4's exit criteria.
+**None selected. `M4-T08` done 2026-08-12 (ADR-0045); `M4-T09` — autosave — is next**, and its
+first question is what autosave has left to do when every write already commits.
+
+**`M4-T08` done 2026-08-12 (ADR-0045) — undo is a session, and it says so. M4's undo/redo exit
+criterion is met**, against a real database. **The stack knows nothing but order** — it never learns
+what a command is, so it will not grow when a table arrives; redo is `do()` again. **Undo is a
+session and persisting it is a promise deliberately not made:** replaying edits against a directory
+that may have changed on disk is an undo that can be silently wrong, which is worse than one
+honestly short (M4-T14's log is history, not reversibility). A **failing undo propagates and the
+history stands still**, because a swallowed error makes the *next* undo wrong too. **The plan was
+reversed by its own test:** it said a redo should insert a fresh row, and
+`test_a_sequence_undoes_and_redoes_whole` showed that a new id leaves every command above pointing
+at nothing — **undo one command deep, which is not undo**. `restore_annotation` puts a row back *as
+itself*, separate from `add_annotation` because creating and restoring are different acts; safe
+under LIFO, refused by `UNIQUE` outside it. 18 tests, **golden byte-identical**, mypy unchanged
+at 6.
 
 **`M4-T07` done 2026-08-12 (ADR-0044) — an annotation is a row, because it cannot be recomputed.**
 The first data an operator *makes* rather than the application deriving it. A **table**, two tasks
@@ -1134,10 +1148,11 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T08` — undo/redo.** M4's exit criterion "undo/redo proven on at least one mutating use
-   case", and the reason `update_annotation` keeps an annotation's id through an edit. M3's
-   remainder is unchanged — **M3-T16** (blocked on **B6**) and the four algorithm findings, which
-   the roadmap allows to run in parallel
+1. **`M4-T09` — autosave.** Undo covers the mistake the operator makes; autosave covers the one
+   the machine makes. Its first question is honest: every write already commits, so what is left
+   is unsaved *view* state and a project that was open when the power went. M3's remainder is
+   unchanged — **M3-T16** (blocked on **B6**) and the four algorithm findings, which the roadmap
+   allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1162,7 +1177,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **639, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **658, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -3,9 +3,10 @@
 **ID:** `M4-T08`
 **Title:** Undo/redo: a stack that owns nothing but the order of things
 **Milestone:** M4 — Application layer, eighth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0045** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0045**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -98,10 +99,37 @@ editor, which M6 has not built.
 
 ## Definition of done
 
-- [ ] `CommandStack` with `run` / `undo` / `redo`, and labels for a menu
-- [ ] Three annotation commands, driven through the port
-- [ ] ADR-0045
-- [ ] Tests, including a failing undo and a real database going back
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`, ADR index
-- [ ] Commit: `M4-T08: undo is a session, and it says so`
+- [x] `CommandStack` with `run` / `undo` / `redo`, and labels for a menu
+- [x] Three annotation commands, driven through the port
+- [x] ADR-0045
+- [x] Tests, including a failing undo and a real database going back
+- [x] `make check` green — 658 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`, ADR index
+- [x] Commit: `M4-T08: undo is a session, and it says so`
+
+---
+
+## What it turned up
+
+**Decision 3 was wrong, and its own test proved it.** The plan said a redo should insert a fresh
+row, because an `id=` parameter looked like a back door whose only purpose was to lie about
+identity. Then the sequence test was written — add a box, edit the box, undo twice, redo twice —
+and with a new id on the redo of the add, the redo of the edit points at a row that no longer
+exists. **Undo would have been one command deep in practice, which is not undo.**
+
+`restore_annotation` is the answer: a deleted row goes back *as itself*, and it is a separate
+operation from `add_annotation` because creating a box and undoing its deletion are different acts.
+Reclaiming an id is safe under a LIFO stack — anything created after a deletion is undone before
+it — and outside that discipline the database's `UNIQUE` refuses, which is the right answer to
+restoring something twice.
+
+**Capturing the previous values at `do()` time is load-bearing, not an optimisation.** A command
+that looked them up when *undone* would restore the second edit's starting point instead of its
+own. Two consecutive edits, undone in order, is the test that catches it.
+
+---
+
+## Notes
+
+The golden held for the eighth time. **M4-T09** takes autosave, and starts from an honest question:
+every write already commits, so what is left for it to save?

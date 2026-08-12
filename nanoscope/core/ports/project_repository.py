@@ -127,6 +127,15 @@ class ProjectRepository(Protocol):
         """Record a box the operator drew, and return it with its id."""
         ...
 
+    def restore_annotation(self, annotation: Annotation) -> Annotation:
+        """Put a deleted annotation back as itself, id intact.
+
+        What undo needs and creation must not have: everything else on the
+        stack refers to an annotation by id, so restoring it as a new row makes
+        every command above it point at nothing (ADR-0045).
+        """
+        ...
+
     def get_annotation(self, annotation_id: int) -> Annotation:
         """One annotation."""
         ...
