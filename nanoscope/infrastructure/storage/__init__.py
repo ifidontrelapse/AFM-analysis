@@ -5,9 +5,18 @@ M2-T08 puts an `ImageLoader` port in front of the loaders; until then they are
 called directly, exactly as they were from `src/afm_io.py`.
 
 `project_format` joined them in M4-T01 — the executable half of the project
-directory contract (`docs/ProjectFormat.md`, ADR-0038).
+directory contract (`docs/ProjectFormat.md`, ADR-0038) — and `database` in
+M4-T02, which owns the one file in that directory that is not a document.
 """
 
+from nanoscope.infrastructure.storage.database import (
+    MIGRATIONS,
+    SCHEMA_VERSION,
+    connect,
+    migrate,
+    open_database,
+    schema_version,
+)
 from nanoscope.infrastructure.storage.loaders import (
     load_afm,
     load_microscopy_image,
@@ -30,12 +39,18 @@ __all__ = [
     "DIRECTORIES",
     "FORMAT_VERSION",
     "MANIFEST_NAME",
+    "MIGRATIONS",
+    "SCHEMA_VERSION",
     "ProjectManifest",
     "check_compatible",
+    "connect",
     "load_afm",
     "load_microscopy_image",
+    "migrate",
     "new_manifest",
+    "open_database",
     "open_manifest",
     "read_manifest",
+    "schema_version",
     "write_manifest",
 ]

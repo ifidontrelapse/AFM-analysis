@@ -3,9 +3,10 @@
 **ID:** `M4-T02`
 **Title:** SQLite schema v1 and the forward-migration mechanism
 **Milestone:** M4 — Application layer, second task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0039** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0039**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -107,11 +108,43 @@ can open* — and ADR-0038 already made that class carry four cases for exactly 
 
 ## Definition of done
 
-- [ ] `database.py` — migrations, pragmas, the version check
-- [ ] The v1 `images` table, with its two `CHECK` clauses
-- [ ] ADR-0039
-- [ ] `docs/ProjectFormat.md` updated where it defers to this task
-- [ ] Tests covering: fresh, idempotent, newer-refused, rollback, pragmas, constraints
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M4-T02: the schema has a version and a way forward`
+- [x] `database.py` — migrations, pragmas, the version check
+- [x] The v1 `images` table, with its two `CHECK` clauses
+- [x] ADR-0039
+- [x] `docs/ProjectFormat.md` updated where it defers to this task
+- [x] Tests covering: fresh, idempotent, newer-refused, rollback, pragmas, constraints
+- [x] `make check` green — 524 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M4-T02: the schema has a version and a way forward`
+
+---
+
+## What it turned up
+
+**A migration is not atomic for free, and the default that makes it so is Python's, not
+SQLite's.** `sqlite3` opens a transaction implicitly before **DML only** — `CREATE TABLE` runs in
+autocommit. A step that created two tables and failed on its third statement would therefore leave
+those two tables behind **at the old version number**, and the next open would try to create them
+again. Nothing about the obvious loop over statements hints at it. The explicit `BEGIN` is the
+whole safety property, and the test that breaks a step on purpose is the only thing that proves it.
+
+**`PRAGMA foreign_keys` has two silent failure modes, not one.** It is off by default *and* per
+connection, and setting it inside a transaction is a no-op that reports success. Either mistake
+leaves every future `REFERENCES` clause as decoration, with a test suite that passes.
+
+**Deciding what v1 contains took longer than writing it.** The pull toward designing
+`measurements`, `jobs`, `settings` and `logs` now is strong, and it is the same instinct M2-T08
+refused for the ports: an interface written before its first adapter is a guess that gets
+rewritten. Here the guess would be on an operator's disk, behind a no-destructive-migrations rule.
+
+**The journal mode turned out to be a format question.** WAL reads as a performance knob until you
+notice it adds two files to a directory whose contents this project *published* as a contract one
+task ago — and that a project copied mid-write would then have committed data outside it.
+
+---
+
+## Notes
+
+M4's risk profile held for the second time: the golden is byte-identical and nothing numerical is
+imported by this module. **M4-T03** takes the tables and puts a repository on them, including the
+integrity check ADR-0003 has been owed since it named the dangling row.

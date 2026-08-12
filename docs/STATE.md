@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-09 · **Branch:** `feat/m4-application-layer` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-12 · **Branch:** `feat/m4-application-layer` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -34,9 +34,27 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T01` done 2026-08-09 (ADR-0038); `M4-T02` — SQLite schema v1 and the
-forward-migration mechanism — is the obvious next one**, because it owns `schema_version`, the
-number M4-T01 decided the home and the rules for.
+**None selected. `M4-T02` done 2026-08-12 (ADR-0039); `M4-T03` — the `ProjectRepository` and the
+integrity check — is next**, because the tables now exist to implement against, and ADR-0003 has
+been owed a reconciliation between the index and `images/` since it named the dangling row as the
+price of two sources of truth.
+
+**`M4-T02` done 2026-08-12 (ADR-0039) — the schema has a version and a way forward.** The
+mechanism before the tables, because creating them is its first job: version 0 is an empty file
+and every table in existence was made by a migration step. `MIGRATIONS` is an ordered list of
+`(version, statements)` with **`SCHEMA_VERSION` derived from its last entry** — a constant that
+can disagree with the list eventually does. **The finding is a stdlib default:** Python's
+`sqlite3` opens a transaction implicitly before **DML only**, so `CREATE TABLE` runs in autocommit
+and a step failing partway would leave tables behind *at the old version*, the one state a
+migration must never produce; each step runs under an explicit `BEGIN` with `PRAGMA user_version`
+inside it, and a test breaks a step to prove nothing survives. **v1 holds one table, `images`** —
+a table with no reader is columns designed before their caller, and "no destructive migrations"
+makes a wrong one expensive to remove. **No WAL**, which is a layout decision: `-wal` and `-shm`
+would be two files in a published contract, and a project copied mid-write would leave committed
+data behind. `PRAGMA foreign_keys` is set on the connection (off by default, per connection, and a
+silent no-op inside a transaction). Two rules became `CHECK` clauses — a relative path, and a
+`modality` the enum still recognises. 23 tests, **golden byte-identical**, mypy unchanged at 6,
+no new dependency.
 
 **`M4-T01` done 2026-08-09 (ADR-0038) — the project format is a versioned contract.** First of the
 milestone because everything else in M4 writes into a project, and left implicit the format
@@ -1035,12 +1053,12 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Review M3's exit criteria and decide whether the milestone closes.** Its numerical work is
-   done: every defect the audit reproduced is fixed, the degenerate-input contract exists, one
-   schema covers the four producers, and detection quality is measured. What is left inside M3 is
-   **M3-T16** (blocked on **B6**) and **M3-T19** (`low`). **M3-T15** (the evaluation harness) is the one that unblocks every claim about
-   detection *quality* — M3-T03, T10, T21 and now T08 each had to say "not claimed" because it
-   does not exist yet
+1. **`M4-T03` — the `ProjectRepository` and the integrity check.** The format (T01) and the tables
+   (T02) exist; what is missing is the code that puts a row in one and finds the file it names.
+   ADR-0003 has been owed the reconciliation since it wrote down the price of two sources of
+   truth: *"deleting a file behind the application's back produces a dangling row; the repository
+   layer must reconcile"*. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
+   four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1065,12 +1083,12 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **476, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **524, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
-| mypy errors | **12**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
+| mypy errors | **6**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
 | Open defects | **16** (was 28) — every reproduced numerical defect is closed; what is left is documentation (D-24 → M9) and the new M3-T19 | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |

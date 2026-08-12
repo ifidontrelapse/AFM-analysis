@@ -7,6 +7,78 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T02 · **the schema has a version and a way forward**
+
+**Task:** `M4-T02`, the second of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
+**ADR-0039**.
+
+### Why this order
+
+M4-T01 decided *where* the schema version lives and owned nothing else about the database.
+Everything above this task stores rows — the repository (T03), the lifecycle use cases (T04), the
+measurements (T05), the settings (T10), the log sink (T14). If the schema had arrived with the
+first repository, the migration mechanism would have arrived *after* the first tables, which is
+the one order that cannot work: creating them is the mechanism's first job. So version 0 is an
+empty file, and **every table in existence was created by a migration step**.
+
+### The decisions
+
+**The migration list is the source of truth.** `MIGRATIONS` is a tuple of `(version, statements)`
+applied in order, and `SCHEMA_VERSION` is `MIGRATIONS[-1][0]` — derived, not declared beside it,
+because a constant that *can* disagree with the list eventually does, and the disagreement is a
+database claiming a version nothing produced. A step that has shipped is never edited: a project
+on disk has already run it.
+
+**Only tables with a reader today.** One table, `images`. Not `measurements`, `jobs`, `settings`
+or `logs`, whose owning tasks are unwritten. Adding a table is exactly what the mechanism is for,
+and columns invented ahead of a caller are the ones that turn out to be the wrong shape — by which
+point they are on an operator's disk and "no destructive migrations" makes removing them
+expensive. It is M2-T08's rule for ports ("an interface written before its first adapter is a
+guess that gets rewritten"), one layer down and with the operator's data attached.
+
+**No WAL, and that is a layout decision rather than a performance one.** `journal_mode = WAL`
+would put `database.sqlite-wal` and `-shm` into a directory whose contents are a *published
+contract*, and a project copied while a WAL is unflushed is ADR-0003's known "half-copied project"
+hazard with a sharper edge: committed transactions living in a file the operator did not know to
+copy. What WAL buys is concurrent readers during a write; this is one desktop writer.
+
+**Two rules moved out of the code and into the database.** ADR-0003 asks the application to "be
+careful never to write an absolute path" — care is not a mechanism, and `CHECK (relative_path NOT
+LIKE '/%')` is. `modality` is constrained to the three `Modality` members, which duplicates the
+enum in SQL, so the test that proves the constraint **iterates the enum**: the copy cannot go
+stale without a red test.
+
+### What it turned up
+
+**A migration is not atomic for free, and the reason is a stdlib default.** Python's `sqlite3`
+opens a transaction implicitly before **DML only**. DDL runs in autocommit — so a step that
+created two tables and then failed on its third statement would leave those two tables behind
+**at the old version number**, and the next open would try to create them again. That is the one
+state a migration must never produce, and nothing about the obvious `for statement in statements:
+conn.execute(statement)` hints at it. Each step now runs under an explicit `BEGIN`, with
+`PRAGMA user_version` set inside the same transaction — it lives in the database header and is
+transactional, so the tables and the number describing them move together or not at all. The test
+breaks a step on purpose and asserts the version did not move and no table survived.
+
+**`PRAGMA foreign_keys` is off by default, per connection, and a silent no-op inside a
+transaction.** Two ways to get it wrong, both of which produce a `REFERENCES` clause that is
+decoration and a test suite that never notices. It is set in the connect helper, on the first
+statement of the connection's life, and a test reads it back.
+
+### Numbers
+
+- **Golden: byte-identical.** No numerical code is imported by this module, let alone touched
+- Tests **501 → 524**; mypy unchanged at **6**, all pre-existing
+- One new module, one new table, one ADR; `sqlite3` is stdlib, so **no new dependency**
+
+### Next
+
+**M4-T03** — the `ProjectRepository` on top of these tables, and the integrity check that
+reconciles the index against `images/` at open time. It is the task ADR-0003 has been owed since
+it named the dangling-row problem as the price of two sources of truth.
+
+---
+
 ## 2026-08-09 — M4-T01 · **the project format is a versioned contract**
 
 **Task:** `M4-T01`, the first of M4. **Branch:** `feat/m4-application-layer` — M4 changes no

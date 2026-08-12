@@ -62,13 +62,14 @@ AFM-analysis/
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
+│   │   ├── storage/database.py         # schema version + migrations (M4-T02)
 │   │   ├── models/                     # yolo.py, sam2.py — heavy imports, function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib)
 │   ├── gui/                            # PySide6 (M5)
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
-│   │                                   #   import_graph, project_format — 493 tests
+│   │                                   #   import_graph, project_format, database — 524 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

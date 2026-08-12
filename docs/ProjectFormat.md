@@ -35,6 +35,9 @@ MyProject/
 - `cache/` MAY be deleted at any time, by anyone, with no data loss. Reopening the project
   reconstructs whatever it needs. Nothing may be stored only in `cache/`.
 - The source scans under `images/` are never modified in place.
+- `database.sqlite` is the **only** database file. There is no `-wal` or `-shm` beside it: the
+  application does not use WAL, so a copy of the directory is a complete copy of the index
+  (ADR-0039 §4). A reader may rely on that when archiving a project.
 
 ## 2. The manifest
 
@@ -73,9 +76,14 @@ forever.
 | Version | Lives in | Describes | Owned by |
 |---|---|---|---|
 | `format_version` | `project.json` | the directory: which files exist and what they mean | this document |
-| `schema_version` | `database.sqlite`, as `PRAGMA user_version` | the database tables | M4-T02 |
+| `schema_version` | `database.sqlite`, as `PRAGMA user_version` | the database tables | `infrastructure/storage/database.py` (M4-T02, ADR-0039) |
 
 They are independent and are bumped separately. Adding a column is not adding a directory.
+
+`schema_version` is `0` for a database with no tables — an absent `database.sqlite` and a freshly
+created one are the same state — and it advances one step at a time as the migrations run. A
+newer `schema_version` is refused for the same reason a newer `format_version` is, with the same
+error.
 
 **`format_version` is bumped only when a reader that does not know about the change would
 *misread* a project.** Adding an optional field, or a new subdirectory that older readers can
@@ -90,8 +98,13 @@ ignore, is not such a change and does not bump it.
 | a newer version | **refuses**, naming both versions, and says to upgrade the application |
 | no manifest, unparseable JSON, not an object, a missing field, a non-integer version | **refuses** as "not a project directory", naming the path |
 
+The same four rows hold for `schema_version`, read from the database instead of the manifest, and
+a refusal is the same `ProjectFormatError`.
+
 Migrations are **forward-only and never destructive**: a migration may add, and may rewrite what
-it fully understands, but it may not discard data it does not recognise.
+it fully understands, but it may not discard data it does not recognise. A database migration is
+one step at a time and **all-or-nothing** — the tables and the version number move together, so a
+migration that fails leaves the database exactly as it was (ADR-0039 §2).
 
 Refusing a newer project is deliberate. A forward migration cannot be written by the past —
 opening a project written by a later version means guessing what its fields mean, and the guess
@@ -130,8 +143,13 @@ exists.
 3. A new ADR is needed when the change reverses a decision in ADR-0003 or ADR-0038. Extending the
    layout does not need one.
 
+Changing the **database** is a different move: append a step to `MIGRATIONS` in
+`database.py`, never edit one that has shipped, and leave `format_version` alone — a new table is
+not a new directory. `SCHEMA_VERSION` follows the list on its own.
+
 ## References
 
 - **ADR-0003** — projects are directories; SQLite stores metadata only
 - **ADR-0038** — the project format is a versioned contract, with two version numbers
+- **ADR-0039** — the schema's version, its migrations, and why the directory holds one database file
 - `docs/Architecture.md` §4.4 · `docs/TASKS.md` M4-T01…M4-T03
