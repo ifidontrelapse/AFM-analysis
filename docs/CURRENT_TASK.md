@@ -3,9 +3,10 @@
 **ID:** `M4-T06`
 **Title:** Jobs: submit, progress, cancel, and the cancellation that cannot be forced
 **Milestone:** M4 — Application layer, sixth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0043** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0043**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -100,12 +101,43 @@ says what was done before the stop.
 
 ## Definition of done
 
-- [ ] `JobRunner` over `ThreadPoolExecutor`, with `Job` as a handle
-- [ ] Cooperative cancellation, and a test that proves a *running* job stops at its checkpoint
-- [ ] Progress reported as counts, with the listener documented as worker-thread
-- [ ] Failures captured on the job rather than lost in a thread
-- [ ] `import_images` reporting progress and stopping between files
-- [ ] ADR-0043
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M4-T06: a job reports, and stops when it is asked`
+- [x] `JobRunner` over `ThreadPoolExecutor`, with `Job` as a handle
+- [x] Cooperative cancellation, and a test that proves a *running* job stops at its checkpoint
+- [x] Progress reported as counts, with the listener documented as worker-thread
+- [x] Failures captured on the job rather than lost in a thread
+- [x] `import_images` reporting progress and stopping between files
+- [x] ADR-0043
+- [x] `make check` green — 619 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M4-T06: a job reports, and stops when it is asked`
+
+---
+
+## What it turned up
+
+**The repository could not be used from a job at all.** Python's `sqlite3` binds a connection to
+the thread that created it and refuses it everywhere else, so a project opened on the main thread
+was unusable inside **every** background task — found by the first test that ran an import under
+the runner, and otherwise destined to arrive in M5 as a crash inside a widget's worker.
+
+Both halves were needed: `check_same_thread=False`, because SQLite's own library is compiled
+serialized in CPython's build, **and** one reentrant lock around every repository method, because
+statement-level safety is not enough when `save_analysis` writes three statements that a second
+thread could commit half of.
+
+**Two of this task's tests were races when first written**, both fixed by making the threads meet
+on an `Event` rather than a `sleep`. It is now the rule for the file: nothing in `test_jobs.py`
+synchronises on wall-clock time, so a loaded machine cannot make it flake, and the timeouts exist
+only so a broken implementation fails in a second instead of hanging the suite.
+
+**`JobCancelled` did not need to be a new class.** `concurrent.futures.CancelledError` is what the
+stdlib already raises when a queued job is dropped, so one `except` covers both ways a job ends
+early.
+
+---
+
+## Notes
+
+The golden held for the sixth time. **M4-T07** takes annotations — the first thing an operator
+creates rather than the application deriving it, and the trigger ADR-0041 named for revisiting
+import deduplication.

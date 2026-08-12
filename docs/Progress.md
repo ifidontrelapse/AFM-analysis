@@ -7,6 +7,72 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T06 · **a job reports, and stops when it is asked**
+
+**Task:** `M4-T06`, the sixth of M4. **Branch:** `feat/m4-application-layer`. **ADR:** **ADR-0043**.
+
+### The decision
+
+**Cancellation is cooperative, and there is no version of it that is not.** A running Python thread
+cannot be killed. So a queued job is dropped outright, a running one stops at its next
+`raise_if_cancelled()`, and **a running one with no checkpoint runs to completion** with the
+request recorded but never acted on.
+
+That third row is the whole decision. A single twenty-second LoG pass has nowhere to check, so the
+cancel button means *stop at the next checkpoint* — and the GUI has to say so, because the
+alternative is a button that appears to do nothing and an operator who concludes the application
+has frozen. Two tests sit next to each other proving both halves.
+
+The rest is deliberately thin, because `ThreadPoolExecutor` already does submission, results,
+exceptions and cancelling a job that has not started. What it does not do is progress and stopping
+one that has, and that is all this module adds. **A job is a handle, not a base class**:
+`DetectionJob(Job)` and `ImportJob(Job)` would differ only in which function they call — ADR-0041's
+rule for the third time, and the place where the pull is strongest, since a job hierarchy is what
+every framework ships. Threads over processes: the work is NumPy and torch, which release the GIL
+where the time goes, and a process pool could not hand a loaded SAM2 predictor across the boundary
+at all.
+
+Progress is **counts**, not a fraction — a batch knows "12 of 40" and a bar can divide, while one
+opaque scientific call knows it is running and nothing more, so `total = 0` means *cannot say*
+rather than an invented percentage.
+
+### What it turned up
+
+**The repository could not be used from a job at all, and the first test that tried found it.**
+Python's `sqlite3` binds a connection to the thread that created it and refuses it everywhere else,
+so a project opened on the main thread was unusable inside **every** background task. Left to M5,
+this arrives as a crash in a widget's background worker with a message about thread ids.
+
+The fix needed both halves: `check_same_thread=False`, because SQLite's own library is compiled
+serialized in CPython's build — *and* one reentrant lock around every repository method, because
+statement-level safety is not enough when `save_analysis` writes a run, its detections and a path
+in three statements that a second thread could commit half of.
+
+**Two of this task's own tests were races when first written**, and both were fixed by making the
+threads meet on an `Event` instead of on a `sleep`. Worth stating as a rule for the file: nothing
+in `test_jobs.py` waits on wall-clock time to synchronise, so a loaded CI machine cannot make it
+flake — timeouts exist only so a broken implementation fails in a second rather than hanging the
+suite.
+
+**`JobCancelled` is not a new class.** `concurrent.futures.CancelledError` is raised by the stdlib
+when a queued job is dropped, so reusing it means one `except` covers both ways a job can end early.
+
+### Numbers
+
+- **Golden: byte-identical.** No numerical code touched
+- Tests **600 → 619**; mypy unchanged at **6**; no new dependency — `concurrent.futures` and
+  `threading` are stdlib
+- `import_images` gained one optional parameter and behaves exactly as before without it
+
+### Next
+
+**M4-T07** — the annotation entity and its persistence: the first table since M4-T05, and the first
+thing an operator *creates* rather than the application deriving it. It is also what makes a
+duplicated image expensive, which is the trigger ADR-0041 named for revisiting import
+deduplication.
+
+---
+
 ## 2026-08-12 — M4-T05 · **what the analysis found outlives the session**
 
 **Task:** `M4-T05`, the fifth of M4. **Branch:** `feat/m4-application-layer`. **ADR:**

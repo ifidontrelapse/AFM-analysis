@@ -58,6 +58,7 @@ AFM-analysis/
 │   │       └── measurement/            # height.py (AFM), geometry.py (any modality)
 │   ├── application/
 │   │   ├── capabilities.py             # THE execution matrix, validated before inference
+│   │   ├── jobs.py                     # JobRunner, cooperative cancel, progress (M4-T06)
 │   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04),
 │   │                                   #   analysis.py (M4-T05)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
@@ -71,9 +72,9 @@ AFM-analysis/
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
-│   │                                   #   import_graph, project_format, database — 541 tests
+│   │                                   #   import_graph, project_format, database, jobs — 557 tests
 │   ├── integration/                    # a real project: lifecycle, and analysis results that
-│   │                                   #   round-trip (M4-T03…T05) — 58 tests
+│   │                                   #   round-trip, jobs (M4-T03…T06) — 62 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -634,6 +635,23 @@ with SqliteProjectRepository.open("~/Nanoparticles") as repo:
 ```
 
 The run and its detections are rows in `analysis_runs` / `detections`; the measurement table is `results/run_<id>/measurements.csv` (ADR-0042). `run_analysis` passes the image's recorded `pixel_size_nm` into preprocessing, which is what an `.npy` has no other way of knowing.
+
+Running either of those in the background (M4-T06):
+
+```python
+from nanoscope.application.jobs import JobRunner
+
+with JobRunner() as runner:
+    job = runner.submit(
+        "importing",
+        lambda ctx: import_images(repo, files, modality=Modality.AFM, progress=ctx),
+        listener=lambda j: print(j.state, j.progress.fraction),   # on the WORKER thread
+    )
+    job.cancel()          # asks; a job with no checkpoint finishes anyway
+    job.wait()            # tests and headless callers only — a GUI subscribes instead
+```
+
+Cancellation is cooperative: `ctx.raise_if_cancelled()` is where a job stops, and code without one runs to completion (ADR-0043). The listener fires on the worker thread; a Qt caller marshals to the main thread.
 
 Preferred high-level preprocessing call:
 

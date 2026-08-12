@@ -124,8 +124,16 @@ def connect(database_path: Path | str) -> sqlite3.Connection:
     them **off**, per connection — a `REFERENCES` clause without this pragma is
     decoration. It is also a silent no-op inside a transaction, which is why it
     is set the moment the connection exists.
+
+    `check_same_thread=False` because a project opened on the main thread is used
+    by jobs on worker threads (M4-T06), and Python's default refuses that
+    outright — the connection remembers which thread made it. SQLite's own C
+    library is compiled *serialized* in CPython's build (`sqlite3.threadsafety`
+    is 3), so sharing the connection is safe at that level; what is **not** safe
+    is two threads interleaving the statements of one logical write, and
+    `SqliteProjectRepository` holds a lock for that (ADR-0043).
     """
-    conn = sqlite3.connect(database_path)
+    conn = sqlite3.connect(database_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

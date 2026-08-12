@@ -34,9 +34,26 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T05` done 2026-08-12 (ADR-0042); `M4-T06` — the job abstraction — is
-next**, because `run_analysis` is synchronous and a forty-file import or a full segmentation is
-what the GUI must not block on.
+**None selected. `M4-T06` done 2026-08-12 (ADR-0043); `M4-T07` — the annotation entity and its
+persistence — is next**: the first thing an operator *creates* rather than the application
+deriving it, and the trigger ADR-0041 named for revisiting import deduplication.
+
+**`M4-T06` done 2026-08-12 (ADR-0043) — a job reports, and stops when it is asked.** Thin over
+`ThreadPoolExecutor`, which already does submit, results, exceptions and cancelling a job that has
+not started; **progress and stopping one that has** are the whole module. **Cancellation is
+cooperative and there is no version of it that is not:** a queued job is dropped, a running one
+stops at its next `raise_if_cancelled()`, and **one with no checkpoint finishes anyway** — so the
+button means *stop at the next checkpoint*, which the GUI must say, or it is a button that appears
+to do nothing. **A job is a handle, not a base class** (ADR-0041's rule, third application, in the
+place the pull is strongest). Threads over processes — NumPy and torch release the GIL, and a
+predictor cannot be pickled. Progress is counts; `total = 0` means *cannot say*. The listener fires
+**on the worker thread**, stated three times, because M5 must marshal. **Found by the first test
+that ran an import under the runner:** `sqlite3` binds a connection to its creating thread, so a
+project opened on the main thread was **unusable inside every job** — it would have surfaced in M5
+as a crash in a background worker. Fixed with `check_same_thread=False` *and* a reentrant lock
+around every repository method, since `save_analysis` writes three statements another thread could
+commit half of. 19 tests, none synchronising on wall-clock time. **Golden byte-identical**, mypy
+unchanged at 6.
 
 **`M4-T05` done 2026-08-12 (ADR-0042) — what the analysis found outlives the session. M4's second
 exit criterion is met.** The decision the criterion itself names: **the index is relational, the
@@ -1105,10 +1122,11 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T06` — the job abstraction**: submit, progress, cancel, failure reporting. Everything
-   in M4 so far returns when it is done, and M5's exit criteria require a long job that shows
-   progress and cancels without freezing the UI. M3's remainder is unchanged — **M3-T16** (blocked
-   on **B6**) and the four algorithm findings, which the roadmap allows to run in parallel
+1. **`M4-T07` — the annotation entity and its persistence.** The first table since M4-T05 and
+   the first data an operator *creates*; it is also what makes a duplicated image expensive, which
+   is the trigger ADR-0041 named for revisiting import deduplication. M3's remainder is unchanged —
+   **M3-T16** (blocked on **B6**) and the four algorithm findings, which the roadmap allows to run
+   in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1133,7 +1151,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **600, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **619, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

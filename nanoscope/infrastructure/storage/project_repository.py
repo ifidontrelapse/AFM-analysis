@@ -28,10 +28,13 @@ from __future__ import annotations
 import hashlib
 import shutil
 import sqlite3
+import threading
+from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Any, Self, cast
 
 import pandas as pd
 
@@ -56,18 +59,46 @@ _RESULTS_DIRECTORY = "results"
 _HASH_CHUNK_BYTES = 1024 * 1024
 
 
+def _serialised[M: Callable[..., Any]](method: M) -> M:
+    """Let one thread at a time inside the repository.
+
+    Jobs run on worker threads (M4-T06) while the project was opened on another,
+    and the two share one connection. SQLite's own library is serialized, so a
+    *statement* is safe; a **sequence** of them is not — `save_analysis` writes a
+    run, its detections and a path in three statements, and a second thread
+    committing between them would commit half of it.
+
+    One lock for the whole repository, not one per table: this is a single-user
+    desktop application, contention is a project with two jobs writing at once,
+    and the moment it is measurable the answer is a connection per thread rather
+    than a finer lock.
+    """
+
+    @wraps(method)
+    def guarded(self: SqliteProjectRepository, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return cast("M", guarded)
+
+
 class SqliteProjectRepository:
     """One open project: its manifest, its database, and the files it indexes.
 
     Use it as a context manager, or call `close`. Opening is `open()`, which
     refuses a directory that is not a project and migrates the database forward
     if it is an older one.
+
+    **Usable from more than one thread**, which the connection alone is not:
+    `connect` passes `check_same_thread=False` and every method here is
+    serialised by one reentrant lock.
     """
 
     def __init__(self, root: Path, manifest: ProjectManifest, conn: sqlite3.Connection) -> None:
         self._root = root
         self._manifest = manifest
         self._conn = conn
+        self._lock = threading.RLock()
 
     @classmethod
     def open(cls, project_dir: Path | str) -> Self:
@@ -143,6 +174,7 @@ class SqliteProjectRepository:
     ) -> None:
         self.close()
 
+    @_serialised
     def add_image(
         self,
         relative_path: str,
@@ -195,6 +227,7 @@ class SqliteProjectRepository:
         self._conn.commit()
         return self.get_image(int(cursor.lastrowid or 0))
 
+    @_serialised
     def import_image(
         self,
         source: Path | str,
@@ -246,6 +279,7 @@ class SqliteProjectRepository:
             pixel_size_nm=pixel_size_nm,
         )
 
+    @_serialised
     def get_image(self, image_id: int) -> ImageRecord:
         """The row with this id.
 
@@ -257,17 +291,20 @@ class SqliteProjectRepository:
             raise InvalidParameterError(f"no image with id {image_id} in {self._root}")
         return _record(row)
 
+    @_serialised
     def path_of(self, image: ImageRecord) -> Path:
         """Where that image's file is. Relative paths are stored; absolute
         ones are what a reader needs, and this is the only place that joins
         the two (ADR-0038's compliance section)."""
         return self._root / image.relative_path
 
+    @_serialised
     def list_images(self) -> list[ImageRecord]:
         """Every image in the project, in the order they were imported."""
         rows = self._conn.execute("SELECT * FROM images ORDER BY id")
         return [_record(row) for row in rows]
 
+    @_serialised
     def remove_image(self, image_id: int) -> None:
         """Forget the row. The file stays on disk.
 
@@ -284,6 +321,7 @@ class SqliteProjectRepository:
         if cursor.rowcount == 0:
             raise InvalidParameterError(f"no image with id {image_id} in {self._root}")
 
+    @_serialised
     def save_analysis(self, image_id: int, result: PipelineResult) -> AnalysisRun:
         """Store what an analysis found, and return its index entry (M4-T05).
 
@@ -356,6 +394,7 @@ class SqliteProjectRepository:
         self._conn.commit()
         return self.get_run(run_id)
 
+    @_serialised
     def get_run(self, run_id: int) -> AnalysisRun:
         """One analysis, with its detections.
 
@@ -367,6 +406,7 @@ class SqliteProjectRepository:
             raise InvalidParameterError(f"no analysis run with id {run_id} in {self._root}")
         return _run(row, self._detections_of(run_id))
 
+    @_serialised
     def runs_for(self, image_id: int) -> list[AnalysisRun]:
         """Every analysis of this image, oldest first."""
         rows = self._conn.execute(
@@ -374,6 +414,7 @@ class SqliteProjectRepository:
         ).fetchall()
         return [_run(row, self._detections_of(int(row["id"]))) for row in rows]
 
+    @_serialised
     def measurements_for(self, run: AnalysisRun) -> pd.DataFrame:
         """The measurement table this run produced, read back from its file.
 
@@ -399,6 +440,7 @@ class SqliteProjectRepository:
             )
         return pd.read_csv(path)
 
+    @_serialised
     def check_integrity(self) -> IntegrityReport:
         """Compare the index against the filesystem, in both directions.
 

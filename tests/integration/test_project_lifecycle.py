@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from nanoscope.application.jobs import JobContext, JobRunner, JobState
 from nanoscope.application.use_cases import import_images, open_project
 from nanoscope.core.errors import InvalidParameterError, MissingFileError
 from nanoscope.core.values import Modality
@@ -176,6 +177,94 @@ class TestImportingIntoTheProject:
 
             assert list((repo.root / "images").iterdir()) == []
             assert repo.check_integrity().is_clean
+
+
+class TestImportingAsAJob:
+    """The batch under M4-T06's runner — the shape M5 will use."""
+
+    def test_a_project_opened_here_is_usable_from_a_worker_thread(self, tmp_path: Path) -> None:
+        """Python's `sqlite3` binds a connection to the thread that made it and
+        refuses it anywhere else — so a project opened on the main thread was
+        unusable inside every job, which is how this would have arrived in M5:
+        as a crash in a background task. `connect` passes
+        `check_same_thread=False` and the repository serialises itself
+        (ADR-0043)."""
+        with (
+            SqliteProjectRepository.create(tmp_path / "P", "P") as repo,
+            JobRunner(max_workers=1) as runner,
+        ):
+            job = runner.submit("listing", lambda ctx: repo.list_images())
+
+            assert job.wait(5.0)
+            assert job.state is JobState.SUCCEEDED, job.error
+
+    def test_it_reports_which_file_it_is_on(self, tmp_path: Path, scans: Path) -> None:
+        seen: list[tuple[int, int]] = []
+
+        with (
+            SqliteProjectRepository.create(tmp_path / "P", "P") as repo,
+            JobRunner(max_workers=1) as runner,
+        ):
+            job = runner.submit(
+                "importing",
+                lambda ctx: import_images(
+                    repo, sorted(scans.iterdir()), modality=Modality.AFM, progress=ctx
+                ),
+                listener=lambda j: seen.append((j.progress.done, j.progress.total)),
+            )
+            assert job.wait(5.0)
+
+            assert job.state is JobState.SUCCEEDED
+            assert (0, 2) in seen and (2, 2) in seen
+            assert len(job.result.imported) == 2
+
+    def test_cancelling_keeps_what_was_already_imported(self, tmp_path: Path, scans: Path) -> None:
+        """Between files is the only clean place to stop, and the files that
+        made it are real files with real rows. The report says what was done
+        before the stop rather than pretending nothing happened."""
+        with (
+            SqliteProjectRepository.create(tmp_path / "P", "P") as repo,
+            JobRunner(max_workers=1) as runner,
+        ):
+            job = runner.submit(
+                "importing",
+                lambda ctx: import_images(
+                    repo,
+                    sorted(scans.iterdir()),
+                    modality=Modality.AFM,
+                    progress=_StopAfter(ctx, reports=1),
+                ),
+            )
+            assert job.wait(5.0)
+
+            report = job.result
+            assert len(report.imported) == 1
+            assert repo.list_images() == list(report.imported)
+            assert repo.check_integrity().is_clean
+
+
+class _StopAfter:
+    """A `JobContext` that says "cancelled" once it has seen `reports` reports.
+
+    A double rather than a sleep and a race: the cancellation lands at a known
+    file, so the assertion is about behaviour and not about timing.
+    """
+
+    def __init__(self, inner: JobContext, *, reports: int) -> None:
+        self._inner = inner
+        self._limit = reports
+        self._seen = 0
+
+    @property
+    def cancelled(self) -> bool:
+        return self._seen > self._limit
+
+    def raise_if_cancelled(self) -> None:
+        self._inner.raise_if_cancelled()
+
+    def report(self, done: int, total: int = 0, message: str = "") -> None:
+        self._seen += 1
+        self._inner.report(done, total, message)
 
 
 class TestTheProjectSurvivesTheSession:

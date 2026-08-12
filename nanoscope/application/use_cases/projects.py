@@ -29,6 +29,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
+from nanoscope.application.jobs import JobContext
 from nanoscope.core.entities.project import (
     ImageRecord,
     ImportFailure,
@@ -67,6 +68,7 @@ def import_images(
     *,
     modality: Modality,
     pixel_size_nm: float | None = None,
+    progress: JobContext | None = None,
 ) -> ImportReport:
     """Copy files into the project and record them, one by one.
 
@@ -89,14 +91,26 @@ def import_images(
             is two calls.
         pixel_size_nm: nm per pixel, or `None` when the scale is unknown — which
             is a state, not a reason to invent 1.0 (ADR-0025).
+        progress: when this runs as a job (M4-T06), where to report "12 of 40"
+            and where to notice that somebody pressed cancel. **Between files**,
+            which is the only point in this loop where stopping is clean: a
+            half-copied scan with no row is exactly the litter `check_integrity`
+            would report.
 
     Returns:
-        What was imported, and what was not, with a reason for each failure.
+        What was imported, and what was not, with a reason for each failure. A
+        cancelled import returns the same shape: the files copied before the
+        stop are in the project, and saying so is the report's job.
     """
+    files = [Path(source) for source in sources]
     imported: list[ImageRecord] = []
     failed: list[ImportFailure] = []
 
-    for source in sources:
+    for index, source in enumerate(files):
+        if progress is not None:
+            progress.report(index, len(files), f"importing {source.name}")
+            if progress.cancelled:
+                break
         try:
             imported.append(
                 repository.import_image(
@@ -108,4 +122,6 @@ def import_images(
         except NanoscopeError as exc:
             failed.append(ImportFailure(source=str(source), reason=str(exc)))
 
+    if progress is not None:
+        progress.report(len(imported) + len(failed), len(files), "done")
     return ImportReport(imported=tuple(imported), failed=tuple(failed))
