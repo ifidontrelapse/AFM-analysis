@@ -1,10 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M4-T13`
-**Title:** A model is a record, not a path in a default argument
-**Milestone:** M4 — Application layer, thirteenth task
-**Defect:** W10 (model paths are hardcoded config strings) · **ADR:** ADR-0005 is accepted;
-**ADR-0050** records what implementing it decided
+**ID:** `M4-T14`
+**Title:** Logging: two files, and the SQLite sink that ADR-0013 promised
+**Milestone:** M4 — Application layer, fourteenth task
+**Defect:** — (D-22/D-23 closed in M2-T11; this is the sink half) · **ADR:** **ADR-0051**
 **Branch:** `feat/m4-application-layer`
 **Status:** **done 2026-08-12.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -12,55 +11,49 @@
 
 ## Why this task is next
 
-W10, still open and still visible in two default arguments:
+M2-T11 gave every module a logger and deliberately configured nothing: *"no library module calls
+`basicConfig` or attaches a handler. Configuring logging is the application's decision; a library
+that makes it steals it"* (ADR-0013). So today every log record this project emits goes nowhere.
 
-```python
-yolo_model_path: str = "./checkpoints/best12x.pt"     # PipelineConfig
-def __init__(self, model_path: str = "./checkpoints/best12x.pt", ...)   # YoloDetector
-```
-
-A relative path to a file nobody promises exists, with no version, no checksum, no record of what
-it was trained on, repeated in two places. ADR-0005 decided the replacement — a `ModelDescriptor`
-in the database and a registry keyed by a string — and the milestone's fourth exit criterion is
-*"model registry resolves `yolo` and `sam2` to providers via `ModelDescriptor`"*.
-
-M4-T12 also left a gap by name: the resolved device reaches nothing yet. The registry is where a
-provider gets constructed, so it is where a device can be handed over.
+ADR-0013 left one thing open, by name: *"the SQLite log destination that ADR-0003 and
+Architecture §3.1 describe becomes a `logging.Handler` … added when the database exists."* It
+exists. This task either writes that handler or explains why not.
 
 ---
 
 ## The decisions this task has to make
 
-**1. What is registered — a class, or a factory?** A **factory**, and the registry never
-constructs anything by itself.
+**1. Does the SQLite sink get written?** **No** — and this is the task's real question, so it gets
+argued rather than skipped.
 
-Building a `YoloDetector` loads weights off disk; a registry that instantiates on lookup makes
-"what models do I have?" an expensive question and an impossible one in CI, where no weights
-exist. `resolve()` returns something callable, and the caller decides when to pay.
+The decisive objection is not performance. It is that **a log must not depend on the thing whose
+failure it records.** The most valuable log lines this application will ever emit are "could not
+open the database", "the schema is newer than this version", "the project directory is not a
+project" — and a handler that writes into that project's database has nowhere to put any of them.
+A log that works only when everything works is not a log.
 
-**2. Where do weights live, and may a path be absolute?** Both, and the *reason* is the decision.
+The rest follows: a write transaction per record, contending with the repository lock the log lines
+are *about*; a table that grows without a rotation story; and a support request that starts with
+"send me your database" instead of "send me the log file".
 
-Project-local weights go in `models/` and are stored relative, like every other path (ADR-0003).
-But nobody copies a 137 MB checkpoint into every project, so an absolute path to a shared file is
-**allowed** — and a project carrying one is honest about the consequence: it opens on another
-machine, and that model is simply unavailable there. Refusing absolute paths would mean either
-duplicating gigabytes or lying about where the file is.
+**2. Then where do records go?** Two rotating files, because there are two questions:
 
-**3. What identifies a model?** A caller-chosen `model_id` string, unique within the project — the
-same string ADR-0005 puts in configuration. Not a hash: an operator names their model, and a
-checksum answers a different question ("is this the file I recorded?"), which the descriptor also
-carries.
+| Where | Answers |
+|---|---|
+| `$XDG_STATE_HOME/nanoscope/nanoscope.log` | *what did the application do?* — including everything before a project is open, and every failure to open one |
+| `<project>/logs/nanoscope.log` | *what happened to this work?* — travels with the directory, which is what ADR-0003 set `logs/` aside for, and is what an operator attaches to a bug report about that project |
 
-**4. Does this task rewire `run_pipeline`?** **No.** Its `if/elif` on `cfg.detector` is what the
-`Detector` port removes, and doing it here would mean a behaviour-preserving refactor of the one
-function the golden covers most, bundled into a commit about storage — exactly what ADR-0010
-forbids. The registry is additive; the swap belongs with the composition root that will call it
-(M5).
+**3. Structured how?** **JSON Lines.** One object per record: timestamp, level, logger, message,
+and the exception when there is one. `grep` still works, `jq` works properly, and a GUI panel can
+parse a line without a regex over a format string. "Structured logs" in the task title is the
+requirement; JSONL is the smallest thing that satisfies it.
 
-**5. Do the defaults change?** No. `PipelineConfig.yolo_model_path` keeps its value, because the
-golden records that field and M4 must not move a number. What changes is that there is now a
-**better** way to say which model, and W10 closes when the GUI uses it rather than when the
-default disappears.
+**4. Who configures it?** `app/` — the composition root, and the only layer allowed to
+(PROJECT_RULES §2.7, ADR-0013). Library modules keep their `getLogger(__name__)` and attach
+nothing.
+
+**5. What about rotation?** `RotatingFileHandler`, 5 MB × 3. Not a decision worth agonising over,
+but worth *stating*: an unbounded log on a laptop is a disk-full bug that arrives months later.
 
 ---
 
@@ -68,44 +61,42 @@ default disappears.
 
 **In scope**
 
-1. `ModelDescriptor` in `core/entities/model.py` — id, task, framework, path, input size, class
-   map, provenance, checksum
-2. Migration step 5: the `models` table, and repository methods to register / list / get
-3. `infrastructure/models/registry.py` — framework → factory, `resolve(descriptor, device)`
-4. **ADR-0050** — factories not instances, absolute paths allowed with their consequence, the
-   `run_pipeline` rewiring deferred with a trigger
-5. Tests: the descriptor round-trips, an unknown framework is refused by name, `yolo` and `sam2`
-   resolve to their providers **without loading weights**, and a device is passed through
+1. `infrastructure/logging/setup.py` — the JSONL formatter, both rotating handlers
+2. `app/logging.py` — `configure_logging(...)` / `attach_project_log(...)`, the composition root's
+   half
+3. **ADR-0051** — no SQLite sink and why, two files, JSONL, who configures
+4. Tests: a record becomes one JSON object per line, an exception is captured, rotation is
+   configured, the project handler writes into `logs/`, and configuring twice does not duplicate
+   handlers
 
 **Out of scope**
 
-- **Rewiring `run_pipeline`** — decision 4
-- **Downloading or validating weights.** Verifying a checksum is a read of a large file; the
-  descriptor stores it so somebody *can*, and who asks is a question for M5
-- **Training** — M7/M8 produce descriptors; this task stores them
+- **A GUI log panel** — M5. It reads the file or attaches its own handler; both are its choice
+- **Log levels per module in settings** — M4-T10 stores preferences; wiring one to a logger is a
+  line M5 writes when there is a dialog for it
 
 ---
 
 ## Definition of done
 
-- [x] `ModelDescriptor`, schema v5, repository methods, the port extended
-- [x] A registry resolving `yolo` and `sam2` to providers without constructing them
-- [x] ADR-0050
-- [x] Tests, including a device handed to a factory
+- [x] JSONL records, two rotating destinations, configured only from `app/`
+- [x] ADR-0051, including the SQLite sink refused with its reason
+- [x] Tests, including the double-configuration case
 - [x] `make check` green — golden byte-identical
-- [x] Docs, the ADR index, the roadmap criterion
-- [x] Commit: `M4-T13: a model is a record, not a path in a default argument`
+- [x] `ADR-0013` referenced as answered; docs and the ADR index
+- [x] Commit: `M4-T14: a log that only works when everything works is not a log`
 
 ---
 
 ## What it turned up
 
-**The guard written last session fired on the very next migration.** `TABLES_BY_VERSION` in
-`tests/integration/conftest.py` did not list v5's `models` table, and its own self-check went red
-immediately — instead of three unrelated migration tests failing later with
-`CREATE TABLE … already exists`. One task after it was written, it paid for itself.
+**The `_STANDARD` field list wanted to be a hand-written string of attribute names, and it should
+not be.** `logging.LogRecord` knows its own attributes — constructing one and reading its
+`__dict__` is the same list, derived rather than transcribed, and it does not go stale when the
+stdlib adds a field. The three that only appear later (`message`, `asctime`, `taskName`) are added
+by name, which is a much shorter thing to keep true.
 
-**W10 is made closable rather than closed, and saying which is the point.** The registry exists and
-works; `PipelineConfig.yolo_model_path` still holds a path, because deleting it means rewiring the
-function the golden covers most. Half a defect closed, with the other half assigned, beats a
-commit that quietly does both.
+**mypy went to 7 for one commit.** The registry imports the SAM2 predictor by name, and sam2 ships
+neither stubs nor a `py.typed` marker — so `sam2.*` joined the scoped `ignore_missing_imports` list
+next to `ultralytics.*`. Scoped per module, as M1-T04 insisted: a blanket ignore would also hide a
+typo in a first-party import.

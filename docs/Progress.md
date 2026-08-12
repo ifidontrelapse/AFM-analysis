@@ -7,6 +7,39 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T14 · **a log that only works when everything works is not a log**
+
+**Task:** `M4-T14`. **ADR:** **ADR-0051**, which answers the last item ADR-0013 left open.
+
+ADR-0013 deferred the SQLite log sink by name — *"added when the database exists"*. It exists, so
+this task had to write it or say why not. **It says why not.**
+
+**The decisive objection is not performance: a log must not depend on the thing whose failure it
+records.** The most valuable lines this application will ever write are *"the schema is newer than
+this version"*, *"database.sqlite is corrupt"*, *"this directory is not a project"* — and a handler
+writing into that project's database has nowhere to put a single one of them. The supporting
+arguments would have been enough on their own: a write transaction per record contending for the
+lock the records are *about* (ADR-0043), a table growing with no rotation story in a schema whose
+other tables have one, and a support request that begins "send me your database".
+
+**Two rotating files instead**, because there are two questions — *what did the application do*
+(including every failure to open a project, which is why that one lives outside any project) and
+*what happened to this work* (which travels with the directory, as ADR-0003 intended `logs/` to).
+The application log is **state, not config**: generated data nobody edits, so `~/.local/state`
+rather than beside M4-T10's settings.
+
+**JSON Lines**, so `extra=` survives as fields and M5's panel reads `image_id` rather than regexing
+it out of a sentence — and a value that will not serialise becomes its `repr`, because a log line
+must never fail on account of what somebody logged.
+
+Only `app/` attaches handlers, and they are named, so configuring twice replaces rather than
+duplicates — what a restarted GUI, a reopened project and a test suite all do.
+
+**Numbers:** 12 tests; `sam2.*` joined the scoped `ignore_missing_imports` list when the registry
+started importing the predictor by name, so mypy is back to its inherited 6; golden byte-identical.
+
+---
+
 ## 2026-08-12 — M4-T13 · **a model is a record, not a path in a default argument**
 
 **Task:** `M4-T13`. **ADR:** **ADR-0050**, implementing ADR-0005. Schema **v5**. Exit criterion met.

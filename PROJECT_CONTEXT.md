@@ -73,12 +73,14 @@ AFM-analysis/
 │   │   ├── models/                     # yolo.py, sam2.py, registry.py (M4-T13) — heavy imports
 │   │                                   #   are function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib)
+│   │   └── logging/setup.py            # JSONL formatter + rotating handlers (M4-T14)
+│   ├── app/logging.py                  # the only place that attaches a handler (M4-T14)
 │   ├── gui/                            # PySide6 (M5)
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings, device — 597 tests
+│   │                                   #   commands, settings, device, log sinks — 621 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T13) — 134 tests

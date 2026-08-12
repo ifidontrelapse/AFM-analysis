@@ -170,6 +170,9 @@ module = [
     "scipy.*",
     "patched_yolo_infer.*",
     "ultralytics.*",
+    # Joined the list in M4-T13, when the registry started importing the
+    # predictor by name: sam2 ships neither stubs nor a py.typed marker.
+    "sam2.*",
 ]
 ignore_missing_imports = true
 

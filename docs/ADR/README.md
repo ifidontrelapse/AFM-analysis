@@ -58,6 +58,7 @@ Use `TEMPLATE.md` for new records.
 | [0048](ADR-0048-an-export-is-not-a-copy-of-the-stored-table.md) | An export is not a copy of the stored table | Accepted | 2026-08-12 |
 | [0049](ADR-0049-no-torch-is-a-cpu-and-rocm-is-not-cuda.md) | No torch is a CPU, and ROCm is not CUDA | Accepted | 2026-08-12 |
 | [0050](ADR-0050-a-model-is-a-record-and-the-registry-hands-back-factories.md) | A model is a record, and the registry hands back factories | Accepted | 2026-08-12 |
+| [0051](ADR-0051-a-log-must-not-live-inside-what-it-reports-on.md) | A log must not live inside the thing whose failure it reports | Accepted | 2026-08-12 |
 
 ## When to write one
 

@@ -34,8 +34,17 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T13` done 2026-08-12 (ADR-0050); `M4-T14` — logging — is next**, and it has
-an open question ADR-0013 left: where the SQLite log destination it promised should actually go.
+**None selected. `M4-T14` done 2026-08-12 (ADR-0051); `M4-T15` — the headless end-to-end test — is
+next, and it closes the milestone.**
+
+**`M4-T14` done 2026-08-12 (ADR-0051) — a log that only works when everything works is not a log.**
+ADR-0013 deferred the SQLite sink by name; the database exists now, and this task **refuses it with
+the argument written down**: *a log must not depend on the thing whose failure it records*. The most
+valuable lines this application will write are about a database it could not open, and a handler
+inside that database has nowhere to put them. **Two rotating files instead** —
+`$XDG_STATE_HOME/nanoscope/nanoscope.log` for what the application did, `<project>/logs/` for what
+happened to that work — in **JSON Lines**, so `extra=` survives as fields. Only `app/` attaches
+handlers, and they are named, so configuring twice replaces rather than duplicates. 12 tests.
 
 **`M4-T13` done 2026-08-12 (ADR-0050, implementing ADR-0005) — a model is a record, not a path in a
 default argument.** Exit criterion met **without a weight file in sight**, because the registry
@@ -1200,9 +1209,8 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T14` — logging infrastructure**, which has to answer the question ADR-0013 deferred:
-   where the SQLite log destination it promised should actually go. Then **M4-T15**, the headless
-   end-to-end test that closes the milestone. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
+1. **`M4-T15` — the headless end-to-end test of the whole layer**, which is M4's last task and its
+   sixth exit criterion ("integration tests cover the whole layer; no Qt imported anywhere"). M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
    four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
@@ -1228,7 +1236,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **740, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **755, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
