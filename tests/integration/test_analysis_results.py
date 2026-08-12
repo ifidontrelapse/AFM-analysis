@@ -220,8 +220,11 @@ class TestTheMigrationThatBroughtTheseTables:
         with SqliteProjectRepository.create(root, "P") as repo:
             (root / "images" / "a.spm").write_bytes(b"AFM")
             recorded = repo.add_image("images/a.spm", modality=Modality.AFM)
-            # Back to the world as M4-T02 left it: the tables of v2 dropped, the
-            # version number with them.
+            # Back to the world as M4-T02 left it: every table above v1 dropped,
+            # and the version number with them. Dropping *all* of them is the
+            # point — a database that claims v1 while carrying a v3 table is not
+            # a v1 database, and the migration would rightly fail on it.
+            repo._conn.execute("DROP TABLE annotations")
             repo._conn.execute("DROP TABLE detections")
             repo._conn.execute("DROP TABLE analysis_runs")
             repo._conn.execute("PRAGMA user_version = 1")

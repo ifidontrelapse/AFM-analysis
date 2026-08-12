@@ -3,9 +3,10 @@
 **ID:** `M4-T07`
 **Title:** Annotations: the first data the operator makes, not the application
 **Milestone:** M4 — Application layer, seventh task
-**Defect:** — (W9: annotations cannot become a dataset) · **ADR:** **ADR-0044** (to be written)
+**Defect:** — (W9: annotations cannot become a dataset) · **ADR:** **ADR-0044**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -110,10 +111,34 @@ editor that does not exist.
 
 ## Definition of done
 
-- [ ] Schema v3 with the `annotations` table and its constraints
-- [ ] `Annotation`, and four repository methods on the port
-- [ ] ADR-0044
-- [ ] Tests including the cascade and both constraints
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `ProjectFormat.md`, ADR index
-- [ ] Commit: `M4-T07: an annotation is the one thing that cannot be recomputed`
+- [x] Schema v3 with the `annotations` table and its constraints
+- [x] `Annotation`, and four repository methods on the port
+- [x] ADR-0044
+- [x] Tests including the cascade and both constraints
+- [x] `make check` green — 639 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `ProjectFormat.md`, ADR index
+- [x] Commit: `M4-T07: an annotation is the one thing that cannot be recomputed`
+
+---
+
+## What it turned up
+
+**The migration mechanism refused a database that lied about its version, and that is the finding.**
+M4-T05's test fabricates a "v1" database by dropping the tables v2 added; with v3 in the list, that
+database still carried an `annotations` table while claiming to be version 1, and step 3 failed on
+`CREATE TABLE annotations`. The fix was in the test — drop everything above the target — and the
+lesson is that a half-reverted database is not an old database, which is exactly what the mechanism
+is supposed to notice.
+
+**The cascade needed a decision, not a default.** Annotations following their image out of the
+database is correct, and it is also the first time deleting a row destroys work that cannot be
+recreated. Neither refusing the deletion nor adding `force=True` is right — the first puts a UI
+decision in storage, the second is a warning nobody reads. What the ADR does instead is hand M6 an
+obligation with the tool to meet it.
+
+---
+
+## Notes
+
+The golden held for the seventh time. **M4-T08** takes undo/redo — the reason an edit keeps its id
+— and closes another of M4's exit criteria.

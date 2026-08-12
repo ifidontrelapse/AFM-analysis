@@ -99,6 +99,38 @@ _V2 = (
     "CREATE INDEX analysis_runs_by_image ON analysis_runs(image_id)",
 )
 
+# What the operator drew (M4-T07).
+#
+# A table rather than the JSON documents ADR-0003's layout imagined, and the
+# contrast with `measurements_path` one migration above is the whole rule: a
+# measurement table's columns depend on its producer and can be recomputed, an
+# annotation is a fixed handful of numbers, edited one at a time with undo behind
+# it, and **irreplaceable** (ADR-0044).
+#
+# `source` is not decoration. Training a model on boxes copied from that model's
+# own output is self-confirmation, and a training set that cannot tell hand-drawn
+# from adopted cannot avoid it.
+_V3 = (
+    """
+    CREATE TABLE annotations (
+        id          INTEGER PRIMARY KEY,
+        image_id    INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        label       TEXT    NOT NULL,
+        x1          REAL    NOT NULL,
+        y1          REAL    NOT NULL,
+        x2          REAL    NOT NULL,
+        y2          REAL    NOT NULL,
+        source      TEXT    NOT NULL,
+        note        TEXT,
+        created_utc TEXT    NOT NULL,
+        updated_utc TEXT    NOT NULL,
+        CHECK (source IN ('manual', 'from_detection')),
+        CHECK (x2 > x1 AND y2 > y1)
+    )
+    """,
+    "CREATE INDEX annotations_by_image ON annotations(image_id)",
+)
+
 #: Every step from an empty file to the current schema, in order. A step is its
 #: target version and the statements that reach it; they run in one transaction
 #: and the version moves with them.
@@ -106,7 +138,7 @@ _V2 = (
 #: Adding a step is the only way the schema changes. Never edit a step that has
 #: shipped — a project on disk has already run it, and rewriting it makes two
 #: databases that both claim the same version.
-MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = ((1, _V1), (2, _V2))
+MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = ((1, _V1), (2, _V2), (3, _V3))
 
 #: What this application writes and can read. Derived from the list rather than
 #: declared beside it, because a constant that can disagree with the migrations

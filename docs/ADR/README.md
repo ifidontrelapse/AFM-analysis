@@ -51,6 +51,7 @@ Use `TEMPLATE.md` for new records.
 | [0041](ADR-0041-a-use-case-earns-its-place-or-is-not-written.md) | A use case earns its place, or it is not written | Accepted | 2026-08-12 |
 | [0042](ADR-0042-the-index-is-in-the-database-the-table-is-a-file.md) | The index is in the database, the measurement table is a file | Accepted | 2026-08-12 |
 | [0043](ADR-0043-cancellation-is-asked-for-not-forced.md) | Cancellation is asked for, not forced | Accepted | 2026-08-12 |
+| [0044](ADR-0044-an-annotation-is-a-row-because-it-cannot-be-recomputed.md) | An annotation is a row, because it cannot be recomputed | Accepted | 2026-08-12 |
 
 ## When to write one
 

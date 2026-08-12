@@ -34,9 +34,21 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T06` done 2026-08-12 (ADR-0043); `M4-T07` — the annotation entity and its
-persistence — is next**: the first thing an operator *creates* rather than the application
-deriving it, and the trigger ADR-0041 named for revisiting import deduplication.
+**None selected. `M4-T07` done 2026-08-12 (ADR-0044); `M4-T08` — the undo/redo command stack — is
+next**, which is what `update_annotation` keeping its id was for, and one of M4's exit criteria.
+
+**`M4-T07` done 2026-08-12 (ADR-0044) — an annotation is a row, because it cannot be recomputed.**
+The first data an operator *makes* rather than the application deriving it. A **table**, two tasks
+after ADR-0042 sent the measurement table to a *file* — so the rule is written down: **not "files
+versus database" but "does the shape vary, and is it derived?"** A measurement table's columns
+depend on its producer and it re-runs; an annotation is fixed in shape, edited one at a time with
+undo behind it, and irreplaceable. **One shape, the box** (what training consumes, what a drag
+produces); masks deferred a third time. **`source` (`manual` / `from_detection`) is load-bearing:**
+a model trained on its own output is confirming itself. Annotations **cascade** with their image,
+which hands M6 an obligation the ADR states rather than a `force=True` flag — `annotations_for` is
+to be **counted before** the confirmation dialog, because `remove_image` now destroys hand work.
+Floats, not integers, and a zero-area box refused twice. **No use case** (ADR-0041, fourth
+application). Schema **v3**, 20 tests, **golden byte-identical**, mypy unchanged at 6.
 
 **`M4-T06` done 2026-08-12 (ADR-0043) — a job reports, and stops when it is asked.** Thin over
 `ThreadPoolExecutor`, which already does submit, results, exceptions and cancelling a job that has
@@ -1122,11 +1134,10 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T07` — the annotation entity and its persistence.** The first table since M4-T05 and
-   the first data an operator *creates*; it is also what makes a duplicated image expensive, which
-   is the trigger ADR-0041 named for revisiting import deduplication. M3's remainder is unchanged —
-   **M3-T16** (blocked on **B6**) and the four algorithm findings, which the roadmap allows to run
-   in parallel
+1. **`M4-T08` — undo/redo.** M4's exit criterion "undo/redo proven on at least one mutating use
+   case", and the reason `update_annotation` keeps an annotation's id through an edit. M3's
+   remainder is unchanged — **M3-T16** (blocked on **B6**) and the four algorithm findings, which
+   the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1151,7 +1162,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **619, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **639, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -7,6 +7,61 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T07 · **an annotation is the one thing that cannot be recomputed**
+
+**Task:** `M4-T07`, the seventh of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
+**ADR-0044**.
+
+### The decision, and the rule it needed
+
+Everything stored until now is either the operator's *file* or the application's *derivation* of
+it. An annotation is neither — it is judgement, entered by hand, and the only thing in a project
+that cannot be produced again by running something.
+
+So it is a **table**. Two tasks ago ADR-0042 sent the measurement table the other way, into a file,
+and deciding the opposite here needed the rule that separates them written down, or the pair reads
+as a coin toss: **not "files versus database", but "does the shape vary, and is it derived?"** A
+measurement table's columns depend on which producer wrote it and it can be re-run; an annotation
+is a fixed handful of numbers, edited **one at a time with undo behind it**, and irreplaceable. A
+JSON document rewritten per keystroke is a file lost mid-write, and an undo stack cannot address a
+document.
+
+**One shape, the box.** It is what training consumes — M8 is the only named consumer — and what a
+drag produces. Every additional geometry costs storage, an editor, a converter and tests for a
+reader nobody has written; a circle converts to a box losslessly for training. Masks are deferred
+for the **third** time, on the same ground each time: painting is M6, and a format written before
+its painter is written blind.
+
+**`source` is load-bearing.** `manual` or `from_detection`, because training a model on boxes
+copied from that model's own output is self-confirmation, and a training set that cannot tell the
+two apart cannot avoid it.
+
+### The obligation this hands to M6
+
+Annotations cascade with their image, which is right — a box pointing at an image the project no
+longer knows about is not an annotation of anything. But `remove_image` now **destroys hand work**,
+and ADR-0040's argument for keeping a row does not apply: that was about surviving a *missing
+file*, not about an operator deleting the row on purpose.
+
+The answer is not to refuse the deletion and not to add `force=True` — a flag that exists so a
+caller can ignore a warning is a warning nobody reads. It is that **`annotations_for` is there to
+be counted before the deletion**, by a dialog that can say "this image has 12 annotations". Written
+into the ADR so M6 inherits an obligation instead of discovering a data loss.
+
+### Numbers
+
+- **Golden: byte-identical.** No numerical code imported
+- Tests **619 → 639**; schema **v2 → v3**; mypy unchanged at **6**; no new dependency
+- Coordinates are floats and a zero-area box is refused twice — by the repository, for the message,
+  and by a `CHECK`, for the database
+
+### Next
+
+**M4-T08** — the undo/redo command stack, which is what `update_annotation` keeping its id was for,
+and the last of M4's exit criteria that has no owner yet.
+
+---
+
 ## 2026-08-12 — M4-T06 · **a job reports, and stops when it is asked**
 
 **Task:** `M4-T06`, the sixth of M4. **Branch:** `feat/m4-application-layer`. **ADR:** **ADR-0043**.

@@ -12,6 +12,7 @@ promise, and `tests/integration/` holds it to it.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pandas as pd
@@ -20,6 +21,8 @@ import pytest
 from nanoscope.application.use_cases import import_images, open_project
 from nanoscope.core.entities import (
     AnalysisRun,
+    Annotation,
+    AnnotationSource,
     ImageRecord,
     IntegrityReport,
     PipelineResult,
@@ -36,6 +39,7 @@ class FakeRepository:
         self.name = name
         self.images: list[ImageRecord] = []
         self.runs: list[AnalysisRun] = []
+        self.annotations: list[Annotation] = []
         self.measurements: dict[int, pd.DataFrame] = {}
         self.integrity = IntegrityReport()
         self.closed = False
@@ -115,6 +119,55 @@ class FakeRepository:
 
     def measurements_for(self, run: AnalysisRun) -> pd.DataFrame:
         return self.measurements[run.id]
+
+    def add_annotation(
+        self,
+        image_id: int,
+        box: tuple[float, float, float, float],
+        *,
+        label: str,
+        source: AnnotationSource = AnnotationSource.MANUAL,
+        note: str | None = None,
+    ) -> Annotation:
+        annotation = Annotation(
+            id=len(self.annotations) + 1,
+            image_id=image_id,
+            label=label,
+            box=box,
+            source=source,
+            note=note,
+            created_utc="2026-08-12T00:00:00+00:00",
+            updated_utc="2026-08-12T00:00:00+00:00",
+        )
+        self.annotations.append(annotation)
+        return annotation
+
+    def get_annotation(self, annotation_id: int) -> Annotation:
+        return self.annotations[annotation_id - 1]
+
+    def annotations_for(self, image_id: int) -> list[Annotation]:
+        return [a for a in self.annotations if a.image_id == image_id]
+
+    def update_annotation(
+        self,
+        annotation_id: int,
+        *,
+        box: tuple[float, float, float, float] | None = None,
+        label: str | None = None,
+        note: str | None = None,
+    ) -> Annotation:
+        current = self.get_annotation(annotation_id)
+        updated = replace(
+            current,
+            box=box if box is not None else current.box,
+            label=label if label is not None else current.label,
+            note=note if note is not None else current.note,
+        )
+        self.annotations[annotation_id - 1] = updated
+        return updated
+
+    def remove_annotation(self, annotation_id: int) -> None:
+        del self.annotations[annotation_id - 1]
 
     def check_integrity(self) -> IntegrityReport:
         return self.integrity

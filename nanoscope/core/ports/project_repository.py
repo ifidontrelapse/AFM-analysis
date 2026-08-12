@@ -20,7 +20,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from nanoscope.core.entities import PipelineResult
-from nanoscope.core.entities.project import AnalysisRun, ImageRecord, IntegrityReport
+from nanoscope.core.entities.project import (
+    AnalysisRun,
+    Annotation,
+    AnnotationSource,
+    ImageRecord,
+    IntegrityReport,
+)
 from nanoscope.core.values import Modality
 
 if TYPE_CHECKING:  # pandas is heavy, and importing the domain must stay cheap (M2-T09).
@@ -107,6 +113,41 @@ class ProjectRepository(Protocol):
 
     def measurements_for(self, run: AnalysisRun) -> pd.DataFrame:
         """The measurement table this run produced."""
+        ...
+
+    def add_annotation(
+        self,
+        image_id: int,
+        box: tuple[float, float, float, float],
+        *,
+        label: str,
+        source: AnnotationSource = AnnotationSource.MANUAL,
+        note: str | None = None,
+    ) -> Annotation:
+        """Record a box the operator drew, and return it with its id."""
+        ...
+
+    def get_annotation(self, annotation_id: int) -> Annotation:
+        """One annotation."""
+        ...
+
+    def annotations_for(self, image_id: int) -> list[Annotation]:
+        """Every annotation on this image, oldest first."""
+        ...
+
+    def update_annotation(
+        self,
+        annotation_id: int,
+        *,
+        box: tuple[float, float, float, float] | None = None,
+        label: str | None = None,
+        note: str | None = None,
+    ) -> Annotation:
+        """Change what an annotation says, keeping its id."""
+        ...
+
+    def remove_annotation(self, annotation_id: int) -> None:
+        """Delete one annotation. The operator's hand work — never silent."""
         ...
 
     def check_integrity(self) -> IntegrityReport:

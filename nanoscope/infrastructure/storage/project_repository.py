@@ -39,7 +39,13 @@ from typing import Any, Self, cast
 import pandas as pd
 
 from nanoscope.core.entities import Detection, PipelineResult
-from nanoscope.core.entities.project import AnalysisRun, ImageRecord, IntegrityReport
+from nanoscope.core.entities.project import (
+    AnalysisRun,
+    Annotation,
+    AnnotationSource,
+    ImageRecord,
+    IntegrityReport,
+)
 from nanoscope.core.errors import InvalidParameterError, MissingFileError
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage.database import open_database
@@ -441,6 +447,133 @@ class SqliteProjectRepository:
         return pd.read_csv(path)
 
     @_serialised
+    def add_annotation(
+        self,
+        image_id: int,
+        box: tuple[float, float, float, float],
+        *,
+        label: str,
+        source: AnnotationSource = AnnotationSource.MANUAL,
+        note: str | None = None,
+    ) -> Annotation:
+        """Record a box the operator drew (M4-T07).
+
+        Args:
+            image_id: which image it is on.
+            box: `(x1, y1, x2, y2)` in pixels, with `x2 > x1` and `y2 > y1`.
+            label: what the operator called it. Free text until a dataset needs
+                a vocabulary (M8).
+            source: hand-drawn, or adopted from a detector. The distinction M8
+                must be able to make (ADR-0044).
+            note: anything else they wanted to say.
+
+        Returns:
+            The stored annotation, with its id.
+
+        Raises:
+            InvalidParameterError: no image has that id, or the box has no area
+                — a zero-area box is a mis-drag, and as a training example it is
+                a picture of nothing.
+        """
+        self.get_image(image_id)
+        x1, y1, x2, y2 = box
+        if x2 <= x1 or y2 <= y1:
+            raise InvalidParameterError(
+                f"annotation box {box} has no area; expected x2 > x1 and y2 > y1"
+            )
+
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        cursor = self._conn.execute(
+            "INSERT INTO annotations "
+            "(image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (image_id, label, x1, y1, x2, y2, str(source), note, now, now),
+        )
+        self._conn.commit()
+        return self.get_annotation(int(cursor.lastrowid or 0))
+
+    @_serialised
+    def get_annotation(self, annotation_id: int) -> Annotation:
+        """One annotation.
+
+        Raises:
+            InvalidParameterError: no annotation has that id.
+        """
+        row = self._conn.execute(
+            "SELECT * FROM annotations WHERE id = ?", (annotation_id,)
+        ).fetchone()
+        if row is None:
+            raise InvalidParameterError(f"no annotation with id {annotation_id} in {self._root}")
+        return _annotation(row)
+
+    @_serialised
+    def annotations_for(self, image_id: int) -> list[Annotation]:
+        """Every annotation on this image, oldest first.
+
+        Also what a confirmation dialog counts with before `remove_image`
+        discards them: they cascade, and they are the one thing in a project
+        that cannot be recomputed (ADR-0044).
+        """
+        rows = self._conn.execute(
+            "SELECT * FROM annotations WHERE image_id = ? ORDER BY id", (image_id,)
+        )
+        return [_annotation(row) for row in rows]
+
+    @_serialised
+    def update_annotation(
+        self,
+        annotation_id: int,
+        *,
+        box: tuple[float, float, float, float] | None = None,
+        label: str | None = None,
+        note: str | None = None,
+    ) -> Annotation:
+        """Change what an annotation says, keeping its identity.
+
+        An edit, not a delete-and-add: the id survives, which is what undo
+        (M4-T08) and any future reference to this annotation need. Only the
+        fields given are changed; `created_utc` never moves and `updated_utc`
+        always does.
+
+        Raises:
+            InvalidParameterError: no annotation has that id, or the new box has
+                no area.
+        """
+        current = self.get_annotation(annotation_id)
+        new_box = box if box is not None else current.box
+        if new_box[2] <= new_box[0] or new_box[3] <= new_box[1]:
+            raise InvalidParameterError(
+                f"annotation box {new_box} has no area; expected x2 > x1 and y2 > y1"
+            )
+
+        self._conn.execute(
+            "UPDATE annotations SET label = ?, x1 = ?, y1 = ?, x2 = ?, y2 = ?, "
+            "note = ?, updated_utc = ? WHERE id = ?",
+            (
+                label if label is not None else current.label,
+                *new_box,
+                note if note is not None else current.note,
+                datetime.now(UTC).isoformat(timespec="seconds"),
+                annotation_id,
+            ),
+        )
+        self._conn.commit()
+        return self.get_annotation(annotation_id)
+
+    @_serialised
+    def remove_annotation(self, annotation_id: int) -> None:
+        """Delete one annotation.
+
+        Raises:
+            InvalidParameterError: no annotation has that id. Silence would make
+                a typo look like a successful deletion — and this is hand work.
+        """
+        cursor = self._conn.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
+        self._conn.commit()
+        if cursor.rowcount == 0:
+            raise InvalidParameterError(f"no annotation with id {annotation_id} in {self._root}")
+
+    @_serialised
     def check_integrity(self) -> IntegrityReport:
         """Compare the index against the filesystem, in both directions.
 
@@ -558,6 +691,19 @@ def _run(row: sqlite3.Row, detections: tuple[Detection, ...]) -> AnalysisRun:
         measurements_path=row["measurements_path"],
         created_utc=row["created_utc"],
         detections=detections,
+    )
+
+
+def _annotation(row: sqlite3.Row) -> Annotation:
+    return Annotation(
+        id=row["id"],
+        image_id=row["image_id"],
+        label=row["label"],
+        box=(row["x1"], row["y1"], row["x2"], row["y2"]),
+        source=AnnotationSource(row["source"]),
+        note=row["note"],
+        created_utc=row["created_utc"],
+        updated_utc=row["updated_utc"],
     )
 
 

@@ -14,6 +14,8 @@ from nanoscope.core.entities.image import AFMRawData, MicroscopyData, Preprocess
 from nanoscope.core.entities.pipeline import PipelineConfig, PipelineResult
 from nanoscope.core.entities.project import (
     AnalysisRun,
+    Annotation,
+    AnnotationSource,
     ImageRecord,
     ImportFailure,
     ImportReport,
@@ -24,6 +26,8 @@ from nanoscope.core.entities.project import (
 __all__ = [
     "AFMRawData",
     "AnalysisRun",
+    "Annotation",
+    "AnnotationSource",
     "Detection",
     "ImageRecord",
     "ImportFailure",

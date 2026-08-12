@@ -9,6 +9,7 @@ port that returns them is `core.ports.ProjectRepository`; the implementation is
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from nanoscope.core.entities.detection import Detection
 from nanoscope.core.values import Modality
@@ -103,6 +104,45 @@ class AnalysisRun:
     created_utc: str
     #: What was found, in the order the detector returned it.
     detections: tuple[Detection, ...] = ()
+
+
+class AnnotationSource(StrEnum):
+    """Where an annotation's box came from.
+
+    The distinction M8 has to be able to make: a model trained on boxes copied
+    from its own output is confirming itself, and a training set that cannot
+    tell the two apart cannot avoid it (ADR-0044).
+    """
+
+    #: Drawn by a person.
+    MANUAL = "manual"
+    #: Adopted from a detector's output, with or without correction afterwards.
+    FROM_DETECTION = "from_detection"
+
+
+@dataclass(frozen=True)
+class Annotation:
+    """One box an operator drew on an image, and what they called it.
+
+    The only thing in a project that cannot be recomputed. Coordinates are
+    **floats** in pixels: a drag is not on the pixel grid, and rounding is a
+    decision the trainer makes with the whole box in hand, not the database.
+    `Detection.bbox` stays integer — a detector's output and a person's
+    judgement are two different things that happen to have four numbers.
+    """
+
+    id: int
+    image_id: int
+    label: str
+    #: `(x1, y1, x2, y2)` in pixels, `x2 > x1` and `y2 > y1` — the convention
+    #: every box in this project uses (PROJECT_RULES §3).
+    box: tuple[float, float, float, float]
+    source: AnnotationSource
+    #: Whatever the operator wanted to say about this particle. Free text, and
+    #: absent when they said nothing.
+    note: str | None
+    created_utc: str
+    updated_utc: str
 
 
 @dataclass(frozen=True)

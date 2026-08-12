@@ -74,7 +74,7 @@ AFM-analysis/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs — 557 tests
 │   ├── integration/                    # a real project: lifecycle, and analysis results that
-│   │                                   #   round-trip, jobs (M4-T03…T06) — 62 tests
+│   │                                   #   round-trip, jobs, annotations (M4-T03…T07) — 82 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -235,6 +235,8 @@ IntegrityReport(
 `IntegrityReport` reports; it never deletes a row or imports a file (ADR-0040).
 
 `AnalysisRun(id, image_id, detector, mode, modality, pixel_size_nm, measurements_path, created_utc, detections)` is one stored analysis: its detections are rows, its measurement table is the file at `measurements_path` (M4-T05, ADR-0042).
+
+`Annotation(id, image_id, label, box, source, note, created_utc, updated_utc)` is one box the operator drew — floats in pixels, `source` being `manual` or `from_detection`. Rows, not documents, because it is the one thing in a project that cannot be recomputed (M4-T07, ADR-0044).
 
 `OpenedProject(name, images, integrity)` is what `open_project` returns, and `ImportReport(imported, failed)` — with `ImportFailure(source, reason)` — is what `import_images` returns: a partial import is an outcome, not an exception (M4-T04, ADR-0041).
 
