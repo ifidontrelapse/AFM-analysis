@@ -121,8 +121,12 @@ would be written back to disk.
 | Anything under `cache/` | nothing. It is derived, and it is disposable |
 
 The filesystem and the index are two sources of truth, and ADR-0003 names the cost: a file
-deleted behind the application's back leaves a dangling row. The reconciliation that resolves it
-is an integrity check at open time, specified with the repository in **M4-T03**.
+deleted behind the application's back leaves a dangling row. The repository's integrity check
+(M4-T03, ADR-0040) is where they are compared, and it **reports in both directions and changes
+nothing** — a dangling row is not deleted, because a missing file is as likely to be an
+unmounted drive as a deletion and the row carries measurements the file does not; a file no row
+claims is not imported, because nothing here knows it was meant to be in the project. Resolving
+a report is a decision with an operator behind it.
 
 ## 6. Errors
 

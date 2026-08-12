@@ -6,7 +6,9 @@ called directly, exactly as they were from `src/afm_io.py`.
 
 `project_format` joined them in M4-T01 — the executable half of the project
 directory contract (`docs/ProjectFormat.md`, ADR-0038) — and `database` in
-M4-T02, which owns the one file in that directory that is not a document.
+M4-T02, which owns the one file in that directory that is not a document, and
+`project_repository` in M4-T03 — the first thing here that reads and writes
+rows rather than files.
 """
 
 from nanoscope.infrastructure.storage.database import (
@@ -33,6 +35,10 @@ from nanoscope.infrastructure.storage.project_format import (
     read_manifest,
     write_manifest,
 )
+from nanoscope.infrastructure.storage.project_repository import (
+    SqliteProjectRepository,
+    sha256_of,
+)
 
 __all__ = [
     "DATABASE_NAME",
@@ -42,6 +48,7 @@ __all__ = [
     "MIGRATIONS",
     "SCHEMA_VERSION",
     "ProjectManifest",
+    "SqliteProjectRepository",
     "check_compatible",
     "connect",
     "load_afm",
@@ -52,5 +59,6 @@ __all__ = [
     "open_manifest",
     "read_manifest",
     "schema_version",
+    "sha256_of",
     "write_manifest",
 ]

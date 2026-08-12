@@ -7,6 +7,86 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T03 · **the repository reports what it finds, and never reconciles by deleting**
+
+**Task:** `M4-T03`, the third of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
+**ADR-0040**.
+
+### The debt this collects
+
+ADR-0003 chose a format with two sources of truth and wrote the price down in the same document:
+*"deleting a file behind the application's back produces a dangling row; the repository layer must
+reconcile (a startup integrity check is required)"*. That check had no home until there was a
+repository to put it in — and it is the piece most likely to be quietly skipped, because
+**everything works in a test where nobody deletes anything**.
+
+### The decision that matters
+
+**It reports, in both directions, and changes nothing.**
+
+A dangling row is not deleted. A missing file is as likely to be an unmounted drive, a
+half-finished copy or a `mv` about to be undone as it is a deletion — and **the row carries the
+annotations and measurements the file does not**. The "cleanup" that feels obvious while holding a
+`DELETE` statement destroys the more expensive half of the pair, on *open*, without being asked.
+ADR-0003 forbids destructive migrations; silently destructive startup would be worse, because it
+has no version number attached.
+
+A file no row claims is not imported either: adopting it means guessing that something dropped
+into `images/` was meant to be in the project, and inventing a modality for it. ADR-0003 chose a
+layout an operator can work on with a file manager — the cost of that choice is that not every
+file is ours.
+
+**Existence, not contents.** Verifying checksums on open reads every scan in the project every
+time; `data/` here holds 628 SPM files and a real project is bigger. The checksum stays in the row
+for the question that actually needs it, asked explicitly. Written into the ADR so the omission is
+a decision rather than an oversight.
+
+**The checksum is computed by the repository, never passed in.** One accepted from a caller can
+describe a different file, and then the row proves only that two callers agreed. The same argument
+makes `add_image` refuse a file that is not there: that row *is* the dangling row the integrity
+check exists to report, and there is no reason to create one deliberately.
+
+**Relative paths are enforced here, with M4-T02's `CHECK` underneath.** The constraint is what
+makes the rule true of the database — including for a writer that skips this class — and the
+repository is what makes the refusal a sentence worth reading. An absolute path inside the project
+is converted rather than rejected: the caller usually has one, and pushing the conversion into
+every caller is where it goes wrong.
+
+**The `ProjectRepository` port arrived with its first adapter**, which is exactly what
+`core/ports/__init__.py` promised in M2-T08 — the first row of that table to pay out. It is
+load-bearing rather than ceremonial: M4-T04's use cases live in `application/`, which may import
+`core` and nothing else, so typing one against the SQLite class would put `infrastructure` on the
+application's import list.
+
+### What it turned up
+
+**ADR-0003's compliance clause had been unexecuted for three months.** It asks, in writing, for
+*"an integration test [that] opens a project moved to a new directory and asserts everything
+resolves"* — and there was no such test because there was nothing to move. There is now, along
+with a copied project and a `cache/` deleted between two opens, which are the other two clauses on
+that list.
+
+**`remove_image` leaving the file behind is not an oversight, and the tests say so.** Forgetting a
+scan and deleting it are different decisions; the consequence is that a removed image becomes an
+*untracked* file, which the integrity check then reports. Following the rule where it leads is
+what makes it a rule.
+
+### Numbers
+
+- **Golden: byte-identical.** The golden enumerates the fields of three dataclasses; a new entity
+  module is invisible to it, and no numerical code is imported
+- Tests **524 → 559**, of which **30** are the new `tests/integration/`
+- mypy unchanged at **6**, all pre-existing; no new dependency
+
+### Next
+
+**M4-T04** — `CreateProject`, `OpenProject`, `CloseProject`, `ImportImages`, `ListImages`. The
+first code in `application/` that is not the old pipeline, and the first consumer of the port.
+`OpenProject` also inherits an obligation from this task: a report nobody reads is a report that
+did nothing.
+
+---
+
 ## 2026-08-12 — M4-T02 · **the schema has a version and a way forward**
 
 **Task:** `M4-T02`, the second of M4. **Branch:** `feat/m4-application-layer`. **ADR:**

@@ -34,10 +34,27 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T02` done 2026-08-12 (ADR-0039); `M4-T03` — the `ProjectRepository` and the
-integrity check — is next**, because the tables now exist to implement against, and ADR-0003 has
-been owed a reconciliation between the index and `images/` since it named the dangling row as the
-price of two sources of truth.
+**None selected. `M4-T03` done 2026-08-12 (ADR-0040); `M4-T04` — the lifecycle use cases — is
+next**, because the port now exists for them to be written against, and `OpenProject` inherits
+this task's obligation: a report nobody reads is a report that did nothing.
+
+**`M4-T03` done 2026-08-12 (ADR-0040) — the repository reports what it finds, and never reconciles
+by deleting.** The debt ADR-0003 wrote down and never collected: *"deleting a file behind the
+application's back produces a dangling row; the repository layer must reconcile"*. The check had
+no home until there was a repository to put it in, and it is the piece most likely to be skipped,
+because everything works in a test where nobody deletes anything. **It reports, in both
+directions, and changes nothing** — a missing file is as likely to be an unmounted drive as a
+deletion, and **the row carries the annotations and measurements the file does not**, so the
+obvious cleanup destroys the more expensive half of the pair on *open*, unasked. An untracked file
+is not imported either: that means guessing it was meant to be here and inventing a modality.
+**Existence, not contents** — verifying checksums would read every scan on every open. `add_image`
+computes the checksum itself (one passed in can describe a different file) and refuses a file that
+is not there. Relative paths enforced here with M4-T02's `CHECK` as the backstop; queries return
+`ImageRecord`, never a `sqlite3.Row`. **The `ProjectRepository` port arrived with its first
+adapter**, the first row of M2-T08's table to pay out — load-bearing, since M4-T04's use cases may
+not import `infrastructure`. 30 integration tests, including **ADR-0003's own compliance clause at
+last**: a project moved, a project copied, `cache/` deleted between two opens. **Golden
+byte-identical**, mypy unchanged at 6.
 
 **`M4-T02` done 2026-08-12 (ADR-0039) — the schema has a version and a way forward.** The
 mechanism before the tables, because creating them is its first job: version 0 is an empty file
@@ -1053,12 +1070,12 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T03` — the `ProjectRepository` and the integrity check.** The format (T01) and the tables
-   (T02) exist; what is missing is the code that puts a row in one and finds the file it names.
-   ADR-0003 has been owed the reconciliation since it wrote down the price of two sources of
-   truth: *"deleting a file behind the application's back produces a dangling row; the repository
-   layer must reconcile"*. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
-   four algorithm findings, which the roadmap allows to run in parallel
+1. **`M4-T04` — the lifecycle use cases**: `CreateProject`, `OpenProject`, `CloseProject`,
+   `ImportImages`, `ListImages`. The first code in `application/` that is not the old pipeline,
+   and the first consumer of the `ProjectRepository` port. It owns two things M4-T03 deliberately
+   left alone: creating the directory, and copying an imported file into `images/` before it is
+   recorded. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the four algorithm
+   findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1083,7 +1100,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **524, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **559, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -3,9 +3,10 @@
 **ID:** `M4-T03`
 **Title:** The `ProjectRepository`, and the integrity check ADR-0003 has been owed
 **Milestone:** M4 — Application layer, third task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0040** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0040**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -106,11 +107,40 @@ untyped, and returning one would put `sqlite3` in the vocabulary of every layer 
 
 ## Definition of done
 
-- [ ] `ImageRecord`, `IntegrityReport`, and the `ProjectRepository` port
-- [ ] `SqliteProjectRepository`, with paths stored relative and checksums computed in one place
-- [ ] `check_integrity` reporting both directions and changing nothing
-- [ ] ADR-0040, and the corrected row in the ports table
-- [ ] Integration tests, including a moved project and a file deleted behind our back
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [ ] Commit: `M4-T03: the repository reports what it finds, and never reconciles by deleting`
+- [x] `ImageRecord`, `IntegrityReport`, and the `ProjectRepository` port
+- [x] `SqliteProjectRepository`, with paths stored relative and checksums computed in one place
+- [x] `check_integrity` reporting both directions and changing nothing
+- [x] ADR-0040, and the corrected row in the ports table
+- [x] Integration tests, including a moved project and a file deleted behind our back
+- [x] `make check` green — 559 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [x] Commit: `M4-T03: the repository reports what it finds, and never reconciles by deleting`
+
+---
+
+## What it turned up
+
+**ADR-0003's compliance clause had been unexecuted for three months.** It asks in writing for
+*"an integration test [that] opens a project moved to a new directory and asserts everything
+resolves"*, and there was no such test because until this task there was nothing to move. There is
+now — along with a copied project and a `cache/` deleted between two opens, the other two clauses
+on the same list.
+
+**The integrity check is the one place in this milestone where the obvious code is the wrong
+code.** Everything about finding a dangling row invites deleting it: the loop is already open, the
+`DELETE` is one line, and the test passes. What stops it is noticing that **the row is the
+expensive half** — the file can be re-imported, the annotations and measurements on it cannot —
+and that "the file is missing" and "the file was deleted" are not the same statement.
+
+**`remove_image` leaving the file behind is the rule followed where it leads.** Forgetting a scan
+and deleting it are different decisions, so a removed image becomes an *untracked* file, which the
+integrity check then reports. That is a slightly awkward consequence, and it is the honest one.
+
+---
+
+## Notes
+
+M4's risk profile held for the third time: the golden is byte-identical and no numerical code is
+imported. **M4-T04** takes the port and writes the lifecycle on top of it — including the two
+things this task deliberately did not own, creating the directory and copying a file into
+`images/` before it is recorded.

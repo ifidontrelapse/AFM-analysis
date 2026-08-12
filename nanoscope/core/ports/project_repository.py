@@ -1,0 +1,63 @@
+"""What the application needs from a project's index (M4-T03).
+
+The second port in this package, and it arrives under the rule
+`core/ports/__init__.py` wrote for itself: *the rest ship with their first
+adapter*. `SqliteProjectRepository` is that adapter.
+
+It is not decoration. M4-T04's use cases live in `application/`, which may
+import `core` and nothing else (Architecture §3.2) — typing a use case against
+the SQLite class would put `infrastructure` on the application's import list and
+`sqlite3` in its vocabulary.
+
+What a `Protocol` buys over an ABC: the implementation does not import this
+module, so the arrow still points inward from `infrastructure` to `core` without
+a base class in the middle, and mypy checks the shape structurally.
+"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+from nanoscope.core.entities.project import ImageRecord, IntegrityReport
+from nanoscope.core.values import Modality
+
+
+class ProjectRepository(Protocol):
+    """The images in one open project, and their agreement with the disk."""
+
+    def add_image(
+        self,
+        relative_path: str,
+        *,
+        modality: Modality,
+        display_name: str | None = None,
+        pixel_size_nm: float | None = None,
+    ) -> ImageRecord:
+        """Record a file that is **already inside the project** and return its row.
+
+        The checksum is computed here, from the file, and is not a parameter: a
+        checksum a caller passes in can describe a different file, and then the
+        only thing it proves is that two callers agreed (ADR-0040).
+        """
+        ...
+
+    def get_image(self, image_id: int) -> ImageRecord:
+        """The row with this id."""
+        ...
+
+    def list_images(self) -> list[ImageRecord]:
+        """Every image in the project, in the order they were imported."""
+        ...
+
+    def remove_image(self, image_id: int) -> None:
+        """Forget the row. The file is not touched — deleting it is a separate
+        decision, and one this layer is not allowed to make on its own."""
+        ...
+
+    def check_integrity(self) -> IntegrityReport:
+        """Where the index and the filesystem disagree. Reports; changes nothing."""
+        ...
+
+    def close(self) -> None:
+        """Release the database. The project directory stays where it is."""
+        ...

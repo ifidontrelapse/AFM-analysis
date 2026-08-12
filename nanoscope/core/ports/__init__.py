@@ -6,15 +6,15 @@ from `application`, `infrastructure` or `gui`.
 
 ## What is here, and what deliberately is not
 
-`Detector` is the only port in this package today, and that is a decision rather
-than an unfinished job. M2-T08 was written to define seven at once — `Detector`,
+Two ports live here, and the ones that do not are a decision rather than an
+unfinished job. M2-T08 was written to define seven at once — `Detector`,
 `Segmenter`, `ImageLoader`, `ProjectRepository`, `TrainingProvider`,
-`DeviceProvider`, `LogSink`. Six of them have no implementation, no caller, and no
-second candidate implementation anywhere in the repository.
+`DeviceProvider`, `LogSink` — and defined one, because the other six had no
+implementation, no caller, and no second candidate anywhere in the repository.
 
 An interface written before its first adapter is a guess about a shape, and it
 gets rewritten the moment real code has to fit through it — except that by then it
-is quoted in a document and looks decided. `Detector` is different: `LogDetector`
+is quoted in a document and looks decided. `Detector` was different: `LogDetector`
 and `YoloDetector` both satisfy it *today*, from opposite layers, which is exactly
 the situation an abstraction is for.
 
@@ -22,16 +22,19 @@ The rest ship with their first adapter, each with the task that brings one:
 
 | Port | Arrives with | Task |
 |---|---|---|
+| `ProjectRepository` | ✅ **arrived** with `SqliteProjectRepository` | M4-T03 |
 | `ImageLoader` | a loader class, once `application` has a use case that needs one | M2-T10 / M6 |
 | `Segmenter` | the first SAM2 wrapper that is a class rather than a function | M4 |
 | `DeviceProvider` | `DeviceManager` — CPU / CUDA / ROCm / MPS | M4-T12 |
-| `ProjectRepository` | the SQLite schema and its repository | M6 |
 | `TrainingProvider` | local and remote training | M7 |
 
 This table is the commitment; an empty `Protocol` would only have been the
-appearance of one.
+appearance of one. `ProjectRepository` is the first row it has paid out: the port
+landed in the same commit as the adapter, and one layer up `application` needs it
+to talk about a project without importing `sqlite3` (M4-T04).
 """
 
 from nanoscope.core.ports.detector import Detector
+from nanoscope.core.ports.project_repository import ProjectRepository
 
-__all__ = ["Detector"]
+__all__ = ["Detector", "ProjectRepository"]

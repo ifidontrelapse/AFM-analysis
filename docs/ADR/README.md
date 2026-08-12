@@ -47,6 +47,7 @@ Use `TEMPLATE.md` for new records.
 | [0037](ADR-0037-the-opening-radius-constants-are-measured.md) | The opening-radius constants are named, exposed and measured | Accepted | 2026-08-08 |
 | [0038](ADR-0038-the-project-format-is-a-versioned-contract.md) | The project format is a versioned contract, with two version numbers | Accepted | 2026-08-09 |
 | [0039](ADR-0039-the-schema-has-a-version-and-a-way-forward.md) | The schema has a version and a way forward, and only the tables it has readers for | Accepted | 2026-08-12 |
+| [0040](ADR-0040-the-repository-reports-and-does-not-reconcile.md) | The repository reports what it finds, and never reconciles by deleting | Accepted | 2026-08-12 |
 
 ## When to write one
 

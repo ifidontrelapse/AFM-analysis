@@ -12,10 +12,13 @@ objects, so there is exactly one `Detection` class in the process — two would 
 from nanoscope.core.entities.detection import Detection
 from nanoscope.core.entities.image import AFMRawData, MicroscopyData, PreprocessingResult
 from nanoscope.core.entities.pipeline import PipelineConfig, PipelineResult
+from nanoscope.core.entities.project import ImageRecord, IntegrityReport
 
 __all__ = [
     "AFMRawData",
     "Detection",
+    "ImageRecord",
+    "IntegrityReport",
     "MicroscopyData",
     "PipelineConfig",
     "PipelineResult",

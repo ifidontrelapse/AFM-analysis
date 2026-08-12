@@ -253,6 +253,13 @@ MyProject/
 `schema_version` are independent, and a newer version is refused rather than guessed at. See
 also ADR-0003 for the layout decision underneath it.
 
+The tables and their forward migrations are `infrastructure/storage/database.py` (M4-T02,
+ADR-0039); the index itself is `SqliteProjectRepository` behind the `ProjectRepository` port
+(M4-T03, ADR-0040). The filesystem and the index are two sources of truth, and where they
+disagree the repository **reports and changes nothing** — a dangling row is not deleted and an
+untracked file is not adopted, because both "fixes" destroy or invent the operator's data on a
+code path nobody asked to run.
+
 ### 4.5 Jobs, undo/redo, autosave
 
 - **Jobs.** Anything that can take longer than ~100 ms (detection, segmentation,

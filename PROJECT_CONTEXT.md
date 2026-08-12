@@ -63,13 +63,15 @@ AFM-analysis/
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
 │   │   ├── storage/database.py         # schema version + migrations (M4-T02)
+│   │   ├── storage/project_repository.py # images index + integrity check (M4-T03)
 │   │   ├── models/                     # yolo.py, sam2.py — heavy imports, function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib)
 │   ├── gui/                            # PySide6 (M5)
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
-│   │                                   #   import_graph, project_format, database — 524 tests
+│   │                                   #   import_graph, project_format, database — 529 tests
+│   ├── integration/                    # a real project directory + database (M4-T03) — 30 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -197,14 +199,37 @@ Detection(
     y_px: float,
     radius_px: float,
     radius_nm: float | None,
-    confidence: float = 1.0,
-    bbox: tuple[int, int, int, int] = (),  # x1, y1, x2, y2
+    confidence: float | None = None,
+    bbox: tuple[int, int, int, int] | None = None,  # x1, y1, x2, y2
 )
 ```
 
-Coordinates are image coordinates in pixels. LoG detections have a synthetic square bounding box derived from their radius. YOLO detections use the model box. LoG currently leaves `confidence` at its default `1.0`; the YOLO implementation currently does not copy model confidence scores into `Detection`.
+Coordinates are image coordinates in pixels. YOLO detections carry the model's own box and its own per-box score (M3-T05, ADR-0028). LoG detections have neither: `confidence` is `None`, because a blob response is not a probability, and `bbox` is `None` rather than an empty tuple that claimed to be four ints (M3-T14, ADR-0031).
 
 Since M3-T11 (ADR-0019) `radius_nm` is `None` when the image has no known pixel scale — `detect(z, pixel_size_nm=None)` is a supported call for both detectors, and the scale is never invented. The pixel-space fields are unaffected; in the raw LoG blob array, whose column dtype cannot hold `None`, the same absence is written as `NaN`.
+
+### `ImageRecord`, `IntegrityReport`
+
+Defined in `nanoscope/core/entities/project.py` (M4-T03). What the project repository hands back — never a `sqlite3.Row`:
+
+```python
+ImageRecord(
+    id: int,
+    relative_path: str,      # relative to the project root, POSIX separators
+    display_name: str,
+    modality: Modality,
+    sha256: str,             # computed by the repository, from the file itself
+    pixel_size_nm: float | None,
+    imported_utc: str,
+)
+
+IntegrityReport(
+    missing_files: tuple[ImageRecord, ...] = (),   # rows whose file is gone
+    untracked_files: tuple[str, ...] = (),         # files under images/ that no row claims
+)
+```
+
+`IntegrityReport` reports; it never deletes a row or imports a file (ADR-0040).
 
 ### `PipelineConfig`
 
