@@ -24,6 +24,8 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CORE = ROOT / "nanoscope" / "core"
+PACKAGE = ROOT / "nanoscope"
+GUI = PACKAGE / "gui"
 
 # Anything the domain must never reach for. `application` is included: `core`
 # defines the ports, `application` consumes them, and the arrow points inward.
@@ -109,3 +111,54 @@ def test_the_weight_check_can_fail() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=True, cwd=ROOT
     )
     assert "matplotlib" in set(out.stdout.split())
+
+
+# ── Qt stays in the GUI (M4-T15) ──────────────────────────────────────────────
+#
+# M4's sixth exit criterion says "no Qt imported anywhere", which is literally
+# true today because `gui/` is empty — and will stop being true in M5, when
+# `gui/` imports PySide6 because that is its job. The durable form of the
+# criterion is the one written here: **nothing outside `gui/` imports it.**
+#
+# Added while the check is trivially true on purpose: a guard added after the
+# first violation is a guard that has already failed once.
+
+QT = ("PySide6", "PyQt5", "PyQt6", "shiboken6")
+
+NON_GUI_MODULES = sorted(path for path in PACKAGE.rglob("*.py") if not path.is_relative_to(GUI))
+
+
+def test_the_package_is_not_empty() -> None:
+    """A glob that matches nothing passes vacuously."""
+    assert len(NON_GUI_MODULES) >= 30, NON_GUI_MODULES
+
+
+@pytest.mark.parametrize("path", NON_GUI_MODULES, ids=lambda p: str(p.relative_to(PACKAGE)))
+def test_qt_stays_inside_the_gui(path: pathlib.Path) -> None:
+    offenders = {
+        name
+        for name in _imported_modules(path)
+        for bad in QT
+        if name == bad or name.startswith(bad + ".")
+    }
+    assert not offenders, (
+        f"{path.relative_to(ROOT)} imports {sorted(offenders)}. Qt belongs to `gui/`: the "
+        "application layer must be runnable headless, which is M4's exit criterion and M5's "
+        "test strategy (Architecture §3.2)."
+    )
+
+
+@pytest.mark.parametrize(
+    "module",
+    ["nanoscope.application.use_cases", "nanoscope.application.jobs", "nanoscope.app.logging"],
+)
+def test_the_application_layer_runs_without_qt(module: str) -> None:
+    """Statically clean is not enough: a transitive import would still pull Qt
+    into a headless process. Run in a subprocess, like the weight check above."""
+    code = f"import sys; import {module}; print(' '.join(sorted(sys.modules)))"
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, cwd=ROOT
+    )
+    loaded = set(out.stdout.split())
+
+    assert not [q for q in QT if q in loaded], f"importing {module} loaded Qt"

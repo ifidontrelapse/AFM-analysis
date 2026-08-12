@@ -174,7 +174,9 @@ the model registry and `ModelDescriptor`.
       (M4-T13, ADR-0050 — factories, so it resolves without weights present)
 - [x] Undo/redo proven on at least one mutating use case
       (M4-T08, ADR-0045 — annotations, against a real database)
-- [ ] Integration tests cover the whole layer; no Qt imported anywhere
+- [x] Integration tests cover the whole layer; no Qt imported anywhere
+      (M4-T15 — one walkthrough of a day's work, and a guard phrased for a world where `gui/`
+      exists: nothing **outside** it imports Qt, checked statically and in a subprocess)
 
 **Risk to scientific output:** none. The domain is called, not modified.
 

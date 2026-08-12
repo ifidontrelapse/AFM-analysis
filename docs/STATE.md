@@ -34,8 +34,22 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T14` done 2026-08-12 (ADR-0051); `M4-T15` — the headless end-to-end test — is
-next, and it closes the milestone.**
+**None selected. `M4-T15` done 2026-08-12 — the last task of M4, and its sixth exit criterion.
+Every exit criterion of the milestone is now met; closing it is the next commit.**
+
+**`M4-T15` done 2026-08-12 (no ADR — a test that only exercises existing decisions makes none).**
+**One long test on purpose**, because the *sequence* is the subject: configure logging, create,
+state a preference, register a model, select a device, import **as a job with progress**, analyse,
+annotate, undo, export, close — then **reopen and find all of it**, which is the assertion that
+matters. A second test states the same promise as **files** (manifest, `images/`,
+`results/run_*/measurements.csv`, `exports/`, no `-wal`). The **Qt guard is phrased for a world
+where `gui/` exists** — nothing *outside* it imports Qt, statically and in a subprocess — and was
+added while trivially true, because a guard added after the first violation has already failed
+once. **Found: B-068** — `PipelineConfig`'s default mode is `"segment"`, so the most natural call
+in the project raises *predictor must be provided* and the default configuration is one CI can
+never execute; filed rather than fixed, since changing a default changes every caller who omits it.
+Also repaired: `test_ports.py`'s in-process `sys.modules` assertion, which any earlier test could
+break — and today one legitimately did.
 
 **`M4-T14` done 2026-08-12 (ADR-0051) — a log that only works when everything works is not a log.**
 ADR-0013 deferred the SQLite sink by name; the database exists now, and this task **refuses it with
@@ -1209,8 +1223,8 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T15` — the headless end-to-end test of the whole layer**, which is M4's last task and its
-   sixth exit criterion ("integration tests cover the whole layer; no Qt imported anywhere"). M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
+1. **Close M4 and open M5.** Every exit criterion is met and all fifteen tasks are done; what is
+   left is the milestone record and the first task of the GUI shell. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
    four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
@@ -1236,7 +1250,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **755, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **828, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

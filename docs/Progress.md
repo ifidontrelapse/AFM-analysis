@@ -7,6 +7,54 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T15 · **the whole layer, in the order an operator uses it**
+
+**Task:** `M4-T15`, the last of M4. **No ADR** — a test that only exercises decisions already made
+does not make one. **The milestone's sixth exit criterion is met.**
+
+### What it is
+
+One long test, on purpose. That is normally a smell; here the **sequence is the subject**, and
+splitting it into fifteen independent tests would produce fifteen more copies of what the per-task
+files already assert. It walks an operator's day: configure logging → create a project → state a
+preference → register a model and resolve it → select a device → import a folder **as a job with
+progress** → analyse both images → annotate and undo → export → close — and then **reopens and
+finds all of it**, which is the assertion that matters, because anything living only in memory
+disappears there.
+
+A second test states the same promise as **files**: a manifest saying `format_version: 1`,
+`images/`, `results/run_*/measurements.csv`, `exports/`, and no `-wal` beside the database.
+ADR-0003's whole argument checked on the disk rather than through the API.
+
+### The Qt guard, written for a world where `gui/` exists
+
+"No Qt imported anywhere" is trivially true today because `gui/` is empty, and stops being true in
+M5 when `gui/` imports PySide6 — which is its job. So the durable form is **nothing outside `gui/`
+imports it**, checked statically over every module and in a subprocess for transitive imports.
+Added while it is trivially true on purpose: *a guard added after the first violation is a guard
+that has already failed once.*
+
+### What it turned up
+
+**B-068, filed:** `PipelineConfig`'s default `mode` is `"segment"`, so the most natural call in the
+whole project — `PipelineConfig(detector="log")` — raises *"predictor must be provided"*, and the
+default configuration is one **CI can never execute**, because SAM2's weights are not here. Found
+by writing the obvious line and getting the error. Not fixed: changing a default changes what
+happens for every caller who omits it, including the notebooks, which is an operator's decision
+(PROJECT_RULES §4.5).
+
+**An in-process `sys.modules` assertion is a claim about the whole suite.** `test_ports.py` has
+asserted since M2-T08 that importing the domain pulls in no torch — by reading *this* process's
+`sys.modules`, which any earlier test can pollute. Today one finally did, and legitimately: the
+end-to-end walkthrough probes the real hardware, which imports torch on purpose. The check now runs
+in a subprocess, which is what M2-T09's own weight check already does and says so in its docstring.
+
+### Numbers
+
+3 tests plus 40 parametrised guard cases; **828** in the suite; golden byte-identical.
+
+---
+
 ## 2026-08-12 — M4-T14 · **a log that only works when everything works is not a log**
 
 **Task:** `M4-T14`. **ADR:** **ADR-0051**, which answers the last item ADR-0013 left open.

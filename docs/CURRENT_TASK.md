@@ -1,59 +1,55 @@
 # CURRENT TASK
 
-**ID:** `M4-T14`
-**Title:** Logging: two files, and the SQLite sink that ADR-0013 promised
-**Milestone:** M4 — Application layer, fourteenth task
-**Defect:** — (D-22/D-23 closed in M2-T11; this is the sink half) · **ADR:** **ADR-0051**
+**ID:** `M4-T15`
+**Title:** The whole layer, headless, in one test — and a guard that keeps Qt out
+**Milestone:** M4 — Application layer, last task
+**Defect:** — · **ADR:** none expected; a test that only exercises existing decisions makes none
 **Branch:** `feat/m4-application-layer`
 **Status:** **done 2026-08-12.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
-## Why this task is next
+## Why this task is last
 
-M2-T11 gave every module a logger and deliberately configured nothing: *"no library module calls
-`basicConfig` or attaches a handler. Configuring logging is the application's decision; a library
-that makes it steals it"* (ADR-0013). So today every log record this project emits goes nowhere.
+Fourteen tasks built the layer a piece at a time, each with its own tests. M4's sixth and final
+exit criterion asks a different question:
 
-ADR-0013 left one thing open, by name: *"the SQLite log destination that ADR-0003 and
-Architecture §3.1 describe becomes a `logging.Handler` … added when the database exists."* It
-exists. This task either writes that handler or explains why not.
+> *Integration tests cover the whole layer; no Qt imported anywhere.*
+
+Not "does each part work" — every part has its own file for that — but **does the layer work as one
+thing**, in the order an operator uses it, with nothing but Python. That is a different test, and
+it is the one that catches a seam nobody owns: a use case that needs something no adapter exposes,
+a value that survives each hop and not the chain.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Does the SQLite sink get written?** **No** — and this is the task's real question, so it gets
-argued rather than skipped.
+**1. What does "the whole layer" mean, concretely?** One test that walks the operator's day in
+order, touching every task M4 shipped:
 
-The decisive objection is not performance. It is that **a log must not depend on the thing whose
-failure it records.** The most valuable log lines this application will ever emit are "could not
-open the database", "the schema is newer than this version", "the project directory is not a
-project" — and a handler that writes into that project's database has nowhere to put any of them.
-A log that works only when everything works is not a log.
+configure logging (T14) → create a project (T04) → state a preference (T10) → register a model
+(T13) → resolve a device (T12) → import a folder **as a job, with progress** (T06) → analyse (T05)
+→ annotate and undo (T07, T08) → export (T11) → close → **reopen and find all of it** (T01–T03).
 
-The rest follows: a write transaction per record, contending with the repository lock the log lines
-are *about*; a table that grows without a rotation story; and a support request that starts with
-"send me your database" instead of "send me the log file".
+The reopen is the assertion that matters. Anything that only lives in memory disappears there.
 
-**2. Then where do records go?** Two rotating files, because there are two questions:
+**2. Is that one test or fifteen?** **One**, deliberately — and it is the only place in this
+repository where that is the right shape. A long test is normally a smell, because a failure in
+step nine tells you little; here the *sequence* is the subject, and splitting it into fifteen
+independent tests would be fifteen more copies of what already exists in the per-task files.
 
-| Where | Answers |
-|---|---|
-| `$XDG_STATE_HOME/nanoscope/nanoscope.log` | *what did the application do?* — including everything before a project is open, and every failure to open one |
-| `<project>/logs/nanoscope.log` | *what happened to this work?* — travels with the directory, which is what ADR-0003 set `logs/` aside for, and is what an operator attaches to a bug report about that project |
+**3. What does "no Qt imported anywhere" mean once M5 exists?** Not "nothing imports PySide6" —
+`gui/` will, and that is its job. The honest, durable form is **nothing outside `gui/` imports
+it**, checked statically over the source so it holds for code that never runs, and dynamically so
+it holds for a transitive import.
 
-**3. Structured how?** **JSON Lines.** One object per record: timestamp, level, logger, message,
-and the exception when there is one. `grep` still works, `jq` works properly, and a GUI panel can
-parse a line without a regex over a format string. "Structured logs" in the task title is the
-requirement; JSONL is the smallest thing that satisfies it.
+Written now, while `gui/` is empty and the check is trivially true, because a guard added *after*
+the first violation is a guard that has already failed once.
 
-**4. Who configures it?** `app/` — the composition root, and the only layer allowed to
-(PROJECT_RULES §2.7, ADR-0013). Library modules keep their `getLogger(__name__)` and attach
-nothing.
-
-**5. What about rotation?** `RotatingFileHandler`, 5 MB × 3. Not a decision worth agonising over,
-but worth *stating*: an unbounded log on a laptop is a disk-full bug that arrives months later.
+**4. Does anything new get built?** No. If the walkthrough needs a function that does not exist,
+that is a finding to report, not a thing to quietly add — the criterion is about what M4 already
+built.
 
 ---
 
@@ -61,42 +57,43 @@ but worth *stating*: an unbounded log on a laptop is a disk-full bug that arrive
 
 **In scope**
 
-1. `infrastructure/logging/setup.py` — the JSONL formatter, both rotating handlers
-2. `app/logging.py` — `configure_logging(...)` / `attach_project_log(...)`, the composition root's
-   half
-3. **ADR-0051** — no SQLite sink and why, two files, JSONL, who configures
-4. Tests: a record becomes one JSON object per line, an exception is captured, rotation is
-   configured, the project handler writes into `logs/`, and configuring twice does not duplicate
-   handlers
+1. `tests/integration/test_whole_layer.py` — the walkthrough, and a second test proving the
+   *reopened* project is what the first session left
+2. `tests/unit/test_import_graph.py` — the Qt guard, static and dynamic, phrased for a world where
+   `gui/` exists
+3. Docs: the criterion ticked
 
 **Out of scope**
 
-- **A GUI log panel** — M5. It reads the file or attaches its own handler; both are its choice
-- **Log levels per module in settings** — M4-T10 stores preferences; wiring one to a logger is a
-  line M5 writes when there is a dialog for it
+- **New production code.** Decision 4
+- **Closing the milestone.** That is the next commit, and it should be able to cite this one
 
 ---
 
 ## Definition of done
 
-- [x] JSONL records, two rotating destinations, configured only from `app/`
-- [x] ADR-0051, including the SQLite sink refused with its reason
-- [x] Tests, including the double-configuration case
-- [x] `make check` green — golden byte-identical
-- [x] `ADR-0013` referenced as answered; docs and the ADR index
-- [x] Commit: `M4-T14: a log that only works when everything works is not a log`
+- [x] One end-to-end test covering every M4 task, ending in a reopen
+- [x] The Qt guard, static and dynamic, written to survive M5
+- [x] `make check` green — 828 tests, golden byte-identical
+- [x] `Roadmap.md` criterion ticked; docs updated
+- [x] Commit: `M4-T15: the whole layer, in the order an operator uses it`
 
 ---
 
 ## What it turned up
 
-**The `_STANDARD` field list wanted to be a hand-written string of attribute names, and it should
-not be.** `logging.LogRecord` knows its own attributes — constructing one and reading its
-`__dict__` is the same list, derived rather than transcribed, and it does not go stale when the
-stdlib adds a field. The three that only appear later (`message`, `asctime`, `taskName`) are added
-by name, which is a much shorter thing to keep true.
+**B-068:** `PipelineConfig`'s default `mode` is `"segment"`, which needs a SAM2 predictor that is
+not in this repository — so the most natural call in the whole project,
+`PipelineConfig(detector="log")`, raises, and the **default configuration is one CI can never
+execute**. Found by writing the obvious line. Filed rather than fixed: changing a default changes
+what happens for every caller who omits it, including the notebooks (PROJECT_RULES §4.5).
 
-**mypy went to 7 for one commit.** The registry imports the SAM2 predictor by name, and sam2 ships
-neither stubs nor a `py.typed` marker — so `sam2.*` joined the scoped `ignore_missing_imports` list
-next to `ultralytics.*`. Scoped per module, as M1-T04 insisted: a blanket ignore would also hide a
-typo in a first-party import.
+**An in-process `sys.modules` assertion is a claim about the whole suite, not about the import it
+names.** `test_ports.py` has checked since M2-T08 that importing the domain pulls in no torch, by
+reading *this* process's modules — so any earlier test could break it, and today one legitimately
+did: the end-to-end walkthrough probes real hardware, which imports torch on purpose. It now runs
+in a subprocess, which is what M2-T09's weight check already does.
+
+**Writing the walkthrough found no missing seam.** Fourteen tasks of separately-tested parts fitted
+together on the first attempt, apart from the two findings above — which is worth recording,
+because it is the thing this test existed to disprove.

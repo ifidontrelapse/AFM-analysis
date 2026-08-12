@@ -80,10 +80,10 @@ AFM-analysis/
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings, device, log sinks — 621 tests
+│   │                                   #   commands, settings, device, log sinks — 691 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
-│   │                                   #   (M4-T03…T13) — 134 tests
+│   │                                   #   (M4-T03…T15) — 137 tests, incl. the whole-layer walkthrough
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
