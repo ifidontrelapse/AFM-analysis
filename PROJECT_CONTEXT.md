@@ -69,6 +69,7 @@ AFM-analysis/
 │   │   ├── storage/database.py         # schema version + migrations (M4-T02)
 │   │   ├── storage/project_repository.py # images, results, annotations, settings, exports
 │   │   ├── storage/app_settings.py     # ~/.config/nanoscope/settings.json (M4-T10)
+│   │   ├── device/manager.py           # the only place that asks torch about hardware (M4-T12)
 │   │   ├── models/                     # yolo.py, sam2.py — heavy imports, function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib)
 │   ├── gui/                            # PySide6 (M5)
@@ -76,7 +77,7 @@ AFM-analysis/
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings — 583 tests
+│   │                                   #   commands, settings, device — 597 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T11) — 121 tests

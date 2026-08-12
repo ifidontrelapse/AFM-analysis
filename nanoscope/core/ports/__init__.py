@@ -25,7 +25,7 @@ The rest ship with their first adapter, each with the task that brings one:
 | `ProjectRepository` | ✅ **arrived** with `SqliteProjectRepository` | M4-T03 |
 | `ImageLoader` | a loader class, once `application` has a use case that needs one | M2-T10 / M6 |
 | `Segmenter` | the first SAM2 wrapper that is a class rather than a function | M4 |
-| `DeviceProvider` | `DeviceManager` — CPU / CUDA / ROCm / MPS | M4-T12 |
+| `DeviceProvider` | ✅ **arrived** with `DeviceManager` | M4-T12 |
 | `SettingsStore` | ✅ **arrived** with `JsonSettings` and the repository | M4-T10 |
 | `TrainingProvider` | local and remote training | M7 |
 
@@ -36,7 +36,8 @@ to talk about a project without importing `sqlite3` (M4-T04).
 """
 
 from nanoscope.core.ports.detector import Detector
+from nanoscope.core.ports.device import DeviceProvider
 from nanoscope.core.ports.project_repository import ProjectRepository
 from nanoscope.core.ports.settings import SettingsStore
 
-__all__ = ["Detector", "ProjectRepository", "SettingsStore"]
+__all__ = ["Detector", "DeviceProvider", "ProjectRepository", "SettingsStore"]

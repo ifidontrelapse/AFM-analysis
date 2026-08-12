@@ -56,6 +56,7 @@ Use `TEMPLATE.md` for new records.
 | [0046](ADR-0046-write-through-storage-needs-no-autosave.md) | Write-through storage needs no autosave | Accepted | 2026-08-12 |
 | [0047](ADR-0047-a-preference-belongs-to-the-operator-or-to-the-work.md) | A preference belongs either to the operator or to the work | Accepted | 2026-08-12 |
 | [0048](ADR-0048-an-export-is-not-a-copy-of-the-stored-table.md) | An export is not a copy of the stored table | Accepted | 2026-08-12 |
+| [0049](ADR-0049-no-torch-is-a-cpu-and-rocm-is-not-cuda.md) | No torch is a CPU, and ROCm is not CUDA | Accepted | 2026-08-12 |
 
 ## When to write one
 

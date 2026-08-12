@@ -7,6 +7,41 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T12 · **one component decides where inference runs**
+
+**Task:** `M4-T12`. **ADR:** **ADR-0049**, implementing ADR-0004. **W8 closed**, and a milestone
+exit criterion met.
+
+Before this, `grep -r cuda nanoscope/infrastructure/models` returned **nothing**: every inference
+this project ever ran went wherever torch felt like putting it. Verified on the operator's own
+machine after the change — *"NVIDIA GeForce GTX 1070 (cuda)"*, selected without a fallback.
+
+### What implementing it decided
+
+**No torch means the CPU, reported rather than raised.** CI installs none on purpose — the `ci`
+dependency group exists to skip a CUDA wheel its tests never execute — so a manager that raises on
+the import is one no test can run, and the machine still has a processor.
+
+**ROCm is told apart by `torch.version.hip`.** A ROCm build answers `torch.cuda.is_available()`
+with **True** and serves AMD cards through the `torch.cuda` API, so a probe that trusts the
+function name reports a Radeon as CUDA. That is the kind of wrongness that survives for years
+because it never crashes.
+
+**A fallback says why, in a sentence.** ADR-0004 asked for it in those words, and it is the part
+that is easy to skip because the code works without it: a fallback nobody is told about is a
+forty-fold slowdown that reads as the application being slow.
+
+The preference order is a **stated convention with its reason** rather than a fabricated
+measurement — there is no AMD card or Mac here — and it lives in one tuple.
+
+### Numbers
+
+14 tests, driven by a **fake torch module**, which is the only way the ROCm branch can be tested at
+all. `DeviceProvider` is the third port to pay out `core/ports`'s table, and `DeviceKind` — in
+`core` since M2-T02 and unadopted since — finally has a resolver. Golden byte-identical.
+
+---
+
 ## 2026-08-12 — M4-T11 · **an export is not a copy of the stored table**
 
 **Task:** `M4-T11`. **ADR:** **ADR-0048**.

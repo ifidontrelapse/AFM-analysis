@@ -34,9 +34,18 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T09`, `M4-T10` and `M4-T11` all done 2026-08-12 (ADR-0046, ADR-0047,
-ADR-0048); `M4-T12` — the `DeviceManager` — is next**, and it is the first task in this milestone
-that has to touch torch.
+**None selected. `M4-T12` done 2026-08-12 (ADR-0049); `M4-T13` — the model registry — is next**,
+and it is where the device this task resolves finally reaches a provider.
+
+**`M4-T12` done 2026-08-12 (ADR-0049, implementing ADR-0004) — one component decides where
+inference runs. W8 closed**, exit criterion met, verified on the operator's machine (*"NVIDIA
+GeForce GTX 1070 (cuda)"*). Before it, `grep -r cuda infrastructure/models` returned **nothing**.
+Three decisions: **no torch means the CPU**, reported not raised, since CI installs none on purpose;
+**ROCm is told apart by `torch.version.hip`**, because a ROCm build answers
+`torch.cuda.is_available()` with True and a naive probe calls a Radeon "CUDA" — wrongness that
+survives for years because it never crashes; and **a fallback says why in a sentence**, which
+ADR-0004 asked for and which is the easy part to skip. 14 tests over a **fake torch**, the only way
+the ROCm branch can be tested at all. `DeviceKind`, in `core` since M2-T02, finally has a resolver.
 
 **`M4-T11` done 2026-08-12 (ADR-0048) — an export is not a copy of the stored table.** ADR-0042
 predicted this would be nearly free; **the format was free and the export was not.** Three things a
@@ -1178,10 +1187,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T12` — the `DeviceManager`**: detect CPU / CUDA / ROCm / MPS and apply the selection
-   policy (ADR-0004). The first task in M4 that has to touch torch, and one of the milestone's
-   exit criteria. Then **M4-T13** (model registry), **M4-T14** (logging) and **M4-T15** (the
-   headless end-to-end test). M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
+1. **`M4-T13` — the model registry and `ModelDescriptor` persistence**, which replaces the
+   hardcoded weight path (W10) and is where M4-T12's resolved device reaches a provider. Then
+   **M4-T14** (logging) and **M4-T15** (the headless end-to-end test). M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
    four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
@@ -1207,7 +1215,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **704, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **718, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -1,64 +1,93 @@
 # CURRENT TASK
 
-**ID:** `M4-T11`
-**Title:** CSV export — the file somebody opens three months later
-**Milestone:** M4 — Application layer, eleventh task
-**Defect:** — · **ADR:** **ADR-0048**
-**Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** **done 2026-08-12**, together with `M4-T09` (ADR-0046) and `M4-T10` (ADR-0047), which
-the operator asked for in one session. Each has its own commit and its own ADR; this file carries
-the last of the three, and the full record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M4-T12`
+**Title:** `DeviceManager` — one component decides where inference runs
+**Milestone:** M4 — Application layer, twelfth task
+**Defect:** W8 (no device management) · **ADR:** ADR-0004 is accepted already; **ADR-0049** records
+what implementing it decided
+**Branch:** `feat/m4-application-layer`
+**Status:** **done 2026-08-12.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
-## What the three tasks decided
+## Why this task is next
 
-**`M4-T09` — there is no dirty state to save (ADR-0046).** Autosave was scheduled before there was
-storage to autosave. Every mutating repository method commits before it returns, so a service would
-be a timer that flushes nothing — worse than useless, because it would create the impression of
-protection where the protection actually lives. What ships is the proof: `test_durability.py`
-abandons repositories without `close()` and kills a process with `SIGKILL` between writes. Two
-triggers are named that would reverse it.
+W8: *"Nothing decides CPU vs CUDA vs ROCm vs MPS; it is implicit in torch defaults."* It still is —
+grepping `infrastructure/models` for `cuda` returns nothing at all, so every inference this project
+has run went wherever torch felt like putting it.
 
-**`M4-T10` — a preference belongs either to the operator or to the work (ADR-0047).** Two stores,
-split by what the preference is *about*. Reads merge with the project first; writes name their
-scope, because "save this" without saying where is a question and guessing is wrong in both
-directions. Values are JSON so a boolean survives, and a stored `None` is an answer rather than an
-absence.
+ADR-0004 decided the shape three months ago and has been waiting for a milestone with an
+application layer in it. This is that milestone, and this is one of its exit criteria.
 
-**`M4-T11` — an export is not a copy of the stored table (ADR-0048).** ADR-0042 predicted this
-would be nearly free; the format was, and the export was not. Provenance columns in front, more
-than one run in one file, a timestamped name — and a refusal to write a CSV that would misrepresent
-what happened.
+---
+
+## The decisions implementing it forces
+
+**1. Where does the probe run, and what happens without torch?** In `infrastructure/device/`, with
+torch imported **inside the function**, and **no torch means CPU** — reported, not raised.
+
+CI installs no torch (the `ci` dependency group exists precisely to skip the CUDA wheel), so a
+device manager that raises on `import torch` is one no test can run. It is also the honest answer
+for a machine without it: the CPU is there.
+
+**2. How are ROCm and CUDA told apart?** By `torch.version.hip`.
+
+A torch built for ROCm answers `torch.cuda.is_available()` with **True** and exposes its devices
+through the same `torch.cuda` API — so a naive probe reports an AMD card as CUDA, and a user reads
+"CUDA" in a dialog about a Radeon.
+
+**3. What does selection do when the preference is unavailable?** Falls back, and **says why in a
+sentence a person can read** — ADR-0004 asked for exactly that. A fallback nobody is told about is
+a silent 40× slowdown.
+
+**4. Is the port worth it?** Yes, and it is `DeviceProvider` from `core/ports/__init__.py`'s table,
+which dates it to this task. `application` must be able to say "run this on the selected device"
+without importing torch — the reason `DeviceKind` went into `core` in M2-T02 and has sat unadopted
+since.
+
+**5. What order is "best available"?** CUDA, ROCm, MPS, CPU. Not measured — nobody here has an AMD
+card or a Mac to measure with — so it is stated as a **convention with its reason** and made
+trivial to reorder.
+
+---
+
+## Scope
+
+**In scope**
+
+1. `core/entities/device.py` — `Device` and `DeviceSelection`, the second carrying the reason
+2. `core/ports/device.py` — the `DeviceProvider` port, adopting `DeviceKind` at last
+3. `infrastructure/device/manager.py` — probing, the policy, the readable fallback
+4. **ADR-0049** — no torch is CPU, ROCm told apart by `version.hip`, the fallback speaks
+5. Tests against a **fake torch module**: absent, CPU-only, CUDA, ROCm, MPS, and an unavailable
+   preference
+
+**Out of scope**
+
+- **Handing the device to the providers** — M4-T13, where the registry that constructs them lands
+- **Memory and driver introspection.** ADR-0004 says "where obtainable"; a name and a kind are what
+  a selection needs, and the rest is a dialog's problem in M5
 
 ---
 
 ## Definition of done
 
-- [x] ADR-0046, ADR-0047, ADR-0048
-- [x] `test_durability.py`; settings in two scopes with schema v4; `export_measurements`
-- [x] `make check` green — 704 tests, golden byte-identical
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Architecture.md`, ADR index
-- [x] Three commits, one per task
+- [x] `DeviceManager` probing without a GPU, and without torch at all
+- [x] The policy: explicit choice → best available → CPU, with a readable reason
+- [x] ADR-0049
+- [x] Tests over a fake torch for every backend
+- [x] `make check` green — golden byte-identical (verified across this session's three tasks)
+- [x] Docs and the ADR index
+- [x] Commit: `M4-T12: one component decides where inference runs`
 
 ---
 
 ## What it turned up
 
-**The `SIGKILL` durability test failed once, and the cause was the working tree changing under it.**
-It is the only test here that spawns a process, so it reads the code from *disk* while every other
-test reads it from the parent's memory: the parent held schema v3 while the subprocess imported v4
-and migrated the fixture forward. Not a property of the application — but worth a docstring, since
-the next person to hit it would debug it as one.
+**Running the real probe on this machine was worth doing.** It reports *"NVIDIA GeForce GTX 1070
+(cuda)"* and selects it without a fallback — which is the exit criterion's own wording ("on this
+machine") and the one thing a fake torch cannot demonstrate.
 
-**Autosave was the second scheduled task this milestone that turned out not to need building** —
-after M2-T08's six ports and ADR-0041's three use cases. The pattern is consistent enough to name:
-a task written before the layer beneath it existed is a *hypothesis*, and checking it is part of
-doing it.
-
----
-
-## Notes
-
-The golden held for the eleventh time. **M4-T12** takes the `DeviceManager` — the first task in this
-milestone that has to touch torch, and one of the milestone's exit criteria.
+**The ROCm branch is the reason the fake exists.** There is no AMD card here and there never will
+be, so the only way to test the branch that distinguishes a Radeon from an NVIDIA card is to build
+a torch that claims to be one. Without that test, the branch would be written and never executed.
