@@ -268,8 +268,12 @@ code path nobody asked to run.
 - **Undo/redo.** A command stack in `application/commands.py`. Every mutating user
   action is a command with `do()` and `undo()`. The GUI dispatches commands; it never
   mutates state directly.
-- **Autosave.** A service that persists dirty state on a timer and on well-defined
-  events. Enabled by default.
+- **Autosave.** None, and that is a decision (M4-T09, **ADR-0046**). Storage is
+  **write-through**: every mutating repository method commits before it returns, so
+  there is no dirty state for a timer to flush. A crash loses only the operation in
+  flight, which SQLite rolls back. `tests/integration/test_durability.py` proves it,
+  including a process killed with `SIGKILL` mid-write. Autosave returns if view state
+  ever lives only in the GUI, or if a write path starts batching.
 
 ### 4.6 Error taxonomy
 
