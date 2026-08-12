@@ -34,8 +34,21 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T12` done 2026-08-12 (ADR-0049); `M4-T13` — the model registry — is next**,
-and it is where the device this task resolves finally reaches a provider.
+**None selected. `M4-T13` done 2026-08-12 (ADR-0050); `M4-T14` — logging — is next**, and it has
+an open question ADR-0013 left: where the SQLite log destination it promised should actually go.
+
+**`M4-T13` done 2026-08-12 (ADR-0050, implementing ADR-0005) — a model is a record, not a path in a
+default argument.** Exit criterion met **without a weight file in sight**, because the registry
+hands back **factories, never instances**: constructing a detector loads weights, so instantiating
+on lookup makes "what models does this project have?" expensive and impossible in CI. Weights may
+be **shared**, with the consequence stated rather than prevented — `models` is the one table without
+the absolute-path check, because refusing would force duplicating gigabytes or lying about where
+the file is. Identity is a name somebody chose; re-registering replaces. `provenance` is free text,
+since provenance that must fit a schema stops being recorded. **The device from M4-T12 arrives
+here**, closing ADR-0049's named gap. **`run_pipeline` is deliberately untouched** (ADR-0010), so
+**W10 is not closed but made closable**, with M5 as the payer. Schema **v5**, 13 tests. **Found:**
+the `TABLES_BY_VERSION` guard written last session went red on the very next migration — exactly
+what it was for.
 
 **`M4-T12` done 2026-08-12 (ADR-0049, implementing ADR-0004) — one component decides where
 inference runs. W8 closed**, exit criterion met, verified on the operator's machine (*"NVIDIA
@@ -1187,9 +1200,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T13` — the model registry and `ModelDescriptor` persistence**, which replaces the
-   hardcoded weight path (W10) and is where M4-T12's resolved device reaches a provider. Then
-   **M4-T14** (logging) and **M4-T15** (the headless end-to-end test). M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
+1. **`M4-T14` — logging infrastructure**, which has to answer the question ADR-0013 deferred:
+   where the SQLite log destination it promised should actually go. Then **M4-T15**, the headless
+   end-to-end test that closes the milestone. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
    four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
@@ -1215,7 +1228,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **718, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **740, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

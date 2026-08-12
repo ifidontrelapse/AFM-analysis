@@ -7,6 +7,47 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T13 · **a model is a record, not a path in a default argument**
+
+**Task:** `M4-T13`. **ADR:** **ADR-0050**, implementing ADR-0005. Schema **v5**. Exit criterion met.
+
+W10 was two default arguments holding `"./checkpoints/best12x.pt"` — a relative path to a file
+nobody promises exists, with no version, no checksum and no record of what it was trained on.
+
+**The registry hands back factories, never instances.** Constructing a detector loads weights, so a
+registry that instantiates on lookup makes *"what models does this project have?"* expensive — and
+impossible in CI, where no weights exist. The exit criterion is met by a test that resolves a model
+whose file is not there.
+
+**Weights may be shared, and the consequence is stated rather than prevented.** Nobody copies a
+137 MB checkpoint into every project, so an absolute path is kept as it is and `models` is the one
+table without the `NOT LIKE '/%'` check. A project carrying one opens on another machine with that
+model unavailable — which is honest, where refusing would mean duplicating gigabytes or lying about
+where the file is.
+
+**`provenance` is free text**, because provenance that must fit a schema stops being recorded.
+
+**The device from M4-T12 arrives here**, closing the gap ADR-0049 named: the factory hands
+`device.torch_name` to the provider, and `YoloDetector` gained a `device` parameter defaulting to
+`None` — ultralytics' own default, so nothing changes for a caller who does not choose.
+
+### What it did not do, on purpose
+
+`run_pipeline` is **not** rewired and no default changed. Its `if/elif` is what the `Detector` port
+removes, and doing it here would bundle a golden-covered refactor into a storage commit — ADR-0010's
+rule. **W10 is therefore not closed by this task; it is made closable**, with M5 named as the payer.
+
+### What it turned up
+
+**The guard written last session fired on the very next migration.** `TABLES_BY_VERSION` in
+`tests/integration/conftest.py` did not know about v5, and its self-check went red immediately
+instead of three migration tests failing mysteriously later. That is exactly the failure it was
+written for, one task after it was written.
+
+**Numbers:** 13 tests; golden byte-identical.
+
+---
+
 ## 2026-08-12 — M4-T12 · **one component decides where inference runs**
 
 **Task:** `M4-T12`. **ADR:** **ADR-0049**, implementing ADR-0004. **W8 closed**, and a milestone

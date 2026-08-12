@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from nanoscope.core.entities import PipelineResult
+from nanoscope.core.entities.model import ModelDescriptor
 from nanoscope.core.entities.project import (
     AnalysisRun,
     Annotation,
@@ -165,6 +166,22 @@ class ProjectRepository(Protocol):
         The use case decides what an export contains; the adapter decides where
         it lands, because `application` may not touch the filesystem.
         """
+        ...
+
+    def register_model(self, descriptor: ModelDescriptor) -> ModelDescriptor:
+        """Record a model this project can use."""
+        ...
+
+    def get_model(self, model_id: str) -> ModelDescriptor:
+        """One registered model, by the id a configuration names."""
+        ...
+
+    def list_models(self) -> list[ModelDescriptor]:
+        """Every model this project knows about."""
+        ...
+
+    def path_of_model(self, descriptor: ModelDescriptor) -> Path:
+        """Where that model's weights are, inside the project or not."""
         ...
 
     def get_setting(self, key: str, default: object = None) -> object:

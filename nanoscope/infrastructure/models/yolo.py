@@ -67,7 +67,13 @@ class YoloDetector(BaseDetector):
         conf: float = 0.5,
         iou: float = 0.7,
         polarity: Polarity = Polarity.BRIGHT_ON_DARK,
+        # Where to run, resolved by the DeviceManager and handed over by the
+        # registry (M4-T12/T13). `None` leaves it to ultralytics, which is what
+        # every caller before M4 did — this class never asks torch itself
+        # (ADR-0004, PROJECT_RULES §2.6).
+        device: str | None = None,
     ):
+        self.device = device
         self.model_path = model_path
         self.use_tiling = use_tiling
         self.yolo_size = yolo_size
@@ -211,7 +217,9 @@ class YoloDetector(BaseDetector):
         from ultralytics import YOLO
 
         model = YOLO(self.model_path)
-        results = model(img, conf=self.conf, iou=self.iou)
+        # `device=None` is ultralytics' own default, so passing it through
+        # changes nothing for a caller that did not choose (M4-T13).
+        results = model(img, conf=self.conf, iou=self.iou, device=self.device)
         self._last_result = results
 
         boxes_yolo = results[0].boxes.xyxy.cpu().numpy()

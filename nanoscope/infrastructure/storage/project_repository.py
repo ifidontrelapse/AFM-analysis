@@ -32,6 +32,8 @@ import shutil
 import sqlite3
 import threading
 from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import replace
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -41,6 +43,7 @@ from typing import Any, Self, cast
 import pandas as pd
 
 from nanoscope.core.entities import Detection, PipelineResult
+from nanoscope.core.entities.model import ModelDescriptor, ModelFramework, ModelTask
 from nanoscope.core.entities.project import (
     AnalysisRun,
     Annotation,
@@ -620,6 +623,82 @@ class SqliteProjectRepository:
             raise InvalidParameterError(f"no annotation with id {annotation_id} in {self._root}")
 
     @_serialised
+    def register_model(self, descriptor: ModelDescriptor) -> ModelDescriptor:
+        """Record a model this project can use, replacing one with the same id.
+
+        Args:
+            descriptor: what the model is. `path` is stored relative when the
+                weights are inside the project and left absolute when they are
+                not (ADR-0050) — the conversion happens here, so a caller may
+                hand over either.
+
+        Returns:
+            The stored record, with `registered_utc` filled in.
+        """
+        path = descriptor.path
+        if Path(path).is_absolute():
+            # Inside the project it becomes relative like every other path; a
+            # shared checkpoint elsewhere stays as it is (ADR-0050).
+            with suppress(ValueError):
+                path = Path(path).relative_to(self._root).as_posix()
+        stored = replace(
+            descriptor,
+            path=path,
+            registered_utc=descriptor.registered_utc
+            or datetime.now(UTC).isoformat(timespec="seconds"),
+        )
+        self._conn.execute(
+            "INSERT INTO models (model_id, task, framework, path, input_size_px, class_map, "
+            "provenance, sha256, registered_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(model_id) DO UPDATE SET task = excluded.task, "
+            "framework = excluded.framework, path = excluded.path, "
+            "input_size_px = excluded.input_size_px, class_map = excluded.class_map, "
+            "provenance = excluded.provenance, sha256 = excluded.sha256, "
+            "registered_utc = excluded.registered_utc",
+            (
+                stored.model_id,
+                str(stored.task),
+                str(stored.framework),
+                stored.path,
+                stored.input_size_px,
+                json.dumps({str(k): v for k, v in stored.class_map.items()}),
+                stored.provenance,
+                stored.sha256,
+                stored.registered_utc,
+            ),
+        )
+        self._conn.commit()
+        return stored
+
+    @_serialised
+    def get_model(self, model_id: str) -> ModelDescriptor:
+        """One registered model.
+
+        Raises:
+            InvalidParameterError: no model has that id — named, because the id
+                came from a configuration and a typo there is the likely cause.
+        """
+        row = self._conn.execute("SELECT * FROM models WHERE model_id = ?", (model_id,)).fetchone()
+        if row is None:
+            raise InvalidParameterError(f"no model registered as {model_id!r} in {self._root}")
+        return _model(row)
+
+    @_serialised
+    def list_models(self) -> list[ModelDescriptor]:
+        """Every model this project knows about, by id."""
+        rows = self._conn.execute("SELECT * FROM models ORDER BY model_id")
+        return [_model(row) for row in rows]
+
+    @_serialised
+    def path_of_model(self, descriptor: ModelDescriptor) -> Path:
+        """Where that model's weights are, whether inside the project or not."""
+        return (
+            Path(descriptor.path)
+            if Path(descriptor.path).is_absolute()
+            else self._root / descriptor.path
+        )
+
+    @_serialised
     def write_export(self, file_name: str, table: pd.DataFrame) -> str:
         """Write a table into `exports/` and return its path, relative to the root.
 
@@ -789,6 +868,20 @@ def _run(row: sqlite3.Row, detections: tuple[Detection, ...]) -> AnalysisRun:
         measurements_path=row["measurements_path"],
         created_utc=row["created_utc"],
         detections=detections,
+    )
+
+
+def _model(row: sqlite3.Row) -> ModelDescriptor:
+    return ModelDescriptor(
+        model_id=row["model_id"],
+        task=ModelTask(row["task"]),
+        framework=ModelFramework(row["framework"]),
+        path=row["path"],
+        input_size_px=row["input_size_px"],
+        class_map={int(k): v for k, v in json.loads(row["class_map"]).items()},
+        provenance=row["provenance"],
+        sha256=row["sha256"],
+        registered_utc=row["registered_utc"],
     )
 
 

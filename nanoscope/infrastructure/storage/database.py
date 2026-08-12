@@ -145,6 +145,33 @@ _V4 = (
     """,
 )
 
+# The models a project can use (M4-T13). W10's replacement: a record with a
+# version, a checksum and a provenance, instead of `"./checkpoints/best12x.pt"`
+# in a default argument.
+#
+# `path` may be absolute here, unlike every other path in this schema, and the
+# CHECK that forbids one elsewhere is deliberately absent: nobody copies a
+# 137 MB checkpoint into every project, so a shared file is the normal case —
+# with the consequence that such a project opens on another machine and the
+# model is unavailable there (ADR-0050).
+_V5 = (
+    """
+    CREATE TABLE models (
+        model_id       TEXT PRIMARY KEY,
+        task           TEXT NOT NULL,
+        framework      TEXT NOT NULL,
+        path           TEXT NOT NULL,
+        input_size_px  INTEGER,
+        class_map      TEXT NOT NULL,
+        provenance     TEXT NOT NULL,
+        sha256         TEXT,
+        registered_utc TEXT NOT NULL,
+        CHECK (task IN ('detect', 'segment')),
+        CHECK (framework IN ('ultralytics', 'sam2'))
+    )
+    """,
+)
+
 #: Every step from an empty file to the current schema, in order. A step is its
 #: target version and the statements that reach it; they run in one transaction
 #: and the version moves with them.
@@ -157,6 +184,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (2, _V2),
     (3, _V3),
     (4, _V4),
+    (5, _V5),
 )
 
 #: What this application writes and can read. Derived from the list rather than

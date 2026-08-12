@@ -25,6 +25,7 @@ TABLES_BY_VERSION: dict[int, tuple[str, ...]] = {
     2: ("analysis_runs", "detections"),
     3: ("annotations",),
     4: ("settings",),
+    5: ("models",),
 }
 
 

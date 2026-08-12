@@ -170,7 +170,8 @@ the model registry and `ModelDescriptor`.
       (M4-T05, ADR-0042 — the index relational, the measurement table a file under `results/`)
 - [x] `DeviceManager` correctly reports CPU / CUDA / ROCm / MPS on this machine and selects one
       (M4-T12, ADR-0049 — verified on the operator's machine: "NVIDIA GeForce GTX 1070 (cuda)")
-- [ ] Model registry resolves `"yolo"` and `"sam2"` to providers via `ModelDescriptor`
+- [x] Model registry resolves `"yolo"` and `"sam2"` to providers via `ModelDescriptor`
+      (M4-T13, ADR-0050 — factories, so it resolves without weights present)
 - [x] Undo/redo proven on at least one mutating use case
       (M4-T08, ADR-0045 — annotations, against a real database)
 - [ ] Integration tests cover the whole layer; no Qt imported anywhere

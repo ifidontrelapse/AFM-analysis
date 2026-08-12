@@ -1,10 +1,10 @@
 # CURRENT TASK
 
-**ID:** `M4-T12`
-**Title:** `DeviceManager` — one component decides where inference runs
-**Milestone:** M4 — Application layer, twelfth task
-**Defect:** W8 (no device management) · **ADR:** ADR-0004 is accepted already; **ADR-0049** records
-what implementing it decided
+**ID:** `M4-T13`
+**Title:** A model is a record, not a path in a default argument
+**Milestone:** M4 — Application layer, thirteenth task
+**Defect:** W10 (model paths are hardcoded config strings) · **ADR:** ADR-0005 is accepted;
+**ADR-0050** records what implementing it decided
 **Branch:** `feat/m4-application-layer`
 **Status:** **done 2026-08-12.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -12,42 +12,55 @@ what implementing it decided
 
 ## Why this task is next
 
-W8: *"Nothing decides CPU vs CUDA vs ROCm vs MPS; it is implicit in torch defaults."* It still is —
-grepping `infrastructure/models` for `cuda` returns nothing at all, so every inference this project
-has run went wherever torch felt like putting it.
+W10, still open and still visible in two default arguments:
 
-ADR-0004 decided the shape three months ago and has been waiting for a milestone with an
-application layer in it. This is that milestone, and this is one of its exit criteria.
+```python
+yolo_model_path: str = "./checkpoints/best12x.pt"     # PipelineConfig
+def __init__(self, model_path: str = "./checkpoints/best12x.pt", ...)   # YoloDetector
+```
+
+A relative path to a file nobody promises exists, with no version, no checksum, no record of what
+it was trained on, repeated in two places. ADR-0005 decided the replacement — a `ModelDescriptor`
+in the database and a registry keyed by a string — and the milestone's fourth exit criterion is
+*"model registry resolves `yolo` and `sam2` to providers via `ModelDescriptor`"*.
+
+M4-T12 also left a gap by name: the resolved device reaches nothing yet. The registry is where a
+provider gets constructed, so it is where a device can be handed over.
 
 ---
 
-## The decisions implementing it forces
+## The decisions this task has to make
 
-**1. Where does the probe run, and what happens without torch?** In `infrastructure/device/`, with
-torch imported **inside the function**, and **no torch means CPU** — reported, not raised.
+**1. What is registered — a class, or a factory?** A **factory**, and the registry never
+constructs anything by itself.
 
-CI installs no torch (the `ci` dependency group exists precisely to skip the CUDA wheel), so a
-device manager that raises on `import torch` is one no test can run. It is also the honest answer
-for a machine without it: the CPU is there.
+Building a `YoloDetector` loads weights off disk; a registry that instantiates on lookup makes
+"what models do I have?" an expensive question and an impossible one in CI, where no weights
+exist. `resolve()` returns something callable, and the caller decides when to pay.
 
-**2. How are ROCm and CUDA told apart?** By `torch.version.hip`.
+**2. Where do weights live, and may a path be absolute?** Both, and the *reason* is the decision.
 
-A torch built for ROCm answers `torch.cuda.is_available()` with **True** and exposes its devices
-through the same `torch.cuda` API — so a naive probe reports an AMD card as CUDA, and a user reads
-"CUDA" in a dialog about a Radeon.
+Project-local weights go in `models/` and are stored relative, like every other path (ADR-0003).
+But nobody copies a 137 MB checkpoint into every project, so an absolute path to a shared file is
+**allowed** — and a project carrying one is honest about the consequence: it opens on another
+machine, and that model is simply unavailable there. Refusing absolute paths would mean either
+duplicating gigabytes or lying about where the file is.
 
-**3. What does selection do when the preference is unavailable?** Falls back, and **says why in a
-sentence a person can read** — ADR-0004 asked for exactly that. A fallback nobody is told about is
-a silent 40× slowdown.
+**3. What identifies a model?** A caller-chosen `model_id` string, unique within the project — the
+same string ADR-0005 puts in configuration. Not a hash: an operator names their model, and a
+checksum answers a different question ("is this the file I recorded?"), which the descriptor also
+carries.
 
-**4. Is the port worth it?** Yes, and it is `DeviceProvider` from `core/ports/__init__.py`'s table,
-which dates it to this task. `application` must be able to say "run this on the selected device"
-without importing torch — the reason `DeviceKind` went into `core` in M2-T02 and has sat unadopted
-since.
+**4. Does this task rewire `run_pipeline`?** **No.** Its `if/elif` on `cfg.detector` is what the
+`Detector` port removes, and doing it here would mean a behaviour-preserving refactor of the one
+function the golden covers most, bundled into a commit about storage — exactly what ADR-0010
+forbids. The registry is additive; the swap belongs with the composition root that will call it
+(M5).
 
-**5. What order is "best available"?** CUDA, ROCm, MPS, CPU. Not measured — nobody here has an AMD
-card or a Mac to measure with — so it is stated as a **convention with its reason** and made
-trivial to reorder.
+**5. Do the defaults change?** No. `PipelineConfig.yolo_model_path` keeps its value, because the
+golden records that field and M4 must not move a number. What changes is that there is now a
+**better** way to say which model, and W10 closes when the GUI uses it rather than when the
+default disappears.
 
 ---
 
@@ -55,39 +68,44 @@ trivial to reorder.
 
 **In scope**
 
-1. `core/entities/device.py` — `Device` and `DeviceSelection`, the second carrying the reason
-2. `core/ports/device.py` — the `DeviceProvider` port, adopting `DeviceKind` at last
-3. `infrastructure/device/manager.py` — probing, the policy, the readable fallback
-4. **ADR-0049** — no torch is CPU, ROCm told apart by `version.hip`, the fallback speaks
-5. Tests against a **fake torch module**: absent, CPU-only, CUDA, ROCm, MPS, and an unavailable
-   preference
+1. `ModelDescriptor` in `core/entities/model.py` — id, task, framework, path, input size, class
+   map, provenance, checksum
+2. Migration step 5: the `models` table, and repository methods to register / list / get
+3. `infrastructure/models/registry.py` — framework → factory, `resolve(descriptor, device)`
+4. **ADR-0050** — factories not instances, absolute paths allowed with their consequence, the
+   `run_pipeline` rewiring deferred with a trigger
+5. Tests: the descriptor round-trips, an unknown framework is refused by name, `yolo` and `sam2`
+   resolve to their providers **without loading weights**, and a device is passed through
 
 **Out of scope**
 
-- **Handing the device to the providers** — M4-T13, where the registry that constructs them lands
-- **Memory and driver introspection.** ADR-0004 says "where obtainable"; a name and a kind are what
-  a selection needs, and the rest is a dialog's problem in M5
+- **Rewiring `run_pipeline`** — decision 4
+- **Downloading or validating weights.** Verifying a checksum is a read of a large file; the
+  descriptor stores it so somebody *can*, and who asks is a question for M5
+- **Training** — M7/M8 produce descriptors; this task stores them
 
 ---
 
 ## Definition of done
 
-- [x] `DeviceManager` probing without a GPU, and without torch at all
-- [x] The policy: explicit choice → best available → CPU, with a readable reason
-- [x] ADR-0049
-- [x] Tests over a fake torch for every backend
-- [x] `make check` green — golden byte-identical (verified across this session's three tasks)
-- [x] Docs and the ADR index
-- [x] Commit: `M4-T12: one component decides where inference runs`
+- [x] `ModelDescriptor`, schema v5, repository methods, the port extended
+- [x] A registry resolving `yolo` and `sam2` to providers without constructing them
+- [x] ADR-0050
+- [x] Tests, including a device handed to a factory
+- [x] `make check` green — golden byte-identical
+- [x] Docs, the ADR index, the roadmap criterion
+- [x] Commit: `M4-T13: a model is a record, not a path in a default argument`
 
 ---
 
 ## What it turned up
 
-**Running the real probe on this machine was worth doing.** It reports *"NVIDIA GeForce GTX 1070
-(cuda)"* and selects it without a fallback — which is the exit criterion's own wording ("on this
-machine") and the one thing a fake torch cannot demonstrate.
+**The guard written last session fired on the very next migration.** `TABLES_BY_VERSION` in
+`tests/integration/conftest.py` did not list v5's `models` table, and its own self-check went red
+immediately — instead of three unrelated migration tests failing later with
+`CREATE TABLE … already exists`. One task after it was written, it paid for itself.
 
-**The ROCm branch is the reason the fake exists.** There is no AMD card here and there never will
-be, so the only way to test the branch that distinguishes a Radeon from an NVIDIA card is to build
-a torch that claims to be one. Without that test, the branch would be written and never executed.
+**W10 is made closable rather than closed, and saying which is the point.** The registry exists and
+works; `PipelineConfig.yolo_model_path` still holds a path, because deleting it means rewiring the
+function the golden covers most. Half a defect closed, with the other half assigned, beats a
+commit that quietly does both.

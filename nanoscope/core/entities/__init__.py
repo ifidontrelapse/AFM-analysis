@@ -12,6 +12,7 @@ objects, so there is exactly one `Detection` class in the process — two would 
 from nanoscope.core.entities.detection import Detection
 from nanoscope.core.entities.device import Device, DeviceSelection
 from nanoscope.core.entities.image import AFMRawData, MicroscopyData, PreprocessingResult
+from nanoscope.core.entities.model import ModelDescriptor, ModelFramework, ModelTask
 from nanoscope.core.entities.pipeline import PipelineConfig, PipelineResult
 from nanoscope.core.entities.project import (
     AnalysisRun,
@@ -37,6 +38,9 @@ __all__ = [
     "ImportReport",
     "IntegrityReport",
     "MicroscopyData",
+    "ModelDescriptor",
+    "ModelFramework",
+    "ModelTask",
     "OpenedProject",
     "PipelineConfig",
     "PipelineResult",
