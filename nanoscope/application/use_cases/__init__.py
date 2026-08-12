@@ -15,11 +15,13 @@ test, in M2-T15.
 """
 
 from nanoscope.application.use_cases.analysis import run_analysis
+from nanoscope.application.use_cases.export import export_measurements
 from nanoscope.application.use_cases.pipeline import run_pipeline
 from nanoscope.application.use_cases.preprocessing import run_preprocessing
 from nanoscope.application.use_cases.projects import import_images, open_project
 
 __all__ = [
+    "export_measurements",
     "import_images",
     "open_project",
     "run_analysis",

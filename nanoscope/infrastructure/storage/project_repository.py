@@ -26,6 +26,8 @@ imports, which is `application/use_cases/projects.py` (ADR-0041).
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 import shutil
 import sqlite3
 import threading
@@ -59,6 +61,7 @@ from nanoscope.infrastructure.storage.project_format import (
 
 _IMAGES_DIRECTORY = "images"
 _RESULTS_DIRECTORY = "results"
+_EXPORTS_DIRECTORY = "exports"
 
 #: 1 MiB. Large enough that the loop is not the cost, small enough that a
 #: multi-gigabyte scan does not arrive in memory to be hashed.
@@ -615,6 +618,58 @@ class SqliteProjectRepository:
         self._conn.commit()
         if cursor.rowcount == 0:
             raise InvalidParameterError(f"no annotation with id {annotation_id} in {self._root}")
+
+    @_serialised
+    def write_export(self, file_name: str, table: pd.DataFrame) -> str:
+        """Write a table into `exports/` and return its path, relative to the root.
+
+        The filesystem half of M4-T11: the use case decides what an export
+        *contains*, and this decides where it lands and what it is called. A
+        name from an operator's text field is reduced to something a filesystem
+        accepts — a `/` in it would otherwise write outside the project
+        (ADR-0048).
+        """
+        safe = re.sub(r"[^\w.\- ]+", "_", file_name).strip() or "export"
+        if not safe.lower().endswith(".csv"):
+            safe = f"{safe}.csv"
+
+        directory = self._root / _EXPORTS_DIRECTORY
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / safe
+        table.to_csv(path, index=False)
+        return path.relative_to(self._root).as_posix()
+
+    @_serialised
+    def get_setting(self, key: str, default: object = None) -> object:
+        """A preference this project states, or `default` if it states none.
+
+        Satisfies `core.ports.SettingsStore` (M4-T10), so the merged view in
+        `application.settings` can hold a project and a JSON file behind one
+        type.
+        """
+        row = self._conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return default if row is None else json.loads(row["value"])
+
+    @_serialised
+    def set_setting(self, key: str, value: object) -> None:
+        """State a preference for this project, replacing any earlier one.
+
+        JSON, not `str()`: a store that returns everything as text makes every
+        reader parse it back, and one of them gets it wrong (ADR-0047).
+        """
+        self._conn.execute(
+            "INSERT INTO settings (key, value, updated_utc) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+            "updated_utc = excluded.updated_utc",
+            (key, json.dumps(value), datetime.now(UTC).isoformat(timespec="seconds")),
+        )
+        self._conn.commit()
+
+    @_serialised
+    def all_settings(self) -> dict[str, object]:
+        """Everything this project states, for a settings dialog to show at once."""
+        rows = self._conn.execute("SELECT key, value FROM settings ORDER BY key")
+        return {row["key"]: json.loads(row["value"]) for row in rows}
 
     @_serialised
     def check_integrity(self) -> IntegrityReport:

@@ -11,6 +11,7 @@ M4-T02, which owns the one file in that directory that is not a document, and
 rows rather than files.
 """
 
+from nanoscope.infrastructure.storage.app_settings import JsonSettings, default_settings_path
 from nanoscope.infrastructure.storage.database import (
     MIGRATIONS,
     SCHEMA_VERSION,
@@ -47,10 +48,12 @@ __all__ = [
     "MANIFEST_NAME",
     "MIGRATIONS",
     "SCHEMA_VERSION",
+    "JsonSettings",
     "ProjectManifest",
     "SqliteProjectRepository",
     "check_compatible",
     "connect",
+    "default_settings_path",
     "load_afm",
     "load_microscopy_image",
     "migrate",

@@ -7,6 +7,99 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T11 · **an export is not a copy of the stored table**
+
+**Task:** `M4-T11`. **ADR:** **ADR-0048**.
+
+ADR-0042 predicted this would be nearly free, since the measurement table is already a CSV. **The
+format was free; the export was not** — storage and export answer different questions, and the
+difference is three things a `shutil.copy` would not have.
+
+**Provenance in front.** `image`, `image_id`, `run_id`, `detector`, `mode`, `pixel_size_nm` on
+every row. The stored table repeats none of it because it is *filed under* its run — the directory
+is the context — and a CSV on somebody's desktop has no context at all: a column of heights with no
+scan name is a column of numbers. In front rather than appended, because a spreadsheet opens on
+column A. `pixel_size_nm` is empty and never `0` when the scale is unknown, or a spreadsheet
+computes nanometres from a pixel count.
+
+**More than one run in one file**, because statistics across a dataset is the reason the
+measurements exist, and assembling twelve files by hand is the step where one gets dropped. **A
+timestamped name**, because an export is a snapshot and silently replacing yesterday's loses work
+the operator believes they have — and a caller's name is sanitised **in the repository**, where the
+write happens, since it arrives from a text field and a `/` would write outside `exports/`.
+
+**Nothing dishonest is written.** A detect-only selection raises instead of producing headers with
+no rows — an empty CSV is indistinguishable from *"we measured and found nothing"*, which is a
+different statement about the sample — and a missing stored table fails loudly, because an export
+short by one scan of twelve is a wrong dataset that looks right.
+
+**Numbers:** 10 tests over two analysed phantoms; golden byte-identical.
+
+---
+
+## 2026-08-12 — M4-T10 · **a preference belongs either to the operator or to the work**
+
+**Task:** `M4-T10`. **ADR:** **ADR-0047**. Schema **v4**.
+
+Two stores, split by what the preference is *about*: `~/.config/nanoscope/settings.json` for what
+follows the **operator**, and a `settings` table for what belongs to **the work**, so a copied
+project takes its choices with it. XDG is *the* convention here rather than one of several, because
+this is a Linux desktop application (ADR-0002), and the file is somewhere a user already knows to
+look.
+
+**Reads merge, project first; writes name their scope.** "Save this preference" without saying
+where is a question, not an instruction, and guessing is wrong in both directions — one project's
+choice leaking into every other project, or a global preference hidden inside one directory. So
+`set` defaults to the operator's scope and **raises** if the project scope is asked for with no
+project open. `scope_of(key)` exists so a settings dialog can say *"this project overrides your
+default"* rather than showing a value with no explanation.
+
+**Values are JSON, not strings** — a store that returns text makes every reader parse it back and
+one of them gets it wrong, `"False"` being truthy — and a `None` stored in a project is an
+**answer**, so the merge asks whether the project *has* the key. Neither store validates what a key
+means: a registry of known settings would be edited by every feature that adds one, including
+features in `gui/` this layer must not know about.
+
+The JSON file is written by **replacement**: a settings file truncated by a crash mid-write is a
+preferences reset for somebody who did nothing wrong. A corrupt one reads as empty rather than
+stopping the application from starting, and is not deleted — an operator can still see what they
+wrote.
+
+**Numbers:** 26 tests; `SettingsStore` is the second port to pay out `core/ports`'s promise, with
+two genuinely different implementations behind it; golden byte-identical.
+
+---
+
+## 2026-08-12 — M4-T09 · **there is no dirty state to save**
+
+**Task:** `M4-T09`. **ADR:** **ADR-0046**. **Closed by understanding rather than by code** — no
+production code was written at all.
+
+Architecture §4.5 scheduled autosave before there was any storage to autosave: *"a service that
+persists dirty state on a timer"*. That sentence assumes dirty state exists. The first job of this
+task was to check, and it does not: **every mutating repository method commits before it returns**.
+ADR-0043's threading work made each write a short self-contained transaction; ADR-0045 decided the
+one deliberate piece of in-memory state — the undo history — is not persisted; ADR-0042 writes the
+measurement file inside the call that records the run.
+
+So an autosave service would be **a timer that flushes nothing**, and that is worse than useless:
+it creates the impression of protection where the protection actually lives, and the first person
+debugging a lost edit would inspect the timer instead of the write path.
+
+**What ships is the proof rather than the service.** `tests/integration/test_durability.py`
+abandons repositories without `close()`, reads a committed row from a second connection while the
+writer is still alive, checks each write path on its own, and **kills a separate process with
+`SIGKILL` between writes** — then finds its rows intact.
+
+Two triggers are named that would reverse the decision: view state that lives only in the GUI
+(M4-T10's settings, next) and any write path that starts batching. The second turns these tests
+red, so the reversal would arrive with evidence rather than as an opinion. `Architecture.md` §4.5
+was corrected in the same commit, since it promised a service that will not exist.
+
+**Numbers:** golden byte-identical, tests **658 → 663**, no production code, no new dependency.
+
+---
+
 ## 2026-08-12 — M4-T08 · **undo is a session, and it says so**
 
 **Task:** `M4-T08`, the eighth of M4. **Branch:** `feat/m4-application-layer`. **ADR:**

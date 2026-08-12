@@ -34,8 +34,38 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T08` done 2026-08-12 (ADR-0045); `M4-T09` — autosave — is next**, and its
-first question is what autosave has left to do when every write already commits.
+**None selected. `M4-T09`, `M4-T10` and `M4-T11` all done 2026-08-12 (ADR-0046, ADR-0047,
+ADR-0048); `M4-T12` — the `DeviceManager` — is next**, and it is the first task in this milestone
+that has to touch torch.
+
+**`M4-T11` done 2026-08-12 (ADR-0048) — an export is not a copy of the stored table.** ADR-0042
+predicted this would be nearly free; **the format was free and the export was not.** Three things a
+copy would not have: **provenance in front** (`image`, `run_id`, `detector`, … — the stored table
+is *filed under* its run, and a CSV on a desktop has no context, so a column of heights with no
+scan name is a column of numbers), **more than one run in one file** (statistics across a dataset
+is why the measurements exist), and **a timestamped name** (an export is a snapshot; replacing
+yesterday's loses work). Nothing dishonest is written: a detect-only selection **raises** rather
+than producing headers with no rows, and a missing stored table fails loudly. 10 tests.
+
+**`M4-T10` done 2026-08-12 (ADR-0047) — a preference belongs either to the operator or to the
+work.** Two stores: `~/.config/nanoscope/settings.json` (XDG) for what follows the operator, a
+`settings` table (schema **v4**) for what belongs to the project and travels with its directory.
+**Reads merge, project first; writes name their scope** — "save this" without saying where is a
+question, and guessing leaks one project's choice into every other or hides a global preference in
+one directory; a project-scope write with no project open **raises**. Values are **JSON**, so a
+boolean stays a boolean, and a stored `None` is an *answer*. Neither store validates keys — a
+registry would be edited by every feature, including ones in `gui/`. The file is written by
+replacement, and a corrupt one reads as empty rather than stopping the application. 26 tests.
+
+**`M4-T09` done 2026-08-12 (ADR-0046) — there is no dirty state to save. Closed by understanding
+rather than by code:** no production code was written. Architecture §4.5 scheduled autosave before
+there was storage to autosave; **every mutating repository method commits before it returns**, so
+a service would be **a timer that flushes nothing** — worse than useless, because it creates the
+impression of protection where the protection actually lives. What ships is the proof:
+`test_durability.py` abandons repositories without `close()`, reads from a second connection while
+the writer lives, checks every write path, and **kills a process with `SIGKILL` between writes**,
+finding its rows intact. Two named triggers would reverse it (GUI-only view state; any batching
+write path), the second as a red test. `Architecture.md` §4.5 corrected in the same commit.
 
 **`M4-T08` done 2026-08-12 (ADR-0045) — undo is a session, and it says so. M4's undo/redo exit
 criterion is met**, against a real database. **The stack knows nothing but order** — it never learns
@@ -1148,11 +1178,11 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T09` — autosave.** Undo covers the mistake the operator makes; autosave covers the one
-   the machine makes. Its first question is honest: every write already commits, so what is left
-   is unsaved *view* state and a project that was open when the power went. M3's remainder is
-   unchanged — **M3-T16** (blocked on **B6**) and the four algorithm findings, which the roadmap
-   allows to run in parallel
+1. **`M4-T12` — the `DeviceManager`**: detect CPU / CUDA / ROCm / MPS and apply the selection
+   policy (ADR-0004). The first task in M4 that has to touch torch, and one of the milestone's
+   exit criteria. Then **M4-T13** (model registry), **M4-T14** (logging) and **M4-T15** (the
+   headless end-to-end test). M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
+   four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1177,7 +1207,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **658, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **704, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -159,6 +159,26 @@ class ProjectRepository(Protocol):
         """Delete one annotation. The operator's hand work — never silent."""
         ...
 
+    def write_export(self, file_name: str, table: pd.DataFrame) -> str:
+        """Write a table into `exports/`, returning its path relative to the root.
+
+        The use case decides what an export contains; the adapter decides where
+        it lands, because `application` may not touch the filesystem.
+        """
+        ...
+
+    def get_setting(self, key: str, default: object = None) -> object:
+        """A preference this project states. Satisfies `SettingsStore`."""
+        ...
+
+    def set_setting(self, key: str, value: object) -> None:
+        """State a preference for this project."""
+        ...
+
+    def all_settings(self) -> dict[str, object]:
+        """Everything this project states."""
+        ...
+
     def check_integrity(self) -> IntegrityReport:
         """Where the index and the filesystem disagree. Reports; changes nothing."""
         ...

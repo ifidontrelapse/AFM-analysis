@@ -60,13 +60,15 @@ AFM-analysis/
 │   │   ├── capabilities.py             # THE execution matrix, validated before inference
 │   │   ├── jobs.py                     # JobRunner, cooperative cancel, progress (M4-T06)
 │   │   ├── commands.py                 # CommandStack + annotation commands (M4-T08)
+│   │   ├── settings.py                 # the merged view of two scopes (M4-T10)
 │   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04),
-│   │                                   #   analysis.py (M4-T05)
+│   │                                   #   analysis.py (M4-T05), export.py (M4-T11)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
 │   │   ├── storage/database.py         # schema version + migrations (M4-T02)
-│   │   ├── storage/project_repository.py # images index + integrity check (M4-T03)
+│   │   ├── storage/project_repository.py # images, results, annotations, settings, exports
+│   │   ├── storage/app_settings.py     # ~/.config/nanoscope/settings.json (M4-T10)
 │   │   ├── models/                     # yolo.py, sam2.py — heavy imports, function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib)
 │   ├── gui/                            # PySide6 (M5)
@@ -74,10 +76,10 @@ AFM-analysis/
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands — 570 tests
-│   ├── integration/                    # a real project: lifecycle, and analysis results that
-│   │                                   #   round-trip, jobs, annotations, undo
-│   │                                   #   (M4-T03…T08) — 88 tests
+│   │                                   #   commands, settings — 583 tests
+│   ├── integration/                    # a real project directory + database: lifecycle, results,
+│   │                                   #   annotations, undo, durability, settings, export
+│   │                                   #   (M4-T03…T11) — 121 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -640,6 +642,22 @@ with SqliteProjectRepository.open("~/Nanoparticles") as repo:
 ```
 
 The run and its detections are rows in `analysis_runs` / `detections`; the measurement table is `results/run_<id>/measurements.csv` (ADR-0042). `run_analysis` passes the image's recorded `pixel_size_nm` into preprocessing, which is what an `.npy` has no other way of knowing.
+
+Exporting what was measured, and reading a preference (M4-T10, M4-T11):
+
+```python
+from nanoscope.application.settings import Scope, Settings
+from nanoscope.application.use_cases import export_measurements
+from nanoscope.infrastructure.storage import JsonSettings
+
+with SqliteProjectRepository.open("~/Nanoparticles") as repo:
+    settings = Settings(JsonSettings(), repo)      # project answers first
+    settings.set("detector", "log", Scope.PROJECT)
+
+    written = export_measurements(repo)            # every run, one CSV under exports/
+```
+
+The export carries `image`, `image_id`, `run_id`, `detector`, `mode`, `pixel_size_nm` in front of the measured columns, because a CSV on a desktop has no directory around it to explain itself (ADR-0048).
 
 Running either of those in the background (M4-T06):
 
