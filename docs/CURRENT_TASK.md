@@ -1,76 +1,70 @@
 # CURRENT TASK
 
-**ID:** `M4-T02`
-**Title:** SQLite schema v1 and the forward-migration mechanism
-**Milestone:** M4 — Application layer, second task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0039**
+**ID:** `M4-T03`
+**Title:** The `ProjectRepository`, and the integrity check ADR-0003 has been owed
+**Milestone:** M4 — Application layer, third task
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0040** (to be written)
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned 2026-08-12, implementation next.
 
 ---
 
 ## Why this task is next
 
-M4-T01 decided *where* the schema version lives — `PRAGMA user_version`, in the database, separate
-from the manifest's `format_version` — and deliberately owned nothing else about the database:
+M4-T01 decided what a project directory is; M4-T02 gave it tables. Nothing yet puts a row in one
+or finds the file it names — and two things are waiting on that:
 
-> *`schema_version` … lives in `database.sqlite`, as `PRAGMA user_version`, and M4-T02 owns it.*
+1. **M4-T04's use cases.** `ImportImages` and `ListImages` are a repository with a name on top.
+2. **ADR-0003's unpaid debt**, written down as a *known cost* of the design and never collected:
 
-Everything above this task reads or writes rows. `ProjectRepository` (M4-T03) needs tables to
-implement; `CreateProject` / `ImportImages` (M4-T04) need a database to create and open. If the
-schema arrives with the first repository, the migration mechanism arrives *after* the first
-tables — which is the one order that cannot work, because the mechanism's first job is creating
-them.
+> *Two sources of truth to keep consistent … Deleting a file behind the application's back
+> produces a dangling row; the repository layer must reconcile (a startup integrity check is
+> required).*
 
-The same argument as M4-T01, one layer down: **the operator's data is on the far side of this
-too.** A schema without a migration path is a schema that can never change.
+That check has no owner until this task. It is also the piece most likely to be quietly skipped,
+because everything works in a test where nobody deletes anything.
 
 ---
 
 ## The decisions this task has to make
 
-**1. What shape is a migration?** An ordered sequence of steps, each a version number and the
-statements that reach it, applied in order, forward only.
+**1. Does the port arrive now?** Yes — and `core/ports/__init__.py` already committed to when:
+*"the rest ship with their first adapter"*, with `ProjectRepository` listed as arriving with "the
+SQLite schema and its repository". That is this task. The Task column on that row says **M6**,
+which was true when the table was written and is now wrong; the code decides and the document gets
+fixed (PROJECT_RULES §8).
+
+The port is not decoration here. M4-T04's use cases live in `application/`, which may import
+`core` and nothing else — typing a use case against the SQLite class would put `infrastructure` on
+the application's import list, which Architecture §3.2 forbids outright.
+
+**2. Who computes the checksum?** The repository, from the file the row points at — never a
+caller passing one in. A checksum accepted as an argument is a checksum that can describe a
+different file, and the only thing it would then prove is that two callers agreed. One funnel, and
+it makes `add_image` require that the file is already inside the project.
+
+**3. What does the integrity check do about what it finds?** It **reports**. It does not delete a
+row whose file is absent, and it does not import a file that has no row.
 
 | | |
 |---|---|
-| **An ordered list in code, `SCHEMA_VERSION` derived from its last entry** ✅ | One place to add a step; the constant cannot drift from the list because it *is* the list's last element. A test asserts the versions are contiguous from 1 |
-| A constant plus a `dict` of migrations | Two things to update, and the failure mode is a schema that claims a version nothing produces |
-| `.sql` files discovered on disk | Ordering by filename, a packaging problem, and a schema that depends on files shipping correctly |
+| **Report both directions, change nothing** ✅ | A missing file is as likely to be an unmounted drive or a half-finished copy as a deletion, and the row carries measurements the file does not. ADR-0003 forbids destructive migrations; deleting user data on *open* would be worse than one |
+| Delete dangling rows automatically | Silent data loss triggered by a mount point |
+| Import untracked files automatically | Guesses that a file under `images/` was meant to be in the project, and invents its modality |
 
-**2. Atomicity.** A migration that fails halfway must leave the database at the version it
-started at. Python's `sqlite3` opens an implicit transaction only for DML — **DDL runs in
-autocommit** — so `CREATE TABLE` is *not* wrapped for free. Each step therefore runs under an
-explicit `BEGIN` / `COMMIT`, with `PRAGMA user_version` set inside the same transaction (it is
-stored in the database header and is transactional). A test breaks a step on purpose and asserts
-the version did not move.
+**4. Are contents verified on open?** No. Comparing every checksum means reading every scan on
+every open — the `data/` directory here holds 628 SPM files. The check compares *existence*, which
+is a `stat` per row; the checksum stays in the row for when an operator asks a question that needs
+it. Stated in the ADR so the omission is a decision rather than an oversight.
 
-**3. What is in v1?** Only what has a caller: an `images` table. Adding a table is what the
-mechanism in decision 1 exists for, so guessing at `measurements`, `jobs`, `settings` and `logs`
-now buys nothing and commits us to columns written before their first reader. Each later task
-brings its own migration.
+**5. Relative paths: enforced where?** In the repository, which is the one funnel every writer
+passes through — it takes a path, refuses one outside the project root, and stores it relative and
+POSIX-separated. M4-T02's `CHECK` stays as the backstop that catches a writer who does not use the
+repository. Belt and braces on purpose: the constraint is what makes the rule true of the
+*database*, the repository is what makes the error message useful.
 
-**4. Journal mode: not WAL.** WAL adds `database.sqlite-wal` and `-shm` to a directory whose
-layout is a published contract, and a project copied while a WAL is unflushed is ADR-0003's
-"half-copied project" with committed data in a file the operator may not have copied. One desktop
-writer needs none of what WAL buys.
-
-**5. Foreign keys on, per connection.** SQLite defaults them **off**, per connection, so a
-`REFERENCES` clause with no `PRAGMA foreign_keys = ON` is decoration. The pragma belongs in the
-connect helper, outside any transaction (it is a silent no-op inside one).
-
-**6. Which error?** `ProjectFormatError`, the same one M4-T01 raised for a newer
-`format_version`. To the operator a newer schema is the same sentence — *this is not something I
-can open* — and ADR-0038 already made that class carry four cases for exactly that reason.
-
-**7. Constraints the database enforces, not the code.** Two rules from the format contract become
-`CHECK` clauses, because a rule enforced by care is a rule already broken somewhere:
-
-- a stored path is relative — ADR-0003's *"the application must be careful never to write an
-  absolute path"* becomes a constraint that refuses one
-- `modality` is one of the three `Modality` members, pinned by a test that reads the enum, so the
-  duplication cannot drift
+**6. What comes back from a query?** `ImageRecord`, an entity — never a `sqlite3.Row`. A Row is
+untyped, and returning one would put `sqlite3` in the vocabulary of every layer above.
 
 ---
 
@@ -78,73 +72,45 @@ can open* — and ADR-0038 already made that class carry four cases for exactly 
 
 **In scope**
 
-1. `nanoscope/infrastructure/storage/database.py` — `SCHEMA_VERSION`, `MIGRATIONS`, `connect`,
-   `open_database`, `schema_version`, `migrate`
-2. The v1 `images` table
-3. **ADR-0039** — the migration mechanism, the v1 scope rule, no WAL, foreign keys on
-4. `docs/ProjectFormat.md` §3 — `schema_version` is no longer "owned by M4-T02", it is
-   implemented; and what a reader may assume about `database.sqlite`
-5. Tests: a fresh database, an idempotent second run, a newer schema refused, a broken step
-   rolled back, the pragmas, and both `CHECK` clauses
+1. `core/entities/project.py` — `ImageRecord` and `IntegrityReport`
+2. `core/ports/project_repository.py` — the `ProjectRepository` Protocol, and the ports table
+   corrected
+3. `infrastructure/storage/project_repository.py` — `SqliteProjectRepository`: `open`, `close`,
+   context-manager use, `add_image`, `get_image`, `list_images`, `remove_image`, `check_integrity`
+4. **ADR-0040** — report-don't-reconcile, the checksum funnel, the port's arrival
+5. Integration tests in a new `tests/integration/`: a real directory, a real database, files
+   deleted behind the application's back, and a project **moved to another directory** — which is
+   the test ADR-0003 asks for by name
 
 **Out of scope**
 
-- **The repository** — M4-T03. This task creates and versions the tables; nothing here reads or
-  writes a row except the tests that prove the tables work
-- **Creating a project directory** — M4-T04
-- **Every other table.** By decision 3, and on purpose
-- **The integrity check** reconciling rows against files — M4-T03, which needs the repository
+- **Creating a project directory** — `CreateProject` is M4-T04. The tests build a directory with
+  `new_manifest` + `mkdir`, three lines, so this task does not quietly own the lifecycle
+- **Copying an imported file into `images/`** — also M4-T04. This task records a file that is
+  already there
+- **Every other table.** Measurements and annotations arrive with their tasks, each with a
+  migration (ADR-0039)
+- **Resolving what the integrity check finds.** Reporting is the contract; acting on a report is a
+  use case with an operator behind it
 
 ---
 
 ## Expected blast radius
 
-- **Zero golden differences.** No numerical code is imported, let alone touched. A red golden
-  here means something pulled in the science by accident
-- One new module, one new document section, one ADR, one new test file
-- `sqlite3` is stdlib; no new dependency
+- **Zero golden differences.** The golden enumerates the fields of `PipelineConfig`,
+  `PipelineResult` and `Detection`; a new entity module is invisible to it
+- Two new modules, one new entity module, one ADR, one new test directory
+- No new dependency
 
 ---
 
 ## Definition of done
 
-- [x] `database.py` — migrations, pragmas, the version check
-- [x] The v1 `images` table, with its two `CHECK` clauses
-- [x] ADR-0039
-- [x] `docs/ProjectFormat.md` updated where it defers to this task
-- [x] Tests covering: fresh, idempotent, newer-refused, rollback, pragmas, constraints
-- [x] `make check` green — 524 tests, golden byte-identical
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M4-T02: the schema has a version and a way forward`
-
----
-
-## What it turned up
-
-**A migration is not atomic for free, and the default that makes it so is Python's, not
-SQLite's.** `sqlite3` opens a transaction implicitly before **DML only** — `CREATE TABLE` runs in
-autocommit. A step that created two tables and failed on its third statement would therefore leave
-those two tables behind **at the old version number**, and the next open would try to create them
-again. Nothing about the obvious loop over statements hints at it. The explicit `BEGIN` is the
-whole safety property, and the test that breaks a step on purpose is the only thing that proves it.
-
-**`PRAGMA foreign_keys` has two silent failure modes, not one.** It is off by default *and* per
-connection, and setting it inside a transaction is a no-op that reports success. Either mistake
-leaves every future `REFERENCES` clause as decoration, with a test suite that passes.
-
-**Deciding what v1 contains took longer than writing it.** The pull toward designing
-`measurements`, `jobs`, `settings` and `logs` now is strong, and it is the same instinct M2-T08
-refused for the ports: an interface written before its first adapter is a guess that gets
-rewritten. Here the guess would be on an operator's disk, behind a no-destructive-migrations rule.
-
-**The journal mode turned out to be a format question.** WAL reads as a performance knob until you
-notice it adds two files to a directory whose contents this project *published* as a contract one
-task ago — and that a project copied mid-write would then have committed data outside it.
-
----
-
-## Notes
-
-M4's risk profile held for the second time: the golden is byte-identical and nothing numerical is
-imported by this module. **M4-T03** takes the tables and puts a repository on them, including the
-integrity check ADR-0003 has been owed since it named the dangling row.
+- [ ] `ImageRecord`, `IntegrityReport`, and the `ProjectRepository` port
+- [ ] `SqliteProjectRepository`, with paths stored relative and checksums computed in one place
+- [ ] `check_integrity` reporting both directions and changing nothing
+- [ ] ADR-0040, and the corrected row in the ports table
+- [ ] Integration tests, including a moved project and a file deleted behind our back
+- [ ] `make check` green, golden byte-identical
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M4-T03: the repository reports what it finds, and never reconciles by deleting`
