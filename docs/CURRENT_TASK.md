@@ -1,71 +1,69 @@
 # CURRENT TASK
 
-**ID:** `M4-T05`
-**Title:** Analysis results that survive the session — and the first real migration
-**Milestone:** M4 — Application layer, fifth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0042**
+**ID:** `M4-T06`
+**Title:** Jobs: submit, progress, cancel, and the cancellation that cannot be forced
+**Milestone:** M4 — Application layer, sixth task
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0043** (to be written)
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned 2026-08-12, implementation next.
 
 ---
 
 ## Why this task is next
 
-M4-T04 met the milestone's first exit criterion. This one owns the second:
+Everything the application layer can do so far returns when it is finished. Importing forty scans
+copies forty files; `run_analysis` runs a full LoG pass and a measurement sweep. Architecture §4.5
+set the bar before any of it existed:
 
-> *Detection and measurement results round-trip through SQLite and the filesystem.*
+> *Anything that can take longer than ~100 ms … runs as a job with progress and cancellation. The
+> GUI subscribes; it does not block and it does not own the thread policy.*
 
-Nothing in the project can currently answer "what did we find in this scan last week?" — the
-pipeline returns a `PipelineResult` and the process exits with it. This is also **the first task in
-M4 that calls the scientific core**, so it is the first where a golden difference is even possible;
-if one appears, the bug is in M4.
+M5's own exit criteria require a long job that shows progress and cancels without freezing the UI.
+Building that in M5 would put the thread policy inside the widget that must not own it.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Three use cases, or one?** One: `run_analysis`.
+**1. What is a job, structurally?** A **handle**, returned by a runner — not a base class to
+inherit. `DetectionJob(Job)` and `ImportJob(Job)` would be two classes whose only difference is
+which function they call, which is ADR-0041's rule for the third time. A job wraps *any* callable.
 
-`RunDetection`, `RunSegmentation` and `MeasureParticles` are `run_pipeline` with `mode` set to
-`"detect"`, `"segment"` and `"baseline"` — the mode already lives in `PipelineConfig`, and
-`capabilities.py` already validates the combination before anything runs. Three functions differing
-by a string literal is ADR-0041's case again, one task later: a second name for the same method.
+**2. Threads or processes?** Threads, on `concurrent.futures.ThreadPoolExecutor`.
 
-**2. Where do results live?** Split, and the exit criterion names the split itself — *"through
-SQLite **and** the filesystem"*:
+The work is NumPy, SciPy and torch, all of which release the GIL in the parts that take the time.
+A process pool would have to pickle height maps and model handles across a boundary — expensive
+for the arrays and impossible for a loaded SAM2 predictor. Stdlib gives submit, result, exception
+and pre-start cancellation for free; what it does not give is the next two rows.
 
-| | Where | Why |
-|---|---|---|
-| which analyses ran, and what they found | SQLite: `analysis_runs`, `detections` | Fixed columns, queried by everything above — the viewer draws detections, the exporter counts them |
-| the measurement **table** | `results/<run>/measurements.csv` | ADR-0031 made it *variable by construction*: a core plus blocks that are present in full or absent in full, with `method` naming the producer. A relational table for that is either wide with NULLs — which ADR-0031 rejected in these words — or an EAV pivot nobody can read |
+**3. How does cancellation work?** **Cooperatively, and this is the honest part of the task.**
 
-ADR-0003's layout says `results/` holds "detections, measurements, generated masks" as files, while
-its storage rule says SQLite holds measurements. The reading that satisfies both, and this task's
-decision: **the index is in the database, the tabular product is a file.**
+A running Python thread cannot be killed. `Future.cancel()` works only while a job is still
+queued. So a job that has started stops at the next point where it *checks* — the runner hands
+every job a `JobContext` with `raise_if_cancelled()`, and the job calls it where stopping is safe.
+A single 20-second LoG pass has no such point, and pretending otherwise would be the lie the GUI
+then repeats to the operator: the cancel button must mean "stop at the next checkpoint", not
+"stop".
 
-**3. What about masks?** Not persisted. Segmentation needs SAM2 weights, which are not in this
-repository and not in CI (PROJECT_RULES §6), so a mask format written now would be a format nothing
-can produce under test. The trigger to write it is named in the ADR: the viewer in M5, or
-annotations in M4-T07.
+**4. Where does progress come from?** The same `JobContext`: `report(done, total, message)`.
+Counting, not a fraction — a batch of forty files knows "12 of 40", and turning that into a
+fraction is the progress bar's business. `total=0` means indeterminate, which is what a single
+opaque scientific call actually is.
 
-**4. What happens to an image's results when the image row is deleted?** They go with it —
-`REFERENCES … ON DELETE CASCADE`. A detection of a particle in a scan the project no longer knows
-about is not data, it is litter, and it is the *derived* half of the pair, so ADR-0040's argument
-for keeping the row does not apply here. This is also what finally makes M4-T02's
-`PRAGMA foreign_keys = ON` load-bearing rather than a precaution.
+**5. Who is told, and on which thread?** One optional `listener` callback per job, called on every
+state or progress change. **It fires on the worker thread**, which is stated loudly here and in
+the ADR because Qt widgets may only be touched from the main thread — marshalling is M5's adapter
+to write, and a GUI that forgets is a crash, not a warning.
 
-**5. How does the use case get the pixels?** Through the loaders in `infrastructure.storage`,
-imported directly, exactly as `use_cases/preprocessing.py` and `use_cases/pipeline.py` already do.
+**6. What does a failure do?** It is caught, stored on the job as its `error`, and the job goes to
+`FAILED`. A job that dies must not take the runner with it, and the exception must not vanish into
+a thread nobody joins — which is what `ThreadPoolExecutor` does by default if nobody reads the
+future.
 
-An `ImageLoader` port is the correct answer and it is **not** this task's: the ports table dates it
-M2-T10 / M6, and introducing it here means rewriting the two existing call sites in the same commit
-as the first persistence code. Debt, taken deliberately, recorded in the ADR with its trigger
-rather than discovered later.
-
-**6. Which schema version?** **2**, through ADR-0039's mechanism — the first migration applied to a
-database that already has rows in it. That is the property the mechanism was built for, and it has
-never been exercised.
+**7. Does anything actually use it?** `import_images` gains an optional `progress` parameter: it
+already loops over files, so it is the one place today where "12 of 40" exists to be reported, and
+where a cancellation between files is clean. Files already imported stay imported, and the report
+says what was done before the stop.
 
 ---
 
@@ -73,73 +71,41 @@ never been exercised.
 
 **In scope**
 
-1. Migration step 2: `analysis_runs` and `detections`, with foreign keys and cascade
-2. `AnalysisRun` in `core/entities/project.py`
-3. Repository: `save_analysis`, `runs_for`, `detections_for`, `measurements_for`, and the port
-   extended to match
-4. `application/use_cases/analysis.py` — `run_analysis(repository, image_id, config, predictor)`
-5. **ADR-0042** — one use case not three, the index/product split, no masks yet, the cascade
-6. Tests: the migration over a populated v1 database, the round trip, the cascade, and an
-   end-to-end run over a characterization phantom written into a real project
+1. `application/jobs.py` — `JobState`, `Progress`, `JobContext`, `Job`, `JobRunner`
+2. `import_images(..., progress=None)` — progress and a cancellation checkpoint per file
+3. **ADR-0043** — a handle not a hierarchy, threads, cooperative cancellation, the listener thread
+4. Tests: success, failure captured, cancel before start, cooperative cancel while running,
+   progress observed in order, the runner shutting down, and a cancelled batch import
 
 **Out of scope**
 
-- **Masks** — decision 3
-- **CSV export** — M4-T11. Writing `measurements.csv` here is storage, not export: the export
-  service decides what an operator's file looks like and where it goes
-- **Jobs and progress** — M4-T06. `run_analysis` is synchronous
-- **The `ImageLoader` port** — decision 5
-- **YOLO and SAM2 paths under test.** Neither is in the gate (PROJECT_RULES §6); the LoG detector
-  is the one that runs in CI, and the persistence code is detector-agnostic
+- **Job persistence and history.** Logs are M4-T14; a job is a live object
+- **Priorities, dependencies, retries, ETA.** No caller has asked, and each is a queue policy that
+  wants a real workload to be designed against
+- **Threading `JobContext` through `core.science`.** Progress inside a LoG pass means a callback
+  in the domain, which `core` must not grow for the GUI's benefit. What that costs — one long
+  opaque step — is stated rather than engineered around
+- **Qt marshalling** — M5's adapter, named in decision 5
 
 ---
 
 ## Expected blast radius
 
-- **Zero golden differences**, and this is the first task where that claim is not free — the
-  science is called. `run_pipeline` is not modified: the use case calls it and stores what comes
-  back
-- One migration step, two tables, one new application module, one ADR
-- No new dependency
+- **Zero golden differences.** No numerical code is touched; `import_images` gains an optional
+  parameter and keeps its behaviour when it is absent
+- One new application module, one ADR, one test file
+- No new dependency — `concurrent.futures` and `threading` are stdlib
 
 ---
 
 ## Definition of done
 
-- [x] Schema v2, reached by a migration over a database with rows in it
-- [x] `save_analysis` / `runs_for` / `detections_for` / `measurements_for`, on the port too
-- [x] `run_analysis`, taking mode from the config rather than existing three times
-- [x] ADR-0042
-- [x] Tests: migration, round trip, cascade, end-to-end over a phantom
-- [x] `make check` green — 600 tests, golden byte-identical
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`, ADR index
-- [x] Commit: `M4-T05: what the analysis found outlives the session`
-
----
-
-## What it turned up
-
-**A live defect in this task's own code, caught by a test: the project knew the scale and the
-analysis threw it away.** An `.npy` carries no metadata, so loading one without the
-`pixel_size_nm` the operator recorded at import means the image is analysed *as though the scale
-were unknown* — every `radius_nm` `None`, and the physical minimum-size filter silently skipped.
-**That is the D-07 family of defect M3 spent a milestone eliminating, reintroduced one layer up**,
-and it is precisely the failure this milestone was warned about: the science is correct and the
-application hands it the wrong arguments. `run_preprocessing` gained the parameter; a test fails if
-`run_analysis` stops passing it.
-
-**The LoG detector does not leave `bbox` absent.** It synthesises a square box from the radius, so
-ADR-0031's absence case has **no producer in the gate at all** — pinning it needs a hand-built
-`PipelineResult`. Worth knowing before M5 draws boxes and finds every detection has one.
-
-**A test file was lying about itself.** `test_project_use_cases.py` claimed mypy checked its fake
-against the port structurally; mypy's `files = ["nanoscope"]` means it never reads `tests/`. The
-claim now says what is actually true.
-
----
-
-## Notes
-
-The golden held for the fifth time, and for the first time that was not free — this is the task
-that calls the science. **M4-T06** takes the jobs: everything here returns when it is done, and
-M5's own exit criteria require a long job that reports progress and cancels without freezing.
+- [ ] `JobRunner` over `ThreadPoolExecutor`, with `Job` as a handle
+- [ ] Cooperative cancellation, and a test that proves a *running* job stops at its checkpoint
+- [ ] Progress reported as counts, with the listener documented as worker-thread
+- [ ] Failures captured on the job rather than lost in a thread
+- [ ] `import_images` reporting progress and stopping between files
+- [ ] ADR-0043
+- [ ] `make check` green, golden byte-identical
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
+- [ ] Commit: `M4-T06: a job reports, and stops when it is asked`
