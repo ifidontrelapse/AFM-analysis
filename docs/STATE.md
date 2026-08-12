@@ -40,8 +40,22 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T02` done 2026-08-13 (ADR-0053); `M5-T03` — the dark theme — is next**, and
-it lands as one visible change because this task deliberately kept Qt's defaults.
+**None selected. `M5-T03` done 2026-08-13 (ADR-0054); `M5-T04` — the project explorer — is next**,
+and it carries one of M4's outstanding obligations: counting annotations before `remove_image`
+discards them (ADR-0044).
+
+**`M5-T03` done 2026-08-13 (ADR-0054, implementing ADR-0002) — one source of colour truth, and a
+contrast floor that can fail.** The stylesheet carries `@{token}` placeholders and **no colour of
+its own**, enforced by a test rather than by review — *the rule and its enforcement ship together,
+or only the rule does*. A placeholder with no token **raises** instead of substituting an empty
+string. **Palette *and* stylesheet from one table**, because QSS does not reach tooltips or Qt's
+disabled states, whose default on a dark palette is near-black on dark. **Contrast is a floor:**
+every text pair clears 4.5:1 (WCAG AA), recomputed by the test, including `TEXT_MUTED` — *"muted"
+must not come to mean "unreadable"* — and a test checks the measure itself first, since a contrast
+check that cannot fail is decoration. **Found:** the substitution ran over the stylesheet's own
+comment explaining what a token is (comments are stripped first now), and `@space_mdpx` parsed as
+one name, so placeholders are braced. A wheel was built and inspected: the stylesheet ships. 19
+tests, **888** in the suite, **golden byte-identical**.
 
 **`M5-T02` done 2026-08-13 (ADR-0053) — a window that holds the container and nothing else. W2 is
 no longer "no UI at all":** `nanoscope --gui` opens a window with menus, a toolbar, three docks and
@@ -1261,11 +1275,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M5-T03` — the dark theme**: design tokens plus QSS, one source of colour truth (ADR-0002).
-   It arrives as one visible change because M5-T02 kept Qt's defaults. Two of M4's obligations are
-   still waiting for the tasks that own them: counting annotations before `remove_image`
-   (ADR-0044, needs M5-T04's explorer) and marshalling a job's listener onto the main thread
-   (ADR-0043, needs M5-T07)
+1. **`M5-T04` — the project explorer**, which is where ADR-0044's obligation lands: an image can
+   now be removed from a panel, and the confirmation has to count the annotations it would take
+   with it. **`M5-T07`** still owes ADR-0043's thread hop for job listeners
 2. **`make types` joins `make check` as blocking.** M4 is over, so the M1 exit criterion deferred
    "while the legacy core is `src/`" is now only about the **6** inherited errors: four in
    `use_cases/pipeline.py` — three of which are the `Detector` port's absence, which M5-T01's
@@ -1289,7 +1301,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **867, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **888, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

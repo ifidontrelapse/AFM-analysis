@@ -1,0 +1,171 @@
+/* The dark theme's stylesheet (M5-T03, ADR-0054).
+ *
+ * Every colour here is an `@{token}`, resolved from `gui/theme/tokens.py` when the
+ * theme is applied. A literal hex value in this file turns a test red — which is
+ * what "one source of colour truth" has to mean to survive a hurried commit.
+ *
+ * What this file does *not* do is style everything: `QPalette` covers what Qt
+ * draws outside a stylesheet's reach (tooltips, dialog buttons, disabled states,
+ * the text cursor), and both are built from the same table.
+ */
+
+QWidget {
+    background-color: @{background};
+    color: @{text};
+    font-size: @{font_size}px;
+}
+
+QMainWindow::separator {
+    background-color: @{border};
+    width: @{border_width}px;
+    height: @{border_width}px;
+}
+
+/* Panels and docks sit on the background; their title bars sit on them. */
+
+QDockWidget {
+    background-color: @{surface};
+    titlebar-close-icon: none;
+    titlebar-normal-icon: none;
+}
+
+QDockWidget::title {
+    background-color: @{raised};
+    padding: @{space_sm}px @{space_md}px;
+    border-bottom: @{border_width}px solid @{border};
+}
+
+QDockWidget > QWidget {
+    background-color: @{surface};
+}
+
+/* The menu bar and the toolbar are the "raised" surface. */
+
+QMenuBar,
+QToolBar {
+    background-color: @{raised};
+    border: none;
+    padding: @{space_xs}px;
+    spacing: @{space_sm}px;
+}
+
+QMenuBar::item {
+    padding: @{space_sm}px @{space_md}px;
+    border-radius: @{radius}px;
+}
+
+QMenuBar::item:selected,
+QMenu::item:selected,
+QToolButton:hover {
+    background-color: @{accent};
+    color: @{accent_text};
+}
+
+QMenu {
+    background-color: @{raised};
+    border: @{border_width}px solid @{border};
+    padding: @{space_xs}px;
+}
+
+QMenu::item {
+    padding: @{space_sm}px @{space_lg}px;
+    border-radius: @{radius}px;
+}
+
+QMenu::separator {
+    height: @{border_width}px;
+    background-color: @{border};
+    margin: @{space_xs}px @{space_sm}px;
+}
+
+QToolButton {
+    padding: @{space_sm}px @{space_md}px;
+    border-radius: @{radius}px;
+    border: none;
+}
+
+QToolButton:disabled,
+QMenu::item:disabled,
+QMenuBar::item:disabled {
+    color: @{text_disabled};
+}
+
+/* The status bar carries the integrity report, so it has to stay legible. */
+
+QStatusBar {
+    background-color: @{raised};
+    color: @{text_muted};
+    border-top: @{border_width}px solid @{border};
+}
+
+QStatusBar::item {
+    border: none;
+}
+
+/* Controls. Sparse on purpose: the panels that need more arrive in M5-T04
+ * onwards, and styling a widget before it exists is styling a guess. */
+
+QPushButton {
+    background-color: @{raised};
+    border: @{border_width}px solid @{border};
+    border-radius: @{radius}px;
+    padding: @{space_sm}px @{space_lg}px;
+}
+
+QPushButton:hover {
+    border-color: @{accent};
+}
+
+QPushButton:disabled {
+    color: @{text_disabled};
+}
+
+QLineEdit,
+QPlainTextEdit,
+QTextEdit,
+QListView,
+QTreeView,
+QTableView {
+    background-color: @{surface};
+    border: @{border_width}px solid @{border};
+    border-radius: @{radius}px;
+    selection-background-color: @{accent};
+    selection-color: @{accent_text};
+}
+
+QHeaderView::section {
+    background-color: @{raised};
+    border: none;
+    border-bottom: @{border_width}px solid @{border};
+    padding: @{space_sm}px @{space_md}px;
+    color: @{text_muted};
+}
+
+QScrollBar:vertical,
+QScrollBar:horizontal {
+    background-color: @{background};
+    border: none;
+    width: @{space_lg}px;
+    height: @{space_lg}px;
+}
+
+QScrollBar::handle:vertical,
+QScrollBar::handle:horizontal {
+    background-color: @{border};
+    border-radius: @{radius}px;
+    min-height: @{space_lg}px;
+    min-width: @{space_lg}px;
+}
+
+QScrollBar::add-line,
+QScrollBar::sub-line {
+    height: 0;
+    width: 0;
+}
+
+QToolTip {
+    background-color: @{raised};
+    color: @{text};
+    border: @{border_width}px solid @{border};
+    padding: @{space_sm}px;
+}

@@ -12,11 +12,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 from PySide6.QtWidgets import QApplication
 
 from nanoscope.app.container import Nanoscope
 from nanoscope.gui.main_window import MainWindow
+from nanoscope.gui.theme import apply_theme
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,12 @@ def run(app: Nanoscope, project: Path | str | None = None, argv: Sequence[str] =
     Returns:
         Qt's exit code, which is what the process should return.
     """
-    qt = QApplication.instance() or QApplication(list(argv))
+    #: `instance()` is typed as the base `QCoreApplication`; in a GUI process it
+    #: is the one this module just created or found, and the cast says so once
+    #: rather than at every use.
+    existing = QApplication.instance()
+    qt = cast("QApplication", existing) if existing is not None else QApplication(list(argv))
+    apply_theme(qt)  # once, here: the theme is the application's, not a widget's
     window = MainWindow(app)
 
     if project is not None:

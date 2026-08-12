@@ -7,6 +7,50 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T03 · **one source of colour truth, and a contrast floor that can fail**
+
+**Task:** `M5-T03`. **ADR:** **ADR-0054**, implementing ADR-0002's "dark theme only, design tokens
+plus QSS".
+
+### The decisions
+
+**The single source of truth is enforced by a test, not by review.** The stylesheet carries
+`@{token}` placeholders and no colour of its own; a literal hex in `style.qss` turns a test red.
+The same argument as M4-T02's `CHECK` constraints: *the rule and its enforcement ship together, or
+only the rule does.* A placeholder with no token behind it **raises** rather than substituting an
+empty string — an unstyled widget looks like a design decision, and this one would be a typo.
+
+**Both a palette and a stylesheet, from one table.** QSS does not reach tooltips, dialog buttons,
+the text cursor or Qt's disabled states, and Qt's default disabled colour on a dark palette is
+near-black on dark — legible in the designer's head and nowhere else.
+
+**Contrast is a floor, not an opinion.** Every text pair clears 4.5:1 (WCAG AA), recomputed by the
+test from relative luminance rather than asserted in a comment, and the floor applies to
+`TEXT_MUTED` too, because **"muted" must not quietly come to mean "unreadable"**. The formula is
+written out rather than depended on — six lines against a package whose only job is to be trusted
+about arithmetic — and a test checks *the measure itself* first, since a contrast check that cannot
+fail is decoration.
+
+### What it turned up
+
+**The substitution ran over the stylesheet's own comment** — the one explaining what an `@{token}`
+is. A checker that reads prose as code fails on the documentation telling it what it does;
+comments are stripped before substitution now.
+
+**`@space_mdpx` parsed as one token name.** Token names and CSS units are both lowercase letters,
+so the placeholder needed a delimiter: `@{space_md}px`. Found by writing it the ambiguous way first
+and getting a `KeyError` naming a token nobody had defined.
+
+**Verified rather than assumed: the stylesheet ships.** `uv build --wheel` was run and the wheel
+inspected — `nanoscope/gui/theme/style.qss` is in it. A theme that only works from a checkout is
+not a theme.
+
+### Numbers
+
+19 theme tests, **888** in the suite; golden byte-identical; mypy unchanged at 6.
+
+---
+
 ## 2026-08-13 — M5-T02 · **a window that holds the container and nothing else**
 
 **Task:** `M5-T02`. **ADR:** **ADR-0053**. **W2 is no longer "no UI at all".**
