@@ -195,7 +195,8 @@ runner with progress and cancellation; log panel; settings dialog; headless GUI 
 **Exit criteria**
 - [x] `nanoscope` launches on Linux and opens a project created in M4
       (M5-T01 headless, M5-T02 with a window — ADR-0052, ADR-0053)
-- [ ] A scan renders with correct nm axes and a scale bar
+- [x] A scan renders with correct nm axes and a scale bar
+      (M5-T05, ADR-0056 — verified on a characterization phantom in a real window)
 - [ ] A long-running job shows progress and can be cancelled without freezing the UI
 - [ ] GUI smoke tests pass headless in CI
 - [ ] Lint rule proves no `gui/` module imports `core.science` or `infrastructure`

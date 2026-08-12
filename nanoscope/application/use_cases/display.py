@@ -1,0 +1,161 @@
+"""Turning a stored image into something a widget can draw (M5-T05, ADR-0056).
+
+Two steps, deliberately separate: **loading** an image (which touches a disk) and
+**rendering** it (which needs a colormap). Both live here rather than in `gui/`
+for the same reason: the widget may not import `infrastructure`, and deciding
+how a value becomes a colour is not a widget's decision anyway.
+
+**What is loaded is what is in the file.** A tilted AFM map is harder to read
+than a flattened one, and every SPM tool flattens for display — but flattening is
+an *analysis*, `flatten_plane` has an ADR, and its output is what a run records.
+A viewer that silently flattens shows something that is not in the file, and an
+operator comparing it against a measurement compares two different arrays.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from nanoscope.core.errors import InvalidParameterError
+from nanoscope.core.ports import ProjectRepository
+from nanoscope.core.values import Modality
+from nanoscope.infrastructure.imaging.colormap import afm_to_rgb
+from nanoscope.infrastructure.storage import load_afm, load_microscopy_image
+
+#: What a viewer may offer. Matplotlib knows hundreds; these are the ones an SPM
+#: operator expects, and a list of hundreds is a list nobody reads. `afmhot` is
+#: first because it is the convention for height maps.
+COLORMAPS: tuple[str, ...] = ("afmhot", "gray", "viridis", "magma", "cividis", "bone")
+
+#: The default window: a single hot pixel otherwise flattens the whole image to
+#: grey, and percentiles are what every SPM tool does.
+DEFAULT_PERCENTILES = (2.0, 98.0)
+
+_AFM_FORMATS = {".spm": "spm", ".npy": "npy"}
+
+
+@dataclass(frozen=True)
+class DisplayImage:
+    """One image, ready to be looked at — and the numbers that make it data.
+
+    `pixel_size_nm` is `None` when the scale is unknown, and every consumer has
+    to say so rather than invent one. ADR-0025 spent a milestone on
+    absent-not-fabricated, and a viewer writing "1 nm/px" would undo it in a
+    line.
+    """
+
+    name: str
+    #: The array as it is in the file: 2-D, floating point for AFM, greyscale
+    #: for SEM/TEM. Never flattened, never rescaled (ADR-0056).
+    data: np.ndarray
+    modality: Modality
+    pixel_size_nm: float | None
+
+    @property
+    def size_px(self) -> tuple[int, int]:
+        """`(width, height)`, in the order a widget wants them."""
+        height, width = self.data.shape[:2]
+        return width, height
+
+    @property
+    def size_nm(self) -> tuple[float, float] | None:
+        """The scan's physical size, or `None` when the scale is unknown."""
+        if self.pixel_size_nm is None:
+            return None
+        width, height = self.size_px
+        return width * self.pixel_size_nm, height * self.pixel_size_nm
+
+
+def load_for_display(repository: ProjectRepository, image_id: int) -> DisplayImage:
+    """Read one of the project's images off the disk, as it is.
+
+    Raises:
+        InvalidParameterError: no image has that id, or its extension has no
+            reader here.
+        MissingFileError: the file is gone — the dangling row `check_integrity`
+            reports (ADR-0040), met from the viewer's side.
+    """
+    record = repository.get_image(image_id)
+    path = repository.path_of(record)
+
+    if record.modality is Modality.AFM:
+        suffix = path.suffix.lower()
+        if suffix not in _AFM_FORMATS:
+            raise InvalidParameterError(
+                f"no reader for {path.name}; AFM files are {', '.join(sorted(_AFM_FORMATS))}"
+            )
+        #: The project's recorded scale, not the file's — an `.npy` has none,
+        #: and M4-T05 was the task that learned to pass it through.
+        raw = load_afm(str(path), fmt=_AFM_FORMATS[suffix], pixel_size_nm=record.pixel_size_nm)
+        return DisplayImage(
+            name=record.display_name,
+            data=raw.z_raw,
+            modality=record.modality,
+            pixel_size_nm=raw.pixel_size_nm,
+        )
+
+    image = load_microscopy_image(
+        str(path),
+        modality=record.modality.value,  # type: ignore[arg-type]  # M2-T10 adopts the enum
+        nm_per_pixel=record.pixel_size_nm,
+    )
+    return DisplayImage(
+        name=record.display_name,
+        data=image.image,
+        modality=record.modality,
+        pixel_size_nm=image.nm_per_pixel,
+    )
+
+
+def value_range(image: DisplayImage, *, full: bool = False) -> tuple[float, float]:
+    """The window to map colours over: percentiles, or everything.
+
+    Percentiles by default because one hot pixel otherwise flattens the image to
+    grey; `full=True` because *"what am I clipping?"* is a question an operator
+    must be able to answer.
+    """
+    finite = image.data[np.isfinite(image.data)]
+    if finite.size == 0:  # pragma: no cover — a map with no finite value at all
+        return 0.0, 1.0
+    if full:
+        return float(finite.min()), float(finite.max())
+    low, high = np.percentile(finite, DEFAULT_PERCENTILES)
+    return (float(low), float(high)) if high > low else (float(finite.min()), float(finite.max()))
+
+
+def render(
+    image: DisplayImage,
+    colormap: str = COLORMAPS[0],
+    limits: tuple[float, float] | None = None,
+) -> np.ndarray:
+    """The image as `uint8` RGB, ready for a widget to wrap in a `QImage`.
+
+    The colormap is applied here, not in the widget: it lives in
+    `infrastructure.imaging` (matplotlib), which `gui/` may not import — and how
+    a value becomes a colour is not a widget's decision.
+
+    Args:
+        image: what to draw.
+        colormap: one of `COLORMAPS`.
+        limits: the value window; `value_range(image)` when omitted.
+
+    Returns:
+        `(height, width, 3)` of `uint8`.
+
+    Raises:
+        InvalidParameterError: a colormap this application does not offer. A
+            typo in a settings file must produce a message, not a matplotlib
+            traceback.
+    """
+    if colormap not in COLORMAPS:
+        raise InvalidParameterError(
+            f"unknown colormap {colormap!r}; this version offers {', '.join(COLORMAPS)}"
+        )
+
+    low, high = limits if limits is not None else value_range(image)
+    clipped = np.clip(np.nan_to_num(image.data, nan=low), low, high)
+    #: `afm_to_rgb` percentile-clips on its own, and this window is already the
+    #: decision — so it is handed an array that is exactly its own range.
+    return afm_to_rgb(clipped.astype(np.float64), colormap=colormap, clip_percentile=100.0)

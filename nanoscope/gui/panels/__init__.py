@@ -6,5 +6,6 @@ port rather than as the SQLite class.
 """
 
 from nanoscope.gui.panels.project_explorer import ProjectExplorer
+from nanoscope.gui.panels.viewer import ImageViewer
 
-__all__ = ["ProjectExplorer"]
+__all__ = ["ImageViewer", "ProjectExplorer"]

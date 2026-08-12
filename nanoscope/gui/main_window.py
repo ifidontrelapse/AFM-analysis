@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.core.errors import NanoscopeError
-from nanoscope.gui.panels import ProjectExplorer
+from nanoscope.gui.panels import ImageViewer, ProjectExplorer
 
 if TYPE_CHECKING:
     from nanoscope.app.container import Nanoscope
@@ -71,7 +71,9 @@ class MainWindow(QMainWindow):
         self._app = app
 
         self.setWindowTitle("nanoscope")
-        self.setCentralWidget(_placeholder("The image viewer arrives in M5-T05."))
+        self.viewer = ImageViewer(self._app, self)
+        self.viewer.readout.connect(self.statusBar().showMessage)
+        self.setCentralWidget(self.viewer)
         self._build_docks()
         self._build_menus()
         self.statusBar().showMessage("No project open")
@@ -82,6 +84,7 @@ class MainWindow(QMainWindow):
 
     def _build_docks(self) -> None:
         self.explorer = ProjectExplorer(self._app, self)
+        self.explorer.image_selected.connect(self.viewer.show_image)
         project_dock = QDockWidget(PROJECT_DOCK, self)
         project_dock.setObjectName("dock.project")
         project_dock.setWidget(self.explorer)
@@ -162,6 +165,7 @@ class MainWindow(QMainWindow):
 
     def close_project(self) -> None:
         self._app.close_project()
+        self.viewer.show_nothing()
         self.explorer.show_project(None)
         self.remove_action.setEnabled(False)
         self.setWindowTitle("nanoscope")

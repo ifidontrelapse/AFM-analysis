@@ -81,7 +81,15 @@ def load_afm(
         return AFMRawData(z_raw=z, pixel_size_nm=px_size, scan_size_nm=scan_size)
 
     if fmt == "npy":
-        z = np.load(file_path).astype(np.float32)
+        # numpy raises its own `FileNotFoundError` here, which PROJECT_RULES §3
+        # forbids as a public contract — *"never let a NumPy/SciPy internal
+        # error escape"* — and which no caller catching `NanoscopeError` sees.
+        # Found in M5-T05 by the viewer, whose whole error handling is that
+        # distinction (ADR-0030).
+        try:
+            z = np.load(file_path).astype(np.float32)
+        except OSError as missing:
+            raise MissingFileError(f"no AFM file at {file_path}: {missing}") from missing
         return AFMRawData(
             z_raw=z,
             pixel_size_nm=_given_and_positive(pixel_size_nm, "pixel_size_nm"),

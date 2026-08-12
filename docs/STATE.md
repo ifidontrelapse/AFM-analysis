@@ -40,8 +40,21 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T04` done 2026-08-13 (ADR-0055); `M5-T05` — the image viewer — is next**, and
-it consumes the selection signal this task emits.
+**None selected. `M5-T05` done 2026-08-13 (ADR-0056); `M5-T06` — the viewmodel layer — is next**,
+and it now has two consumers to justify it (the explorer and the viewer).
+
+**`M5-T05` done 2026-08-13 (ADR-0056) — a scan on screen, with the numbers that make it a
+measurement. M5's second exit criterion is met**, verified by rendering a characterization phantom
+into a real window (24 particles, a 100 nm bar, `x=100 y=50 px (200.0, 100.0) nm value=0.01413`).
+**The viewer shows the file — raw, not flattened** — because flattening is an *analysis* whose
+output a run records, and a viewer that does it silently shows something the file does not contain.
+**Rendering happens in `application`**, since the colormap is infrastructure and `gui/` may not
+import it. **Three numbers make it a measurement:** a round-length scale bar, a readout in nm *and*
+px, and **an honest absence** when the scale is unknown — the last surface that could have undone
+ADR-0025. **Found:** `load_afm`'s npy path leaked **numpy's own** `FileNotFoundError` (PROJECT_RULES
+§3 forbids it; fixed at the loader so every caller benefits), and the scan rendered as a **postage
+stamp** because `fitInView` ran before the widget had its final size. 21 tests, **926** in the
+suite.
 
 **`M5-T04` done 2026-08-13 (ADR-0055) — a panel that counts what a deletion would cost. ADR-0044's
 obligation is discharged where it was addressed:** the confirmation says the **count**, that the
@@ -1284,9 +1297,9 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M5-T05` — the image viewer**: zoom, pan, colormap, LUT range, scale bar, nm readout. It
-   consumes M5-T04's selection signal and is where a scan is finally *seen*. **`M5-T07`** still
-   owes ADR-0043's thread hop for job listeners
+1. **`M5-T06` — the viewmodel layer and the signal/slot contracts.** It now has the two consumers
+   that justify it, which is the condition M5-T04 named for building one. **`M5-T07`** still owes
+   ADR-0043's thread hop for job listeners
 2. **`make types` joins `make check` as blocking.** M4 is over, so the M1 exit criterion deferred
    "while the legacy core is `src/`" is now only about the **6** inherited errors: four in
    `use_cases/pipeline.py` — three of which are the `Detector` port's absence, which M5-T01's
@@ -1310,7 +1323,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **900, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **926, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

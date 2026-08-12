@@ -63,6 +63,7 @@ Use `TEMPLATE.md` for new records.
 | [0053](ADR-0053-qt-starts-behind-the-launcher-and-the-layout-is-a-setting.md) | Qt starts behind the launcher, and the layout is a setting | Accepted | 2026-08-12 |
 | [0054](ADR-0054-one-source-of-colour-truth-and-a-contrast-floor.md) | One source of colour truth, and a contrast floor that can fail | Accepted | 2026-08-13 |
 | [0055](ADR-0055-a-confirmation-that-counts-what-it-would-cost.md) | A confirmation that counts what it would cost | Accepted | 2026-08-13 |
+| [0056](ADR-0056-the-viewer-shows-the-file-and-says-what-it-cannot-know.md) | The viewer shows the file, and says what it cannot know | Accepted | 2026-08-13 |
 
 ## When to write one
 

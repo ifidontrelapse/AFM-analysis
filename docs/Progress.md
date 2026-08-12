@@ -7,6 +7,45 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T05 · **a scan on screen, with the numbers that make it a measurement**
+
+**Task:** `M5-T05`. **ADR:** **ADR-0056**. **M5's second exit criterion is met** — verified by
+rendering a characterization phantom into a real window: 24 particles in `afmhot`, a 100 nm scale
+bar, and `x=100 y=50 px (200.0, 100.0) nm value=0.01413` in the status bar.
+
+### The decisions
+
+**The viewer shows what is in the file — raw, not flattened.** Every SPM tool flattens for display
+and a tilted map is harder to read, but flattening is an *analysis*: it is science with its own
+ADR, and its output is what a run records. A viewer that silently flattens shows something the file
+does not contain, and an operator comparing it against a measured height compares two different
+arrays.
+
+**Rendering happens in `application`.** The colormap lives in `infrastructure` and `gui/` may not
+import it — and how a value becomes a colour is not a widget's decision.
+
+**Three numbers make it a measurement:** a scale bar at a **round** length, a readout in **nm and
+px** with the value under the cursor, and **an honest absence** — no scale means no bar, no nm, and
+the words "scale unknown". This was the last surface that could have undone ADR-0025.
+
+### What it turned up
+
+**`load_afm`'s npy path leaked numpy's own `FileNotFoundError`.** PROJECT_RULES §3 forbids exactly
+that — *"never let a NumPy/SciPy internal error escape as the public contract"* — and no caller
+catching `NanoscopeError` would ever see it. Found by the viewer, whose entire error handling *is*
+that distinction. Fixed at the loader rather than at the call site, so every caller benefits.
+
+**The scan rendered as a postage stamp.** `fitInView` at load time runs before the widget has its
+final size, so it fits the image to a layout that has not happened yet. The view now refits on
+resize **while it is still showing the whole scan**, and leaves a zoomed view alone — a resize must
+not throw the operator's zoom away.
+
+### Numbers
+
+21 tests, **926** in the suite; golden byte-identical; mypy unchanged at 6.
+
+---
+
 ## 2026-08-13 — M5-T04 · **a panel that counts what a deletion would cost**
 
 **Task:** `M5-T04`. **ADR:** **ADR-0055**. **ADR-0044's obligation is discharged where it was
