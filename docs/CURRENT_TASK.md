@@ -3,9 +3,10 @@
 **ID:** `M4-T04`
 **Title:** The project lifecycle: create, open, import — and the two use cases not worth writing
 **Milestone:** M4 — Application layer, fourth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0041** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0041**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -105,11 +106,39 @@ batch continues, and the caller decides what to do with a partial success.
 
 ## Definition of done
 
-- [ ] `create` and `import_image`, with the port extended to match
-- [ ] `open_project` and `import_images`, with `close_project` and `list_images` deliberately absent
-- [ ] ADR-0041, including what was *not* written and why
-- [ ] Use-case tests against a fake repository; an end-to-end test of the exit criterion
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md` (the criterion),
+- [x] `create` and `import_image`, with the port extended to match
+- [x] `open_project` and `import_images`, with `close_project` and `list_images` deliberately absent
+- [x] ADR-0041, including what was *not* written and why
+- [x] Use-case tests against a fake repository; an end-to-end test of the exit criterion
+- [x] `make check` green — 585 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md` (the criterion),
       ADR index
-- [ ] Commit: `M4-T04: a project can be created, opened and populated`
+- [x] Commit: `M4-T04: a project can be created, opened and populated`
+
+---
+
+## What it turned up
+
+**mypy found the port's missing method before a caller did.** `open_project` reads
+`repository.name`, and the `ProjectRepository` Protocol did not declare it — the use case would
+have worked anyway, because the SQLite class has the property, and **the second implementation
+would have been the one to discover it**, at run time, in the GUI. That is exactly the failure a
+port exists to prevent, caught by the port existing. Two lines to fix, and the clearest evidence
+this milestone has produced that it is load-bearing rather than decorative.
+
+**Where the catch boundary sits is a design decision.** `import_images` catches `NanoscopeError`
+and nothing else: a file the library rejects is *data* and belongs in the report, while a
+`TypeError` from our own code is a bug — and a bug that quietly keeps going for another
+thirty-nine files is worse than one that stops. Both directions are pinned by a test.
+
+**A colliding name is disambiguated against the filesystem, not the index.** An untracked file is
+still a file; copying over one destroys data the project does not even claim to own. ADR-0040's
+rule, read in the other direction.
+
+---
+
+## Notes
+
+M4's risk profile held for the fourth time: the golden is byte-identical and no numerical code is
+imported. **M4-T05** is the first task in this milestone that calls the science — where a red
+golden becomes possible at all, and would mean the use case changed something on its way through.

@@ -13,14 +13,20 @@ caller is a rule already broken somewhere:
 - **a checksum describes the file the row points at**, because it is computed
   here from that file and never accepted as an argument
 
-What is *not* here: creating the directory and copying an imported file into it
-(M4-T04), and acting on what `check_integrity` reports — that is a decision with
-an operator behind it (ADR-0040).
+`create` and `import_image` joined them in M4-T04, and they are here for the same
+reason the rest is: making a directory and copying a file are filesystem work,
+and `application` may import neither the filesystem nor `sqlite3`
+(Architecture §3.2).
+
+What is *not* here: acting on what `check_integrity` reports — that is a decision
+with an operator behind it (ADR-0040) — and any policy about a *batch* of
+imports, which is `application/use_cases/projects.py` (ADR-0041).
 """
 
 from __future__ import annotations
 
 import hashlib
+import shutil
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,8 +38,11 @@ from nanoscope.core.errors import InvalidParameterError, MissingFileError
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage.database import open_database
 from nanoscope.infrastructure.storage.project_format import (
+    DIRECTORIES,
     ProjectManifest,
+    new_manifest,
     open_manifest,
+    write_manifest,
 )
 
 _IMAGES_DIRECTORY = "images"
@@ -69,6 +78,41 @@ class SqliteProjectRepository:
         manifest = open_manifest(root)
         conn = open_database(root)
         return cls(root, manifest, conn)
+
+    @classmethod
+    def create(cls, project_dir: Path | str, name: str) -> Self:
+        """Make a new project at `project_dir` and open it (M4-T04).
+
+        The layout of `docs/ProjectFormat.md` §1: the subdirectories, the
+        manifest that makes the directory a project, and a database migrated to
+        the current schema. A directory that does not exist yet is created.
+
+        This lives in `infrastructure` rather than in a use case because it is
+        `mkdir`, a manifest and SQLite from end to end, and `application` may
+        import none of those (Architecture §3.2). The composition root is what
+        constructs adapters (PROJECT_RULES §2.7).
+
+        Args:
+            project_dir: where to put it. Must not exist, or must be empty.
+            name: the project's display name, which the directory's name does
+                not have to match — the operator may rename either.
+
+        Raises:
+            InvalidParameterError: there is already something in that directory.
+                Writing a manifest into a directory that has files in it turns
+                somebody else's folder into a project.
+        """
+        root = Path(project_dir)
+        if root.exists() and any(root.iterdir()):
+            raise InvalidParameterError(
+                f"{root} is not empty; a project is created in a new or empty directory"
+            )
+
+        for directory in DIRECTORIES:
+            (root / directory).mkdir(parents=True, exist_ok=True)
+        manifest = new_manifest(name)
+        write_manifest(root, manifest)
+        return cls(root, manifest, open_database(root))
 
     @property
     def root(self) -> Path:
@@ -147,6 +191,57 @@ class SqliteProjectRepository:
         self._conn.commit()
         return self.get_image(int(cursor.lastrowid or 0))
 
+    def import_image(
+        self,
+        source: Path | str,
+        *,
+        modality: Modality,
+        display_name: str | None = None,
+        pixel_size_nm: float | None = None,
+    ) -> ImageRecord:
+        """Copy a file into the project's `images/` and record it (M4-T04).
+
+        The copy is `infrastructure`'s work and has to happen first: `add_image`
+        records a file that is already inside the project, and a row pointing at
+        a file that was never copied is the dangling row `check_integrity`
+        exists to report.
+
+        A name that is already taken is **disambiguated**, not refused —
+        `scan.spm`, then `scan_1.spm`. Two different scans called `scan.spm`
+        living in two folders is the ordinary shape of this work.
+
+        The same file imported twice becomes a second copy with its own row.
+        Deduplicating by checksum needs a `UNIQUE` index, a migration, and an
+        answer to "are two identical scans ever legitimate?", which is an
+        operator's question (ADR-0041).
+
+        Args:
+            source: the file to import, anywhere on disk.
+            modality: which instrument produced it.
+            display_name: what to call it. Defaults to the source's own name,
+                *before* any disambiguating suffix — what the operator
+                recognises is the name they gave the file.
+            pixel_size_nm: nm per pixel, or `None` when the scale is unknown.
+
+        Returns:
+            The stored row.
+
+        Raises:
+            MissingFileError: there is no readable file at `source`.
+        """
+        origin = Path(source)
+        if not origin.is_file():
+            raise MissingFileError(f"no file to import at {origin}")
+
+        destination = self._free_name(origin.name)
+        shutil.copy2(origin, destination)
+        return self.add_image(
+            destination.relative_to(self._root).as_posix(),
+            modality=modality,
+            display_name=display_name or origin.name,
+            pixel_size_nm=pixel_size_nm,
+        )
+
     def get_image(self, image_id: int) -> ImageRecord:
         """The row with this id.
 
@@ -205,6 +300,24 @@ class SqliteProjectRepository:
             )
         )
         return IntegrityReport(missing_files=missing, untracked_files=untracked)
+
+    def _free_name(self, file_name: str) -> Path:
+        """A path under `images/` that nothing occupies: `a.spm`, then `a_1.spm`.
+
+        Checks the filesystem rather than the index, because an untracked file
+        is still a file — copying over one would destroy data the project does
+        not even claim to own (ADR-0040 §1 in the other direction).
+        """
+        images = self._root / _IMAGES_DIRECTORY
+        images.mkdir(parents=True, exist_ok=True)
+        stem, suffix = Path(file_name).stem, Path(file_name).suffix
+
+        candidate = images / file_name
+        attempt = 0
+        while candidate.exists():
+            attempt += 1
+            candidate = images / f"{stem}_{attempt}{suffix}"
+        return candidate
 
     def _relative(self, path: Path | str) -> str:
         """`path` as the database stores it: relative to the root, POSIX separators.

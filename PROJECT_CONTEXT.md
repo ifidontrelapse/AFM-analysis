@@ -58,7 +58,7 @@ AFM-analysis/
 │   │       └── measurement/            # height.py (AFM), geometry.py (any modality)
 │   ├── application/
 │   │   ├── capabilities.py             # THE execution matrix, validated before inference
-│   │   └── use_cases/                  # pipeline.py, preprocessing.py
+│   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
@@ -70,8 +70,9 @@ AFM-analysis/
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
-│   │                                   #   import_graph, project_format, database — 529 tests
-│   ├── integration/                    # a real project directory + database (M4-T03) — 30 tests
+│   │                                   #   import_graph, project_format, database — 541 tests
+│   ├── integration/                    # a real project directory + database, and the whole
+│   │                                   #   project lifecycle (M4-T03, M4-T04) — 44 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -230,6 +231,8 @@ IntegrityReport(
 ```
 
 `IntegrityReport` reports; it never deletes a row or imports a file (ADR-0040).
+
+`OpenedProject(name, images, integrity)` is what `open_project` returns, and `ImportReport(imported, failed)` — with `ImportFailure(source, reason)` — is what `import_images` returns: a partial import is an outcome, not an exception (M4-T04, ADR-0041).
 
 ### `PipelineConfig`
 
@@ -598,6 +601,22 @@ substrate, z_result, opening_radius, sizes = build_substrate_map(
 blobs = detect_particles(z_result, raw.pixel_size_nm, sizes)
 df = measure_all_baseline(z_flat, z_result, blobs)
 ```
+
+Creating a project, filling it, and reopening it (M4-T04, headless):
+
+```python
+from nanoscope.application.use_cases import import_images, open_project
+from nanoscope.core.values import Modality
+from nanoscope.infrastructure.storage import SqliteProjectRepository
+
+with SqliteProjectRepository.create("~/Nanoparticles", "Nanoparticles 2026") as repo:
+    report = import_images(repo, ["data/a.spm", "data/b.spm"], modality=Modality.AFM)
+
+with SqliteProjectRepository.open("~/Nanoparticles") as repo:
+    opened = open_project(repo)          # name, images, and the integrity report
+```
+
+`create` and `open` are the composition root's to call (PROJECT_RULES §2.7). `import_images` never aborts the batch: `report.failed` carries the files that did not make it, with reasons.
 
 Preferred high-level preprocessing call:
 

@@ -16,6 +16,7 @@ a base class in the middle, and mypy checks the shape structurally.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 from nanoscope.core.entities.project import ImageRecord, IntegrityReport
@@ -24,6 +25,12 @@ from nanoscope.core.values import Modality
 
 class ProjectRepository(Protocol):
     """The images in one open project, and their agreement with the disk."""
+
+    @property
+    def name(self) -> str:
+        """The project's display name, from wherever the adapter keeps identity
+        — the manifest, in the one that exists (ADR-0038)."""
+        ...
 
     def add_image(
         self,
@@ -38,6 +45,22 @@ class ProjectRepository(Protocol):
         The checksum is computed here, from the file, and is not a parameter: a
         checksum a caller passes in can describe a different file, and then the
         only thing it proves is that two callers agreed (ADR-0040).
+        """
+        ...
+
+    def import_image(
+        self,
+        source: Path | str,
+        *,
+        modality: Modality,
+        display_name: str | None = None,
+        pixel_size_nm: float | None = None,
+    ) -> ImageRecord:
+        """Copy a file into the project and record it, returning its row.
+
+        The copy is the adapter's, because `application` may not touch the
+        filesystem (Architecture §3.2) — which is why this is a port method and
+        not something `import_images` does for itself.
         """
         ...
 

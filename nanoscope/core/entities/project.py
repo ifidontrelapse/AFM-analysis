@@ -60,3 +60,43 @@ class IntegrityReport:
     def is_clean(self) -> bool:
         """True when the index and the filesystem agree about every file."""
         return not self.missing_files and not self.untracked_files
+
+
+@dataclass(frozen=True)
+class OpenedProject:
+    """A project as `open_project` hands it over: what is in it, and what is off.
+
+    The integrity report travels *with* the images rather than being available
+    on request, which is how ADR-0040's closing obligation is discharged — a
+    report nobody reads is a report that did nothing.
+    """
+
+    name: str
+    images: tuple[ImageRecord, ...]
+    integrity: IntegrityReport
+
+
+@dataclass(frozen=True)
+class ImportFailure:
+    """One file that did not make it in, and why.
+
+    Collected rather than raised: a forty-file import must not lose thirty-seven
+    good scans to one bad one (ADR-0041).
+    """
+
+    #: The path as the caller gave it, so the message can be matched to the input.
+    source: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ImportReport:
+    """The outcome of importing a batch: both halves of it, always."""
+
+    imported: tuple[ImageRecord, ...] = ()
+    failed: tuple[ImportFailure, ...] = ()
+
+    @property
+    def is_complete(self) -> bool:
+        """True when every file the caller offered was imported."""
+        return not self.failed

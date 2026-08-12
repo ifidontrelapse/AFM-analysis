@@ -164,7 +164,8 @@ command stack; autosave; settings; CSV export; structured logging sinks; `Device
 the model registry and `ModelDescriptor`.
 
 **Exit criteria**
-- [ ] A project can be created, opened, populated with images and closed — from Python, headless
+- [x] A project can be created, opened, populated with images and closed — from Python, headless
+      (M4-T04, `tests/integration/test_project_lifecycle.py`)
 - [ ] Detection and measurement results round-trip through SQLite and the filesystem
 - [ ] `DeviceManager` correctly reports CPU / CUDA / ROCm / MPS on this machine and selects one
 - [ ] Model registry resolves `"yolo"` and `"sam2"` to providers via `ModelDescriptor`

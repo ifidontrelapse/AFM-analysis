@@ -7,6 +7,81 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T04 · **a project can be created, opened and populated**
+
+**Task:** `M4-T04`, the fourth of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
+**ADR-0041**. **M4's first exit criterion is met.**
+
+### What now works
+
+```python
+with SqliteProjectRepository.create("~/Nanoparticles 2026", "Nanoparticles 2026") as repo:
+    report = import_images(repo, sorted(scans.iterdir()), modality=Modality.AFM, pixel_size_nm=1.95)
+
+with SqliteProjectRepository.open("~/Nanoparticles 2026") as repo:
+    opened = open_project(repo)
+```
+
+Create, open, populate, close — from Python, headless, on a directory the operator can open in a
+file manager. `tests/integration/test_project_lifecycle.py` runs that sentence.
+
+### The decision this task is actually about
+
+**Two of the five named use cases were written, and the other three are the point.**
+
+`CloseProject` and `ListImages` would be `repo.close()` and `repo.list_images()` under new names. A
+function that forwards one call to one object is not a layer — it is a second name for the same
+method, and the second name is the thing that later disagrees with the first. They come back the
+moment closing or listing means more than closing or listing; autosave (M4-T09) is the likely
+trigger. `CreateProject` went to `SqliteProjectRepository.create` because it is `mkdir`, a manifest
+and SQLite from end to end and `application` may import none of them — and PROJECT_RULES §2.7
+already says the composition root constructs adapters.
+
+This is M2-T08's judgement made a second time (seven ports specified, one written), and it is in
+the ADR so that "only two of the five exist" reads as a decision in six months rather than as an
+unfinished task.
+
+What the two survivors have that the others do not is **policy**:
+
+- `open_project` **reads** the integrity report and hands it over with the images. ADR-0040 ended
+  on the obligation that something must read it; this is that something
+- `import_images` **does not abort the batch**. An operator importing forty scans must not lose
+  thirty-nine because the fortieth was a partial download, so each file is attempted on its own and
+  the caller receives both lists
+
+### What it turned up
+
+**mypy found the port's missing method before a caller did.** `open_project` reads
+`repository.name`, which the `ProjectRepository` Protocol did not declare — the use case type-checked
+against nothing and would have worked anyway, because the SQLite class has the property. That is
+precisely the failure a port is supposed to prevent: the second implementation would have been the
+one to discover it, at run time, in the GUI. Two lines to fix, and it is the clearest evidence this
+milestone has produced that the port is load-bearing rather than decorative.
+
+**Where the catch boundary sits is a design decision, not a detail.** `import_images` catches
+`NanoscopeError` and nothing else. A file the library rejects is *data* and belongs in the report;
+a `TypeError` from our own code is a bug, and a bug that quietly keeps going for another
+thirty-nine files is a worse bug than one that stops. Both directions are tested.
+
+**A colliding name is disambiguated against the *filesystem*, not the index.** An untracked file is
+still a file — copying over one would destroy data the project does not even claim to own, which is
+ADR-0040's rule read in the other direction.
+
+### Numbers
+
+- **Golden: byte-identical.** No numerical code is imported
+- Tests **559 → 585**: 11 unit tests driving the use cases through a **second implementation** of
+  the port, 14 end-to-end
+- mypy unchanged at **6**; `shutil` is stdlib, so no new dependency
+
+### Next
+
+**M4-T05** — `RunDetection`, `RunSegmentation`, `MeasureParticles`: the use cases that call the
+science M3 spent a milestone correcting, and the first place in M4 where the golden could
+plausibly move. It cannot, and if it does, the bug is in M4.
+
+---
+
 ## 2026-08-12 — M4-T03 · **the repository reports what it finds, and never reconciles by deleting**
 
 **Task:** `M4-T03`, the third of M4. **Branch:** `feat/m4-application-layer`. **ADR:**

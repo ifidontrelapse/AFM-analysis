@@ -34,9 +34,27 @@ fifth (no tracked file over 1 MB) has two known exceptions, the README figures, 
 
 ## Current task
 
-**None selected. `M4-T03` done 2026-08-12 (ADR-0040); `M4-T04` — the lifecycle use cases — is
-next**, because the port now exists for them to be written against, and `OpenProject` inherits
-this task's obligation: a report nobody reads is a report that did nothing.
+**None selected. `M4-T04` done 2026-08-12 (ADR-0041); `M4-T05` — `RunDetection`,
+`RunSegmentation`, `MeasureParticles` — is next**, and it is the first task in M4 that calls the
+science M3 spent a milestone correcting. The golden must not move; if it does, the bug is in M4.
+
+**`M4-T04` done 2026-08-12 (ADR-0041) — a project can be created, opened and populated.** **M4's
+first exit criterion is met**, headless and end to end. **Two of the five named use cases were
+written, and the other three are the decision:** `CloseProject` and `ListImages` would be
+`repo.close()` and `repo.list_images()` under new names, and **a function that forwards one call to
+one object is not a layer — it is a second name for the same method**; `CreateProject` went to
+`SqliteProjectRepository.create`, because it is `mkdir` + manifest + SQLite and `application` may
+import none of them (Architecture §3.2, PROJECT_RULES §2.7). Same judgement as M2-T08's
+seven-ports-one-written, recorded so the absence reads as a decision later. The two survivors carry
+policy: `open_project` **reads** the integrity report and hands it over with the images (ADR-0040's
+closing obligation), and `import_images` **does not abort the batch** — forty scans do not lose
+thirty-nine to the fortieth, and only `NanoscopeError` is caught, because a bug that keeps going
+for another thirty-nine files is a worse bug. **Found by mypy, not by a caller:** the port did not
+declare `name`, which `open_project` reads — the use case would have worked anyway on the SQLite
+class, and the second implementation would have found it at run time in the GUI. A colliding name
+is disambiguated against the *filesystem* (`scan.spm` → `scan_1.spm`), so an untracked file is
+never overwritten. 25 tests, 11 of them through a **second implementation of the port**. **Golden
+byte-identical**, mypy unchanged at 6.
 
 **`M4-T03` done 2026-08-12 (ADR-0040) — the repository reports what it finds, and never reconciles
 by deleting.** The debt ADR-0003 wrote down and never collected: *"deleting a file behind the
@@ -1070,12 +1088,11 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M4-T04` — the lifecycle use cases**: `CreateProject`, `OpenProject`, `CloseProject`,
-   `ImportImages`, `ListImages`. The first code in `application/` that is not the old pipeline,
-   and the first consumer of the `ProjectRepository` port. It owns two things M4-T03 deliberately
-   left alone: creating the directory, and copying an imported file into `images/` before it is
-   recorded. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the four algorithm
-   findings, which the roadmap allows to run in parallel
+1. **`M4-T05` — `RunDetection`, `RunSegmentation`, `MeasureParticles`.** The first task in M4
+   that calls the scientific core, and therefore the first where a red golden is possible at all —
+   it would mean the use case changed something on its way through, which is the whole risk
+   profile of this milestone stated as a test. M3's remainder is unchanged — **M3-T16** (blocked
+   on **B6**) and the four algorithm findings, which the roadmap allows to run in parallel
 2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
    new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
    refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
@@ -1100,7 +1117,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **559, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **585, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
