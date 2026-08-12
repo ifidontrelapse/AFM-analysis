@@ -18,7 +18,16 @@ from nanoscope.core.science.detection.log import detect_particles
 from nanoscope.core.science.preprocessing.substrate import estimate_rough_radius
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-LIBRARY = sorted((ROOT / "nanoscope").rglob("*.py"))
+#: The console entry point is excluded, and it is the only exclusion (M5-T01,
+#: ADR-0052 §5). PROJECT_RULES §3 forbids `print` in **library** code, which is
+#: what this test enforces and what M2-T11 deleted thirteen calls to satisfy —
+#: but a command-line program's stdout is its user interface, not a diagnostic
+#: channel, and a CLI that logs instead of printing has no output. Scoped to the
+#: one module with a terminal on the other end; `ruff`'s own `T20` carries the
+#: same exception, in `pyproject.toml`, for the same reason.
+CLI = ROOT / "nanoscope" / "app" / "main.py"
+
+LIBRARY = sorted(path for path in (ROOT / "nanoscope").rglob("*.py") if path != CLI)
 
 
 def test_the_library_glob_is_not_empty() -> None:

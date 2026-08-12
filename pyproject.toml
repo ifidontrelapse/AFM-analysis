@@ -41,6 +41,11 @@ dependencies = [
 # Development tooling — the quality gate (PROJECT_RULES §6, ADR-0009).
 # Configuration for these lives in [tool.ruff] and [tool.mypy]; M1-T03 and
 # M1-T04 repair it. This group only makes the tools exist.
+# The entry point (M5-T01). It works headless: opening a project and reporting
+# what is in it needs no display, and PySide6 arrives with the window in M5-T02.
+[project.scripts]
+nanoscope = "nanoscope.app.main:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -252,6 +257,14 @@ classmethod-decorators = ["classmethod"]
 # Test scripts print by design. `S101` (assert) was listed here, but the `S`
 # rule family is not selected — dead configuration, removed. See backlog B-056.
 "tests/*" = ["T20"]
+
+# The console entry point (M5-T01, ADR-0052). `T20` is right everywhere else in
+# this package — PROJECT_RULES §3 forbids `print` in *library* code, and M2-T11
+# deleted thirteen of them — but a command-line program's stdout is its user
+# interface, not a diagnostic channel. A CLI that logs instead of printing has no
+# output at all. Scoped to the one module that has a terminal on the other end;
+# the logger is still used beside it for what belongs in a log.
+"nanoscope/app/main.py" = ["T20"]
 
 # The moved scientific core (M2-T03 onwards), where `ruff check` **is** blocking —
 # unlike `src/`, which is excluded wholesale. Each entry names the task that deletes

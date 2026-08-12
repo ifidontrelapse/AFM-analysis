@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-12 · **Branch:** `feat/m4-application-layer` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-12 · **Branch:** `feat/m5-gui-shell` · **Base commit:** `aceb5c7`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -40,11 +40,23 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. M4 is closed; `M5-T01` — the entry point, the composition root and the
-`nanoscope` console script — is the next task**, and it inherits three obligations M4 wrote down
-for it by name: **show the integrity report** `open_project` returns (ADR-0040), **count
-annotations before `remove_image`** discards them (ADR-0044), and **marshal a job's listener onto
-the main thread** while telling the truth about what cancel means (ADR-0043).
+**None selected. `M5-T01` done 2026-08-12 (ADR-0052); `M5-T02` — the main window — is next**, and
+it fills the `--gui` branch this task left with a sentence in it.
+
+**`M5-T01` done 2026-08-12 (ADR-0052) — one place that constructs everything.** Until it, **every
+caller of M4's eight components was a test building them by hand**. **The entry point works
+headless today:** `nanoscope --project PATH` opens, prints and exits; `--devices` reports the
+hardware; `--gui` says the window arrives in M5-T02 — because an entry point that only works once
+a window exists cannot run in CI and cannot help the operator whose project will not open. **A
+container, not a framework.** Our errors are messages, anything else keeps its traceback (ADR-0030,
+first surface to use it). **ADR-0040's obligation is discharged:** the integrity report is *shown*.
+**Found:** reading the version at import time cost eleven modules and tripped M2-T09's weight
+guard — it is now lazy through a PEP 562 `__getattr__`. `print` got one scoped exception, stated in
+`pyproject.toml` and in M2-T11's test, because a CLI that logs instead of printing has no output.
+16 tests, **golden byte-identical**.
+
+Two obligations from M4 are still outstanding, both needing a widget: **count annotations before
+`remove_image`** (ADR-0044) and **marshal a job's listener onto the main thread** (ADR-0043).
 
 ## Completed
 
@@ -1234,11 +1246,10 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **`M5-T01` — the entry point, the composition root and the `nanoscope` console script.** The
-   first task that constructs what M4 built, in the one place PROJECT_RULES §2.7 allows. It
-   inherits three obligations by name: show the integrity report (ADR-0040), count annotations
-   before `remove_image` (ADR-0044), and marshal a job's worker-thread listener while telling the
-   truth about what cancel means (ADR-0043)
+1. **`M5-T02` — the main window**: menus, toolbars, dockable panels, status bar, layout
+   persistence. It adds PySide6 as a dependency and fills the `--gui` branch M5-T01 left with a
+   sentence in it. Two of M4's obligations are waiting there: counting annotations before
+   `remove_image` (ADR-0044) and marshalling a job's listener onto the main thread (ADR-0043)
 2. **`make types` joins `make check` as blocking.** M4 is over, so the M1 exit criterion deferred
    "while the legacy core is `src/`" is now only about the **6** inherited errors: four in
    `use_cases/pipeline.py` — three of which are the `Detector` port's absence, which M5-T01's
@@ -1262,7 +1273,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **828, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **849, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

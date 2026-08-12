@@ -7,6 +7,53 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M5-T01 · **one place that constructs everything**
+
+**Task:** `M5-T01`, the first of M5. **Branch:** `feat/m5-gui-shell`. **ADR:** **ADR-0052**.
+
+PROJECT_RULES §2.7 has said since M0 that all wiring happens in `app/` and nothing else constructs
+adapters. Until now **every caller of M4's eight components was a test that built them by hand** —
+fine in a test, and wrong in an application: it is how two places end up deciding where the settings
+file lives.
+
+### The decisions
+
+**The entry point works headless, today.** `nanoscope --project PATH` opens a project, prints what
+is in it and exits; `--devices` lists the hardware and says which would be chosen; `--gui` returns
+a sentence, because PySide6 is not a dependency of this project yet. An entry point that only works
+once a window exists **cannot be run in CI**, and cannot be run by the operator who most needs it —
+the one whose project will not open.
+
+**A container, not a framework.** `Nanoscope` holds what is expensive or stateful and does the two
+things no single component can: resolve the device from the stored preference, and open a project
+as one act. Building a framework to hold eight lines of wiring is the thing this project keeps
+deciding not to build.
+
+**Our errors are messages; anything else keeps its traceback.** ADR-0030 built that distinction and
+this is the first user-facing surface able to use it.
+
+**ADR-0040's closing obligation is discharged at last:** the integrity report is *shown* — missing
+files named with the reminder that their rows are kept, untracked ones with the reminder that
+nothing was imported.
+
+### What it turned up
+
+**Reading the version at import time cost eleven modules, and the guard caught it immediately.**
+`importlib.metadata` pulls in `zipfile` and `email`, which took `import nanoscope.core.entities`
+from 250 to 261 modules — over the bound M2-T09 wrote precisely so a new dependency could not sneak
+in under the numpy noise floor. The version is now read through a PEP 562 module `__getattr__`, so
+the cost lands on whoever asks, and the asker is the CLI.
+
+**`print` needed one scoped exception, in two places.** `T20` and M2-T11's own test both forbid
+`print` in library code, and both are right — but a command-line program's stdout is its user
+interface, and a CLI that logs instead of printing has no output. The exception is scoped to
+`app/main.py` in `pyproject.toml` and in the test, each stating the reason.
+
+**Numbers:** 16 tests, **849** in the suite; golden byte-identical; `nanoscope --version` and
+`python -m nanoscope --version` both answer.
+
+---
+
 ## 2026-08-12 — **M4 closed**, and M5 opened
 
 **All six exit criteria met. All fifteen tasks done. ADR-0038 through ADR-0051 — fourteen decisions
