@@ -1,72 +1,70 @@
 # CURRENT TASK
 
-**ID:** `M4-T04`
-**Title:** The project lifecycle: create, open, import — and the two use cases not worth writing
-**Milestone:** M4 — Application layer, fourth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0041**
+**ID:** `M4-T05`
+**Title:** Analysis results that survive the session — and the first real migration
+**Milestone:** M4 — Application layer, fifth task
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0042** (to be written)
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned 2026-08-12, implementation next.
 
 ---
 
 ## Why this task is next
 
-M4-T03 left two things on the table by name — creating the directory, and copying an imported file
-into `images/` before it is recorded — and the milestone's first exit criterion is exactly the
-sentence they complete:
+M4-T04 met the milestone's first exit criterion. This one owns the second:
 
-> *A project can be created, opened, populated with images and closed — from Python, headless.*
+> *Detection and measurement results round-trip through SQLite and the filesystem.*
 
-Everything needed is now underneath it: the format (T01), the tables (T02), the index and the
-integrity check (T03). This is the task where they become something an operator can run.
+Nothing in the project can currently answer "what did we find in this scan last week?" — the
+pipeline returns a `PipelineResult` and the process exits with it. This is also **the first task in
+M4 that calls the scientific core**, so it is the first where a golden difference is even possible;
+if one appears, the bug is in M4.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Where does "create a project" live?** In `infrastructure`, as
-`SqliteProjectRepository.create`.
+**1. Three use cases, or one?** One: `run_analysis`.
 
-Creating a project is `mkdir`, a manifest and a database — filesystem and SQLite from end to end,
-and Architecture §3.2 says `application` may import neither. Putting it in a use case would mean
-either breaking that rule or inventing a factory port whose only job is to be passed to a function
-that immediately calls it. PROJECT_RULES §2.7 already says who constructs adapters: the
-composition root.
+`RunDetection`, `RunSegmentation` and `MeasureParticles` are `run_pipeline` with `mode` set to
+`"detect"`, `"segment"` and `"baseline"` — the mode already lives in `PipelineConfig`, and
+`capabilities.py` already validates the combination before anything runs. Three functions differing
+by a string literal is ADR-0041's case again, one task later: a second name for the same method.
 
-**2. Then what is left for `application`?** Two things with actual policy in them, and this is the
-task's real question — a use case that forwards one call to one object is not a layer, it is a
-second name for the same method.
+**2. Where do results live?** Split, and the exit criterion names the split itself — *"through
+SQLite **and** the filesystem"*:
 
-| Use case | Verdict |
-|---|---|
-| **`open_project`** ✅ | Opens *and reads the integrity report*, returning the project's images with it. ADR-0040 ended with an obligation — "a report nobody reads is a report that did nothing" — and this is where it is discharged |
-| **`import_images`** ✅ | Real policy: a batch of forty scans must not abort on the third one, so each file succeeds or fails on its own and the caller gets both lists |
-| `close_project` ❌ | `repo.close()`. A wrapper would add a name and nothing else. It comes back the moment closing means something more than closing — autosave is M4-T09 |
-| `list_images` ❌ | `repo.list_images()`. Same |
+| | Where | Why |
+|---|---|---|
+| which analyses ran, and what they found | SQLite: `analysis_runs`, `detections` | Fixed columns, queried by everything above — the viewer draws detections, the exporter counts them |
+| the measurement **table** | `results/<run>/measurements.csv` | ADR-0031 made it *variable by construction*: a core plus blocks that are present in full or absent in full, with `method` naming the producer. A relational table for that is either wide with NULLs — which ADR-0031 rejected in these words — or an EAV pivot nobody can read |
 
-Writing the two that are empty is how a layer becomes ceremony, and this repository has already
-made that call once, deliberately, in M2-T08: *seven ports were specified, one was written.*
+ADR-0003's layout says `results/` holds "detections, measurements, generated masks" as files, while
+its storage rule says SQLite holds measurements. The reading that satisfies both, and this task's
+decision: **the index is in the database, the tabular product is a file.**
 
-**3. What does the copy do about a name that is already taken?** Disambiguates —
-`scan.spm`, `scan_1.spm`. Two different scans called `scan.spm` from two folders is the normal
-shape of AFM work, and refusing the second is hostile.
+**3. What about masks?** Not persisted. Segmentation needs SAM2 weights, which are not in this
+repository and not in CI (PROJECT_RULES §6), so a mask format written now would be a format nothing
+can produce under test. The trigger to write it is named in the ADR: the viewer in M5, or
+annotations in M4-T07.
 
-**4. And about the *same file* imported twice?** Nothing, on purpose. It becomes a second copy
-with a second row, visible as two rows in a list rather than as silent corruption.
+**4. What happens to an image's results when the image row is deleted?** They go with it —
+`REFERENCES … ON DELETE CASCADE`. A detection of a particle in a scan the project no longer knows
+about is not data, it is litter, and it is the *derived* half of the pair, so ADR-0040's argument
+for keeping the row does not apply here. This is also what finally makes M4-T02's
+`PRAGMA foreign_keys = ON` load-bearing rather than a precaution.
 
-Deduplicating by checksum wants a `UNIQUE` index, a migration, and an answer to "are two identical
-scans ever legitimate?" — which is an operator's question, not an engineer's. Deferred out loud in
-the ADR rather than guessed at now.
+**5. How does the use case get the pixels?** Through the loaders in `infrastructure.storage`,
+imported directly, exactly as `use_cases/preprocessing.py` and `use_cases/pipeline.py` already do.
 
-**5. What happens when `create` is pointed at a directory that already has something in it?**
-Refused. An empty directory or one that does not exist yet is fine; anything else is refused
-naming the path, because writing a manifest into somebody's `Documents/` folder makes it a
-project directory.
+An `ImageLoader` port is the correct answer and it is **not** this task's: the ports table dates it
+M2-T10 / M6, and introducing it here means rewriting the two existing call sites in the same commit
+as the first persistence code. Debt, taken deliberately, recorded in the ADR with its trigger
+rather than discovered later.
 
-**6. Does the failure of one file abort the import?** No, and that is the whole reason
-`import_images` exists. Each failure is collected with the reason and the path, the rest of the
-batch continues, and the caller decides what to do with a partial success.
+**6. Which schema version?** **2**, through ADR-0039's mechanism — the first migration applied to a
+database that already has rows in it. That is the property the mechanism was built for, and it has
+never been exercised.
 
 ---
 
@@ -74,71 +72,44 @@ batch continues, and the caller decides what to do with a partial success.
 
 **In scope**
 
-1. `SqliteProjectRepository.create(directory, name)` — the layout, the manifest, the database
-2. `import_image(source, …)` on the repository and the port — copy into `images/` under a free
-   name, then record. Copying is infrastructure's, and it must happen before the row exists
-3. `application/use_cases/projects.py` — `open_project`, `import_images`
-4. `OpenedProject`, `ImportReport`, `ImportFailure` in `core/entities/project.py`
-5. **ADR-0041** — what earns a use case, where `create` lives, the batch that does not abort, the
-   deduplication deferred
-6. Tests: the use cases against a **fake repository** (which is also the proof that the port is
-   usable by something other than SQLite), and an integration test that runs the exit criterion
-   end to end — create, import, close, reopen, list
+1. Migration step 2: `analysis_runs` and `detections`, with foreign keys and cascade
+2. `AnalysisRun` in `core/entities/project.py`
+3. Repository: `save_analysis`, `runs_for`, `detections_for`, `measurements_for`, and the port
+   extended to match
+4. `application/use_cases/analysis.py` — `run_analysis(repository, image_id, config, predictor)`
+5. **ADR-0042** — one use case not three, the index/product split, no masks yet, the cascade
+6. Tests: the migration over a populated v1 database, the round trip, the cascade, and an
+   end-to-end run over a characterization phantom written into a real project
 
 **Out of scope**
 
-- **Jobs and progress** — M4-T06. `import_images` returns when it is done; a forty-file import
-  that needs a progress bar is that task's problem
-- **Undo** — M4-T08, which is what `remove_image` is waiting for
-- **Deduplication by content** — decision 4, deferred with its reason
-- **A composition root beyond one line** — `app/` gets its wiring in M5, with an entry point to
-  wire
+- **Masks** — decision 3
+- **CSV export** — M4-T11. Writing `measurements.csv` here is storage, not export: the export
+  service decides what an operator's file looks like and where it goes
+- **Jobs and progress** — M4-T06. `run_analysis` is synchronous
+- **The `ImageLoader` port** — decision 5
+- **YOLO and SAM2 paths under test.** Neither is in the gate (PROJECT_RULES §6); the LoG detector
+  is the one that runs in CI, and the persistence code is detector-agnostic
 
 ---
 
 ## Expected blast radius
 
-- **Zero golden differences.** No numerical code is imported
-- One new application module, one new entity trio, one ADR, two test files
-- No new dependency — `shutil` is stdlib
+- **Zero golden differences**, and this is the first task where that claim is not free — the
+  science is called. `run_pipeline` is not modified: the use case calls it and stores what comes
+  back
+- One migration step, two tables, one new application module, one ADR
+- No new dependency
 
 ---
 
 ## Definition of done
 
-- [x] `create` and `import_image`, with the port extended to match
-- [x] `open_project` and `import_images`, with `close_project` and `list_images` deliberately absent
-- [x] ADR-0041, including what was *not* written and why
-- [x] Use-case tests against a fake repository; an end-to-end test of the exit criterion
-- [x] `make check` green — 585 tests, golden byte-identical
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md` (the criterion),
-      ADR index
-- [x] Commit: `M4-T04: a project can be created, opened and populated`
-
----
-
-## What it turned up
-
-**mypy found the port's missing method before a caller did.** `open_project` reads
-`repository.name`, and the `ProjectRepository` Protocol did not declare it — the use case would
-have worked anyway, because the SQLite class has the property, and **the second implementation
-would have been the one to discover it**, at run time, in the GUI. That is exactly the failure a
-port exists to prevent, caught by the port existing. Two lines to fix, and the clearest evidence
-this milestone has produced that it is load-bearing rather than decorative.
-
-**Where the catch boundary sits is a design decision.** `import_images` catches `NanoscopeError`
-and nothing else: a file the library rejects is *data* and belongs in the report, while a
-`TypeError` from our own code is a bug — and a bug that quietly keeps going for another
-thirty-nine files is worse than one that stops. Both directions are pinned by a test.
-
-**A colliding name is disambiguated against the filesystem, not the index.** An untracked file is
-still a file; copying over one destroys data the project does not even claim to own. ADR-0040's
-rule, read in the other direction.
-
----
-
-## Notes
-
-M4's risk profile held for the fourth time: the golden is byte-identical and no numerical code is
-imported. **M4-T05** is the first task in this milestone that calls the science — where a red
-golden becomes possible at all, and would mean the use case changed something on its way through.
+- [ ] Schema v2, reached by a migration over a database with rows in it
+- [ ] `save_analysis` / `runs_for` / `detections_for` / `measurements_for`, on the port too
+- [ ] `run_analysis`, taking mode from the config rather than existing three times
+- [ ] ADR-0042
+- [ ] Tests: migration, round trip, cascade, end-to-end over a phantom
+- [ ] `make check` green, golden byte-identical
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`, ADR index
+- [ ] Commit: `M4-T05: what the analysis found outlives the session`
