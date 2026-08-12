@@ -153,7 +153,7 @@ bundled with restructuring.
 
 ---
 
-## M4 — Application layer
+## M4 — Application layer ✅ (closed 2026-08-12)
 
 **Goal.** The concepts the application needs — projects, images, jobs, devices, models,
 settings, logs — exist and are persisted, with no UI attached.

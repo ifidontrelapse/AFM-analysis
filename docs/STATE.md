@@ -9,33 +9,46 @@
 
 ## Current milestone
 
-**M4 — Application layer**
+**M5 — GUI shell**
 
-Projects, images, jobs, devices, models, settings and logs exist and are persisted, with no UI
-attached. **The risk profile inverts here:** the scientific core is *called*, not modified, so no
-task in M4 should move a golden number at all — a red golden in M4 is a bug in M4, which is why
-ADR-0010's one-defect-one-commit rule does not need to be restated for it.
+A Qt6 application that starts, opens a project made in M4, and shows a scan — with dockable
+panels, a dark theme, and no business logic in a single widget. **The layer underneath it is
+finished**, so M5 constructs objects rather than inventing them; the guard added in M4-T15 says
+nothing outside `gui/` may import Qt, and `gui/` may not reach into `core.science` or
+`infrastructure` (Architecture §3.2).
+
+**M4 closed 2026-08-12 — all fifteen tasks, all six exit criteria, ADR-0038…ADR-0051, and the
+golden byte-identical throughout.** It built what W1 said did not exist. Three of its scheduled
+tasks turned out not to need building and were closed with arguments instead of code (autosave,
+three of five lifecycle use cases, the SQLite log sink) — the same judgement M2-T08 made about the
+ports, and by now a pattern worth naming: *a task written before the layer beneath it existed is a
+hypothesis, and checking it is part of doing it.* Tests 478 → **828**, schema version **5**, mypy
+unchanged at 6. Left open on purpose: **W10 made closable rather than closed** (the registry
+exists; `PipelineConfig` keeps its path until M5's composition root uses it) and **B-068**, which
+needs an operator's view. Milestone summary in `docs/Progress.md`.
 
 **M3 closed 2026-08-09** on the operator's decision — 25 of 26 tasks, ADR-0014…ADR-0037, all five
 exit criteria met, tests 119 → 478, mypy 20 → 6, and **every defect the July audit reproduced
 closed except D-24** (the stale README, M9). Left open on purpose: `M3-T16` (blocked on **B6**)
 and four findings that are each an algorithm choice needing an operator's view — **B-062**,
-**B-065**, **B-066**, **B-067**. They stay in M3's list; the roadmap allows M4 to run in parallel.
-Milestone summary in `docs/Progress.md`.
+**B-065**, **B-066**, **B-067**. They stay in M3's list.
 
-**M2 closed 2026-08-04** — sixteen tasks, 2 021 lines of science moved into four named
-layers, and **not one number changed**. Five of six exit criteria met in full; the sixth
-(ports) is partly met on purpose and M4 owns the rest. Milestone summary in
+**M2 closed 2026-08-04** — sixteen tasks, 2 021 lines of science moved into four named layers, and
+**not one number changed**. **M1 closed 2026-08-04** — all eleven tasks done, four of five exit
+criteria met; the fifth has two known exceptions filed as **B-054**. Milestone summaries in
 `docs/Progress.md`.
-
-**M1 closed 2026-08-04** — all eleven tasks done, four of five exit criteria met. The
-fifth (no tracked file over 1 MB) has two known exceptions, the README figures, filed as
-**B-054** and deferred to M9-T01. Milestone summary in `docs/Progress.md`.
 
 ## Current task
 
-**None selected. `M4-T15` done 2026-08-12 — the last task of M4, and its sixth exit criterion.
-Every exit criterion of the milestone is now met; closing it is the next commit.**
+**None selected. M4 is closed; `M5-T01` — the entry point, the composition root and the
+`nanoscope` console script — is the next task**, and it inherits three obligations M4 wrote down
+for it by name: **show the integrity report** `open_project` returns (ADR-0040), **count
+annotations before `remove_image`** discards them (ADR-0044), and **marshal a job's listener onto
+the main thread** while telling the truth about what cancel means (ADR-0043).
+
+## Completed
+
+### M4 — Application layer ✅ (closed 2026-08-12)
 
 **`M4-T15` done 2026-08-12 (no ADR — a test that only exercises existing decisions makes none).**
 **One long test on purpose**, because the *sequence* is the subject: configure logging, create,
@@ -498,8 +511,6 @@ rewrites every SHA. **B-058** is done (ADR-0022).
 **B-054** is closed: the operator deferred the two oversized README figures to the M9-T01 rewrite.
 
 ---
-
-## Completed
 
 ### M3 — Numerical correctness (in progress)
 
@@ -1223,17 +1234,18 @@ None of the remaining questions blocks M1 or M2.
 
 ## Next
 
-1. **Close M4 and open M5.** Every exit criterion is met and all fifteen tasks are done; what is
-   left is the milestone record and the first task of the GUI shell. M3's remainder is unchanged — **M3-T16** (blocked on **B6**) and the
-   four algorithm findings, which the roadmap allows to run in parallel
-2. **M3-T13 paid the list five tasks had deferred to it** (T06, T07, T08, T17, T20) and filed two
-   new ones on the way out: **B-060** (levelling that fits around a dropped scan line rather than
-   refusing it) and **B-061** (a rough opening radius of 0, which is reachable and looks like a
-   result). **B6 → M3-T16** is the last operator answer waiting; **B-040** goes last of all,
-   because it rewrites every SHA above it
-3. `make types` joins `make check` as blocking — the one deviation recorded against M1's
-   exit criteria. `src/` is gone, so the only thing left is the 12 errors that arrived
-   inside the moved science; they belong to M3 and M2-T12
+1. **`M5-T01` — the entry point, the composition root and the `nanoscope` console script.** The
+   first task that constructs what M4 built, in the one place PROJECT_RULES §2.7 allows. It
+   inherits three obligations by name: show the integrity report (ADR-0040), count annotations
+   before `remove_image` (ADR-0044), and marshal a job's worker-thread listener while telling the
+   truth about what cancel means (ADR-0043)
+2. **`make types` joins `make check` as blocking.** M4 is over, so the M1 exit criterion deferred
+   "while the legacy core is `src/`" is now only about the **6** inherited errors: four in
+   `use_cases/pipeline.py` — three of which are the `Detector` port's absence, which M5-T01's
+   composition root is the natural place to remove — and two third-party overloads
+3. **The four open M3 findings and M3-T16** (blocked on **B6**) are unchanged; **B-068** joins
+   them as a question only the operator can answer, and **B-040** goes last of all because it
+   rewrites every SHA above it
 4. **B-058 is done (ADR-0022)** — a Python upgrade no longer reads as drift, so the 3.12 pin in
    CI is now a choice rather than a constraint
 5. **B-054** (two README figures over 1 MB) is the one M1 exit criterion left open;
@@ -1257,7 +1269,7 @@ None of the remaining questions blocks M1 or M2.
 | ruff findings, blocking | **0** ✅ | 0 | `make lint` |
 | mypy errors | **6**, all inherited with moved code, none silenced; new code strict | 0 | `make types` |
 | Characterization phantoms | 8 (7 carry `yolo_input_preparation`) | 8 | `tests/characterization/` |
-| Open defects | **16** (was 28) — every reproduced numerical defect is closed; what is left is documentation (D-24 → M9) and the new M3-T19 | 0 critical | audit §2, M3-T17…T21 |
+| Open defects | **17** (was 28) — B-068 filed by M4-T15 — every reproduced numerical defect is closed; what is left is documentation (D-24 → M9) and the new M3-T19 | 0 critical | audit §2, M3-T17…T21 |
 | Import cycles | **0** ✅ (was 5), and a test refuses new ones | 0 | `tests/unit/test_import_graph.py` |
 | `print` calls in library code | **0** ✅ (was 13), asserted per module | 0 | `tests/unit/test_logging.py` |
 | Non-English lines in library code | **0** ✅ (was 197) | 0 | `grep -rn "[а-яА-ЯёЁ]"` |

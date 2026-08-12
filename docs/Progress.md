@@ -7,6 +7,78 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — **M4 closed**, and M5 opened
+
+**All six exit criteria met. All fifteen tasks done. ADR-0038 through ADR-0051 — fourteen decisions
+in one milestone. The golden file did not move once.**
+
+M4 built what W1 said did not exist: *"no application layer at all. The code is a library plus
+notebooks. No projects, no persistence, no jobs, no settings, no logging."* There is now a project
+format that is a versioned public contract, a schema with five migrations and a mechanism that
+refuses a database claiming a version it does not have, a repository that reports rather than
+reconciles, use cases with policy in them, jobs whose cancellation is honest about being a request,
+undo that composes, settings in two scopes, exports that explain themselves, a device manager, a
+model registry and two log files.
+
+### What the milestone kept saying
+
+Three tasks turned out not to need building, and each was closed with an argument rather than
+skipped:
+
+- **autosave** (ADR-0046) — every write commits before it returns, so a service would be a timer
+  that flushes nothing, creating the *impression* of protection where the protection actually
+  lives;
+- **three of five lifecycle use cases** (ADR-0041) — a function that forwards one call to one
+  object is a second name for the same method, and the second name is what later disagrees with
+  the first;
+- **the SQLite log sink** (ADR-0051), promised by ADR-0013 — a log must not depend on the thing
+  whose failure it records, and the lines worth having are about a database that would not open.
+
+That is the same judgement M2-T08 made when it specified seven ports and wrote one. Four times in
+one project is a pattern worth naming: **a task written before the layer beneath it existed is a
+hypothesis, and checking it is part of doing it.**
+
+### What it found while building
+
+- **The scale the project recorded was thrown away** by `run_analysis` (M4-T05) — every
+  `radius_nm` `None`, the physical size filter skipped: the D-07 family M3 spent a milestone
+  eliminating, reintroduced one layer up, caught by a test.
+- **`sqlite3` binds a connection to its creating thread**, so the repository was unusable inside
+  every job (M4-T06) — it would have arrived in M5 as a crash in a background worker.
+- **A new id on redo does not compose** (M4-T08): the plan said restore should insert a fresh row,
+  and its own test showed undo would be one command deep.
+- **Python's `sqlite3` opens a transaction for DML only**, so `CREATE TABLE` is not atomic for free
+  (M4-T02).
+- **`PipelineConfig`'s default mode cannot run in CI at all** (M4-T15) — filed as **B-068**, an
+  operator's decision rather than an engineer's.
+
+### Numbers
+
+| | Start of M4 | End |
+|---|---|---|
+| Tests | 478 | **828** |
+| Schema version | — | **5**, all reached by migration |
+| ADRs | 37 | **51** |
+| mypy | 6 | **6** — all inherited with the moved science |
+| Golden | byte-identical | **byte-identical** |
+
+### Left open on purpose
+
+**W10 is made closable, not closed:** the registry exists and `PipelineConfig.yolo_model_path`
+still holds a path, because deleting it means rewiring the function the golden covers most —
+M5's, with the composition root that will call it. **B-068** needs an operator's view. M3's
+remainder is untouched: **M3-T16** (blocked on **B6**) and **B-062**, **B-065**, **B-066**,
+**B-067**.
+
+### Next
+
+**M5-T01** — the entry point, the composition root and the `nanoscope` console script. It inherits
+three obligations M4 wrote down for it by name: show the integrity report (ADR-0040), count
+annotations before removing an image (ADR-0044), and marshal a job's worker-thread listener onto
+the main thread while telling the truth about what cancel means (ADR-0043).
+
+---
+
 ## 2026-08-12 — M4-T15 · **the whole layer, in the order an operator uses it**
 
 **Task:** `M4-T15`, the last of M4. **No ADR** — a test that only exercises decisions already made
