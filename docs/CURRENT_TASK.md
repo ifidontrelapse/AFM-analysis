@@ -1,70 +1,80 @@
 # CURRENT TASK
 
-**ID:** `M4-T06`
-**Title:** Jobs: submit, progress, cancel, and the cancellation that cannot be forced
-**Milestone:** M4 — Application layer, sixth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0043**
+**ID:** `M4-T07`
+**Title:** Annotations: the first data the operator makes, not the application
+**Milestone:** M4 — Application layer, seventh task
+**Defect:** — (W9: annotations cannot become a dataset) · **ADR:** **ADR-0044** (to be written)
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
-the record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** planned 2026-08-12, implementation next.
 
 ---
 
 ## Why this task is next
 
-Everything the application layer can do so far returns when it is finished. Importing forty scans
-copies forty files; `run_analysis` runs a full LoG pass and a measurement sweep. Architecture §4.5
-set the bar before any of it existed:
+Everything stored so far is either the operator's *file* or the application's *derivation* of it.
+An annotation is neither: it is judgement, typed in by hand, and it is the one thing in a project
+that cannot be recomputed. W9 names what it is for — *"annotations cannot become a dataset"* — and
+M7/M8 cannot start until there is something to train on.
 
-> *Anything that can take longer than ~100 ms … runs as a job with progress and cancellation. The
-> GUI subscribes; it does not block and it does not own the thread policy.*
-
-M5's own exit criteria require a long job that shows progress and cancels without freezing the UI.
-Building that in M5 would put the thread policy inside the widget that must not own it.
+It is also the trigger ADR-0041 named for revisiting import deduplication: two copies of one scan
+are untidy until somebody annotates both, and then they are two half-done jobs.
 
 ---
 
 ## The decisions this task has to make
 
-**1. What is a job, structurally?** A **handle**, returned by a runner — not a base class to
-inherit. `DetectionJob(Job)` and `ImportJob(Job)` would be two classes whose only difference is
-which function they call, which is ADR-0041's rule for the third time. A job wraps *any* callable.
+**1. A table, or JSON files under `annotations/`?** A **table** — and the contrast with M4-T05
+matters, because ADR-0042 sent the measurement table to a file two tasks ago.
 
-**2. Threads or processes?** Threads, on `concurrent.futures.ThreadPoolExecutor`.
+The rule that separates them is not "files versus database". It is: *does the shape vary, and is it
+derived?* A measurement table's columns depend on which producer wrote it (ADR-0031) and can be
+recomputed from the image. An annotation is a fixed handful of numbers, edited **one at a time**
+with undo behind it (M4-T08), and it is irreplaceable. Rewriting a JSON document per keystroke is
+the shape of a lost file; a row per annotation is what a row is for.
 
-The work is NumPy, SciPy and torch, all of which release the GIL in the parts that take the time.
-A process pool would have to pickle height maps and model handles across a boundary — expensive
-for the arrays and impossible for a loaded SAM2 predictor. Stdlib gives submit, result, exception
-and pre-start cancellation for free; what it does not give is the next two rows.
+ADR-0003's layout mentions "manual annotations (JSON)" — written before ADR-0031 and before undo
+was scheduled. `annotations/` keeps its meaning for painted masks, which are files by the same
+ADR's rule about bitmaps.
 
-**3. How does cancellation work?** **Cooperatively, and this is the honest part of the task.**
+**2. What can an operator draw?** A **box**, with a label. Not a union of point, circle, polygon and
+mask.
 
-A running Python thread cannot be killed. `Future.cancel()` works only while a job is still
-queued. So a job that has started stops at the next point where it *checks* — the runner hands
-every job a `JobContext` with `raise_if_cancelled()`, and the job calls it where stopping is safe.
-A single 20-second LoG pass has no such point, and pretending otherwise would be the lie the GUI
-then repeats to the operator: the cancel button must mean "stop at the next checkpoint", not
-"stop".
+A box is what a training set consumes, which is the only named consumer (M8), and what a drag
+produces. Each additional shape needs storage, an editor, a converter and a test — for a consumer
+nobody has written. A circle converts to a box losslessly for training purposes; if M6 finds an
+operator drawing something a box cannot express, that is a shape with a reader and this decision
+gets revisited then.
 
-**4. Where does progress come from?** The same `JobContext`: `report(done, total, message)`.
-Counting, not a fraction — a batch of forty files knows "12 of 40", and turning that into a
-fraction is the progress bar's business. `total=0` means indeterminate, which is what a single
-opaque scientific call actually is.
+**Masks stay deferred** for the third time (ADR-0042 §3): painting is M6, and a format written
+before its painter is written blind.
 
-**5. Who is told, and on which thread?** One optional `listener` callback per job, called on every
-state or progress change. **It fires on the worker thread**, which is stated loudly here and in
-the ADR because Qt widgets may only be touched from the main thread — marshalling is M5's adapter
-to write, and a GUI that forgets is a crash, not a warning.
+**3. Where did an annotation come from?** A `source` column: `manual` or `from_detection`.
 
-**6. What does a failure do?** It is caught, stored on the job as its `error`, and the job goes to
-`FAILED`. A job that dies must not take the runner with it, and the exception must not vanish into
-a thread nobody joins — which is what `ThreadPoolExecutor` does by default if nobody reads the
-future.
+Training a model on boxes copied from that model's own output is self-confirmation, and a training
+set that cannot tell the two apart cannot avoid it. One column, two values, a `CHECK` — and the
+question it answers is one M8 must ask.
 
-**7. Does anything actually use it?** `import_images` gains an optional `progress` parameter: it
-already loops over files, so it is the one place today where "12 of 40" exists to be reported, and
-where a cancellation between files is clean. Files already imported stay imported, and the report
-says what was done before the stop.
+**4. What happens to annotations when their image is removed?** They cascade.
+
+The row they belong to is gone, so keeping them would leave hand-drawn boxes pointing at nothing.
+But **`remove_image` is an operator's explicit "forget this scan"**, and it now silently discards
+hand work — so the count has to be *askable* before it happens. `annotations_for` is what a
+confirmation dialog counts with, and the ADR says so out loud rather than leaving M6 to discover
+it.
+
+**5. Coordinates: integers or floats?** Floats. A drag is not on the pixel grid, and rounding at
+storage time is a decision the trainer should make with the whole box in hand, not the database.
+`Detection.bbox` stays integer — that is a detector's output, and these are two different things
+that happen to have four numbers.
+
+A zero-area box is refused by a `CHECK`: it is a mis-drag, and as a training example it is a
+picture of nothing.
+
+**6. A use case?** No. `add_annotation` and its siblings are repository calls, and a function that
+forwards one call to one object is ADR-0041's case for the fourth time. The use case with policy in
+it — adopting a run's detections as a starting point for correction — arrives with the UI action
+that calls it (M6), because what it should skip and what it should label is a question about an
+editor that does not exist.
 
 ---
 
@@ -72,72 +82,38 @@ says what was done before the stop.
 
 **In scope**
 
-1. `application/jobs.py` — `JobState`, `Progress`, `JobContext`, `Job`, `JobRunner`
-2. `import_images(..., progress=None)` — progress and a cancellation checkpoint per file
-3. **ADR-0043** — a handle not a hierarchy, threads, cooperative cancellation, the listener thread
-4. Tests: success, failure captured, cancel before start, cooperative cancel while running,
-   progress observed in order, the runner shutting down, and a cancelled batch import
+1. Migration step 3: the `annotations` table
+2. `Annotation` in `core/entities/project.py`
+3. Repository: `add_annotation`, `annotations_for`, `update_annotation`, `remove_annotation`, and
+   the port extended to match
+4. **ADR-0044** — a table not a document, one shape not a union, provenance, the cascade
+5. Tests: round trip, ordering, update, cascade, both `CHECK`s, and a project that keeps its
+   annotations across a session
 
 **Out of scope**
 
-- **Job persistence and history.** Logs are M4-T14; a job is a live object
-- **Priorities, dependencies, retries, ETA.** No caller has asked, and each is a queue policy that
-  wants a real workload to be designed against
-- **Threading `JobContext` through `core.science`.** Progress inside a LoG pass means a callback
-  in the domain, which `core` must not grow for the GUI's benefit. What that costs — one long
-  opaque step — is stated rather than engineered around
-- **Qt marshalling** — M5's adapter, named in decision 5
+- **Painted masks** — decision 2, third deferral
+- **Adopting detections as annotations** — decision 6, with M6
+- **Undo** — M4-T08, which is what `update_annotation` and `remove_annotation` exist to be undone
+- **A class registry.** The label is free text until a dataset needs a vocabulary (M8)
+- **Export to a training format** — M8. This task stores what M8 will read
 
 ---
 
 ## Expected blast radius
 
-- **Zero golden differences.** No numerical code is touched; `import_images` gains an optional
-  parameter and keeps its behaviour when it is absent
-- One new application module, one ADR, one test file
-- No new dependency — `concurrent.futures` and `threading` are stdlib
+- **Zero golden differences.** No numerical code is imported
+- One migration step, one table, one entity, one ADR
+- No new dependency
 
 ---
 
 ## Definition of done
 
-- [x] `JobRunner` over `ThreadPoolExecutor`, with `Job` as a handle
-- [x] Cooperative cancellation, and a test that proves a *running* job stops at its checkpoint
-- [x] Progress reported as counts, with the listener documented as worker-thread
-- [x] Failures captured on the job rather than lost in a thread
-- [x] `import_images` reporting progress and stopping between files
-- [x] ADR-0043
-- [x] `make check` green — 619 tests, golden byte-identical
-- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, ADR index
-- [x] Commit: `M4-T06: a job reports, and stops when it is asked`
-
----
-
-## What it turned up
-
-**The repository could not be used from a job at all.** Python's `sqlite3` binds a connection to
-the thread that created it and refuses it everywhere else, so a project opened on the main thread
-was unusable inside **every** background task — found by the first test that ran an import under
-the runner, and otherwise destined to arrive in M5 as a crash inside a widget's worker.
-
-Both halves were needed: `check_same_thread=False`, because SQLite's own library is compiled
-serialized in CPython's build, **and** one reentrant lock around every repository method, because
-statement-level safety is not enough when `save_analysis` writes three statements that a second
-thread could commit half of.
-
-**Two of this task's tests were races when first written**, both fixed by making the threads meet
-on an `Event` rather than a `sleep`. It is now the rule for the file: nothing in `test_jobs.py`
-synchronises on wall-clock time, so a loaded machine cannot make it flake, and the timeouts exist
-only so a broken implementation fails in a second instead of hanging the suite.
-
-**`JobCancelled` did not need to be a new class.** `concurrent.futures.CancelledError` is what the
-stdlib already raises when a queued job is dropped, so one `except` covers both ways a job ends
-early.
-
----
-
-## Notes
-
-The golden held for the sixth time. **M4-T07** takes annotations — the first thing an operator
-creates rather than the application deriving it, and the trigger ADR-0041 named for revisiting
-import deduplication.
+- [ ] Schema v3 with the `annotations` table and its constraints
+- [ ] `Annotation`, and four repository methods on the port
+- [ ] ADR-0044
+- [ ] Tests including the cascade and both constraints
+- [ ] `make check` green, golden byte-identical
+- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `ProjectFormat.md`, ADR index
+- [ ] Commit: `M4-T07: an annotation is the one thing that cannot be recomputed`
