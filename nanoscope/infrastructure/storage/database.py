@@ -51,6 +51,54 @@ _V1 = (
     """,
 )
 
+# What an analysis found, and where the table it produced was written (M4-T05).
+#
+# The split ADR-0042 decided: the *index* is here — which run happened, on what,
+# with which detector, and every detection it produced — and the measurement
+# **table** is a file under `results/`, because ADR-0031 made that table variable
+# by construction (a core plus blocks, `method` naming the producer), and a
+# relational shape for it is either wide with NULLs or an EAV pivot.
+#
+# `ON DELETE CASCADE` is what makes M4-T02's `PRAGMA foreign_keys = ON`
+# load-bearing rather than a precaution: a detection of a particle in a scan the
+# project no longer knows about is litter, and unlike the image row it is the
+# *derived* half of the pair, so ADR-0040's argument for keeping it does not
+# apply.
+_V2 = (
+    """
+    CREATE TABLE analysis_runs (
+        id                INTEGER PRIMARY KEY,
+        image_id          INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        detector          TEXT    NOT NULL,
+        mode              TEXT    NOT NULL,
+        modality          TEXT    NOT NULL,
+        pixel_size_nm     REAL,
+        measurements_path TEXT,
+        created_utc       TEXT    NOT NULL,
+        CHECK (measurements_path IS NULL OR measurements_path NOT LIKE '/%'),
+        CHECK (modality IN ('afm', 'sem', 'tem'))
+    )
+    """,
+    """
+    CREATE TABLE detections (
+        id         INTEGER PRIMARY KEY,
+        run_id     INTEGER NOT NULL REFERENCES analysis_runs(id) ON DELETE CASCADE,
+        ordinal    INTEGER NOT NULL,
+        x_px       REAL    NOT NULL,
+        y_px       REAL    NOT NULL,
+        radius_px  REAL    NOT NULL,
+        radius_nm  REAL,
+        confidence REAL,
+        bbox_x1    INTEGER,
+        bbox_y1    INTEGER,
+        bbox_x2    INTEGER,
+        bbox_y2    INTEGER
+    )
+    """,
+    "CREATE INDEX detections_by_run ON detections(run_id)",
+    "CREATE INDEX analysis_runs_by_image ON analysis_runs(image_id)",
+)
+
 #: Every step from an empty file to the current schema, in order. A step is its
 #: target version and the statements that reach it; they run in one transaction
 #: and the version moves with them.
@@ -58,7 +106,7 @@ _V1 = (
 #: Adding a step is the only way the schema changes. Never edit a step that has
 #: shipped — a project on disk has already run it, and rewriting it makes two
 #: databases that both claim the same version.
-MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = ((1, _V1),)
+MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = ((1, _V1), (2, _V2))
 
 #: What this application writes and can read. Derived from the list rather than
 #: declared beside it, because a constant that can disagree with the migrations

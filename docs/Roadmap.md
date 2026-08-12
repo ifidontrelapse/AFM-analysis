@@ -166,7 +166,8 @@ the model registry and `ModelDescriptor`.
 **Exit criteria**
 - [x] A project can be created, opened, populated with images and closed — from Python, headless
       (M4-T04, `tests/integration/test_project_lifecycle.py`)
-- [ ] Detection and measurement results round-trip through SQLite and the filesystem
+- [x] Detection and measurement results round-trip through SQLite and the filesystem
+      (M4-T05, ADR-0042 — the index relational, the measurement table a file under `results/`)
 - [ ] `DeviceManager` correctly reports CPU / CUDA / ROCm / MPS on this machine and selects one
 - [ ] Model registry resolves `"yolo"` and `"sam2"` to providers via `ModelDescriptor`
 - [ ] Undo/redo proven on at least one mutating use case

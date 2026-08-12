@@ -35,6 +35,10 @@ MyProject/
 - `cache/` MAY be deleted at any time, by anyone, with no data loss. Reopening the project
   reconstructs whatever it needs. Nothing may be stored only in `cache/`.
 - The source scans under `images/` are never modified in place.
+- `results/` holds what analyses produced — one directory per run, and a measurement table as
+  CSV. It is **derived**: losing it costs a re-run, not data, and it is not covered by the
+  integrity check (ADR-0042 §3). Unlike `cache/`, it is not disposable by contract — an
+  operator's exports and reports point into it.
 - `database.sqlite` is the **only** database file. There is no `-wal` or `-shm` beside it: the
   application does not use WAL, so a copy of the directory is a complete copy of the index
   (ADR-0039 §4). A reader may rely on that when archiving a project.
@@ -117,7 +121,8 @@ would be written back to disk.
 | What is this directory? | `project.json` |
 | Which images are in the project? | the database, reconciled against `images/` on open (M4-T03) |
 | What does an image contain? | the file. The database stores its relative path, a checksum and metadata — never the pixels |
-| What are the measurements? | the database |
+| Which analyses ran, and what they found? | the database — `analysis_runs` and `detections` (M4-T05) |
+| What are the measurements? | the file the run points at, under `results/` — the table is variable by construction (ADR-0031), so the database indexes it rather than holding it (ADR-0042) |
 | Anything under `cache/` | nothing. It is derived, and it is disposable |
 
 The filesystem and the index are two sources of truth, and ADR-0003 names the cost: a file

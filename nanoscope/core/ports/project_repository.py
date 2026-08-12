@@ -17,10 +17,14 @@ a base class in the middle, and mypy checks the shape structurally.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from nanoscope.core.entities.project import ImageRecord, IntegrityReport
+from nanoscope.core.entities import PipelineResult
+from nanoscope.core.entities.project import AnalysisRun, ImageRecord, IntegrityReport
 from nanoscope.core.values import Modality
+
+if TYPE_CHECKING:  # pandas is heavy, and importing the domain must stay cheap (M2-T09).
+    import pandas as pd
 
 
 class ProjectRepository(Protocol):
@@ -68,6 +72,14 @@ class ProjectRepository(Protocol):
         """The row with this id."""
         ...
 
+    def path_of(self, image: ImageRecord) -> Path:
+        """Where that image's file actually is, right now.
+
+        The adapter resolves it, because a project path assembled anywhere
+        else is a project path assembled outside `infrastructure/storage`,
+        which ADR-0038's compliance section rules out by name."""
+        ...
+
     def list_images(self) -> list[ImageRecord]:
         """Every image in the project, in the order they were imported."""
         ...
@@ -75,6 +87,26 @@ class ProjectRepository(Protocol):
     def remove_image(self, image_id: int) -> None:
         """Forget the row. The file is not touched — deleting it is a separate
         decision, and one this layer is not allowed to make on its own."""
+        ...
+
+    def save_analysis(self, image_id: int, result: PipelineResult) -> AnalysisRun:
+        """Store what an analysis found, and return its index entry.
+
+        Where each half of it goes is the adapter's business (ADR-0042): this
+        layer knows only that a run is stored whole and comes back whole.
+        """
+        ...
+
+    def get_run(self, run_id: int) -> AnalysisRun:
+        """One stored analysis, with its detections."""
+        ...
+
+    def runs_for(self, image_id: int) -> list[AnalysisRun]:
+        """Every analysis of this image, oldest first."""
+        ...
+
+    def measurements_for(self, run: AnalysisRun) -> pd.DataFrame:
+        """The measurement table this run produced."""
         ...
 
     def check_integrity(self) -> IntegrityReport:

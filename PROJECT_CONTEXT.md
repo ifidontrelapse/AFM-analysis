@@ -58,7 +58,8 @@ AFM-analysis/
 │   │       └── measurement/            # height.py (AFM), geometry.py (any modality)
 │   ├── application/
 │   │   ├── capabilities.py             # THE execution matrix, validated before inference
-│   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04)
+│   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04),
+│   │                                   #   analysis.py (M4-T05)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
@@ -71,8 +72,8 @@ AFM-analysis/
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database — 541 tests
-│   ├── integration/                    # a real project directory + database, and the whole
-│   │                                   #   project lifecycle (M4-T03, M4-T04) — 44 tests
+│   ├── integration/                    # a real project: lifecycle, and analysis results that
+│   │                                   #   round-trip (M4-T03…T05) — 58 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -231,6 +232,8 @@ IntegrityReport(
 ```
 
 `IntegrityReport` reports; it never deletes a row or imports a file (ADR-0040).
+
+`AnalysisRun(id, image_id, detector, mode, modality, pixel_size_nm, measurements_path, created_utc, detections)` is one stored analysis: its detections are rows, its measurement table is the file at `measurements_path` (M4-T05, ADR-0042).
 
 `OpenedProject(name, images, integrity)` is what `open_project` returns, and `ImportReport(imported, failed)` — with `ImportFailure(source, reason)` — is what `import_images` returns: a partial import is an outcome, not an exception (M4-T04, ADR-0041).
 
@@ -617,6 +620,20 @@ with SqliteProjectRepository.open("~/Nanoparticles") as repo:
 ```
 
 `create` and `open` are the composition root's to call (PROJECT_RULES §2.7). `import_images` never aborts the batch: `report.failed` carries the files that did not make it, with reasons.
+
+Analysing one of its images and keeping the result (M4-T05):
+
+```python
+from nanoscope.application.use_cases import run_analysis
+from nanoscope.core.entities import PipelineConfig
+
+with SqliteProjectRepository.open("~/Nanoparticles") as repo:
+    image = repo.list_images()[0]
+    run = run_analysis(repo, image.id, PipelineConfig(detector="log", mode="baseline"))
+    table = repo.measurements_for(run)   # the CSV under results/, as a DataFrame
+```
+
+The run and its detections are rows in `analysis_runs` / `detections`; the measurement table is `results/run_<id>/measurements.csv` (ADR-0042). `run_analysis` passes the image's recorded `pixel_size_nm` into preprocessing, which is what an `.npy` has no other way of knowing.
 
 Preferred high-level preprocessing call:
 

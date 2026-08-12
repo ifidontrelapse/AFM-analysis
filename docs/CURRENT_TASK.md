@@ -3,9 +3,10 @@
 **ID:** `M4-T05`
 **Title:** Analysis results that survive the session — and the first real migration
 **Milestone:** M4 — Application layer, fifth task
-**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0042** (to be written)
+**Defect:** — (W1: no application layer exists) · **ADR:** **ADR-0042**
 **Branch:** `feat/m4-application-layer` — M4 changes no scientific output (PROJECT_RULES §7)
-**Status:** planned 2026-08-12, implementation next.
+**Status:** **done 2026-08-12.** Rewritten for the next task at the start of the next session;
+the record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -105,11 +106,40 @@ never been exercised.
 
 ## Definition of done
 
-- [ ] Schema v2, reached by a migration over a database with rows in it
-- [ ] `save_analysis` / `runs_for` / `detections_for` / `measurements_for`, on the port too
-- [ ] `run_analysis`, taking mode from the config rather than existing three times
-- [ ] ADR-0042
-- [ ] Tests: migration, round trip, cascade, end-to-end over a phantom
-- [ ] `make check` green, golden byte-identical
-- [ ] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`, ADR index
-- [ ] Commit: `M4-T05: what the analysis found outlives the session`
+- [x] Schema v2, reached by a migration over a database with rows in it
+- [x] `save_analysis` / `runs_for` / `detections_for` / `measurements_for`, on the port too
+- [x] `run_analysis`, taking mode from the config rather than existing three times
+- [x] ADR-0042
+- [x] Tests: migration, round trip, cascade, end-to-end over a phantom
+- [x] `make check` green — 600 tests, golden byte-identical
+- [x] `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`, ADR index
+- [x] Commit: `M4-T05: what the analysis found outlives the session`
+
+---
+
+## What it turned up
+
+**A live defect in this task's own code, caught by a test: the project knew the scale and the
+analysis threw it away.** An `.npy` carries no metadata, so loading one without the
+`pixel_size_nm` the operator recorded at import means the image is analysed *as though the scale
+were unknown* — every `radius_nm` `None`, and the physical minimum-size filter silently skipped.
+**That is the D-07 family of defect M3 spent a milestone eliminating, reintroduced one layer up**,
+and it is precisely the failure this milestone was warned about: the science is correct and the
+application hands it the wrong arguments. `run_preprocessing` gained the parameter; a test fails if
+`run_analysis` stops passing it.
+
+**The LoG detector does not leave `bbox` absent.** It synthesises a square box from the radius, so
+ADR-0031's absence case has **no producer in the gate at all** — pinning it needs a hand-built
+`PipelineResult`. Worth knowing before M5 draws boxes and finds every detection has one.
+
+**A test file was lying about itself.** `test_project_use_cases.py` claimed mypy checked its fake
+against the port structurally; mypy's `files = ["nanoscope"]` means it never reads `tests/`. The
+claim now says what is actually true.
+
+---
+
+## Notes
+
+The golden held for the fifth time, and for the first time that was not free — this is the task
+that calls the science. **M4-T06** takes the jobs: everything here returns when it is done, and
+M5's own exit criteria require a long job that reports progress and cancels without freezing.

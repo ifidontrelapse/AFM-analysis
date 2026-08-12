@@ -14,8 +14,15 @@ here, so `import ...use_cases.run_pipeline` would hand back the function and
 test, in M2-T15.
 """
 
+from nanoscope.application.use_cases.analysis import run_analysis
 from nanoscope.application.use_cases.pipeline import run_pipeline
 from nanoscope.application.use_cases.preprocessing import run_preprocessing
 from nanoscope.application.use_cases.projects import import_images, open_project
 
-__all__ = ["import_images", "open_project", "run_pipeline", "run_preprocessing"]
+__all__ = [
+    "import_images",
+    "open_project",
+    "run_analysis",
+    "run_pipeline",
+    "run_preprocessing",
+]

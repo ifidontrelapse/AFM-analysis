@@ -33,7 +33,10 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
-from nanoscope.core.entities.project import ImageRecord, IntegrityReport
+import pandas as pd
+
+from nanoscope.core.entities import Detection, PipelineResult
+from nanoscope.core.entities.project import AnalysisRun, ImageRecord, IntegrityReport
 from nanoscope.core.errors import InvalidParameterError, MissingFileError
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage.database import open_database
@@ -46,6 +49,7 @@ from nanoscope.infrastructure.storage.project_format import (
 )
 
 _IMAGES_DIRECTORY = "images"
+_RESULTS_DIRECTORY = "results"
 
 #: 1 MiB. Large enough that the loop is not the cost, small enough that a
 #: multi-gigabyte scan does not arrive in memory to be hashed.
@@ -253,6 +257,12 @@ class SqliteProjectRepository:
             raise InvalidParameterError(f"no image with id {image_id} in {self._root}")
         return _record(row)
 
+    def path_of(self, image: ImageRecord) -> Path:
+        """Where that image's file is. Relative paths are stored; absolute
+        ones are what a reader needs, and this is the only place that joins
+        the two (ADR-0038's compliance section)."""
+        return self._root / image.relative_path
+
     def list_images(self) -> list[ImageRecord]:
         """Every image in the project, in the order they were imported."""
         rows = self._conn.execute("SELECT * FROM images ORDER BY id")
@@ -273,6 +283,121 @@ class SqliteProjectRepository:
         self._conn.commit()
         if cursor.rowcount == 0:
             raise InvalidParameterError(f"no image with id {image_id} in {self._root}")
+
+    def save_analysis(self, image_id: int, result: PipelineResult) -> AnalysisRun:
+        """Store what an analysis found, and return its index entry (M4-T05).
+
+        The split ADR-0042 decided: the run and its detections become rows; the
+        measurement **table** becomes `results/run_<id>/measurements.csv`,
+        because ADR-0031 made that table variable by construction and this
+        schema is not. Nothing is written for `detect` mode, which measures
+        nothing — an empty table with the right columns is not a measurement,
+        and storing one would claim otherwise.
+
+        Masks are **not** persisted (ADR-0042 §3): SAM2 weights are outside this
+        repository and outside the gate, so a format for them would be one
+        nothing under test can produce.
+
+        Args:
+            image_id: the image this ran on. Its row must exist — the foreign
+                key says so, and `PRAGMA foreign_keys` makes the database say it
+                rather than this method.
+            result: what `run_pipeline` returned.
+
+        Returns:
+            The stored run, with its id and its detections.
+
+        Raises:
+            InvalidParameterError: no image has that id.
+        """
+        self.get_image(image_id)
+
+        cursor = self._conn.execute(
+            "INSERT INTO analysis_runs "
+            "(image_id, detector, mode, modality, pixel_size_nm, measurements_path, created_utc) "
+            "VALUES (?, ?, ?, ?, ?, NULL, ?)",
+            (
+                image_id,
+                result.detector_name,
+                result.mode,
+                str(result.modality),
+                result.pixel_size_nm,
+                datetime.now(UTC).isoformat(timespec="seconds"),
+            ),
+        )
+        run_id = int(cursor.lastrowid or 0)
+
+        self._conn.executemany(
+            "INSERT INTO detections "
+            "(run_id, ordinal, x_px, y_px, radius_px, radius_nm, confidence, "
+            "bbox_x1, bbox_y1, bbox_x2, bbox_y2) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    run_id,
+                    ordinal,
+                    detection.x_px,
+                    detection.y_px,
+                    detection.radius_px,
+                    detection.radius_nm,
+                    detection.confidence,
+                    *(detection.bbox or (None, None, None, None)),
+                )
+                for ordinal, detection in enumerate(result.detections)
+            ],
+        )
+
+        measurements_path = self._write_measurements(run_id, result)
+        if measurements_path is not None:
+            self._conn.execute(
+                "UPDATE analysis_runs SET measurements_path = ? WHERE id = ?",
+                (measurements_path, run_id),
+            )
+        self._conn.commit()
+        return self.get_run(run_id)
+
+    def get_run(self, run_id: int) -> AnalysisRun:
+        """One analysis, with its detections.
+
+        Raises:
+            InvalidParameterError: no run has that id.
+        """
+        row = self._conn.execute("SELECT * FROM analysis_runs WHERE id = ?", (run_id,)).fetchone()
+        if row is None:
+            raise InvalidParameterError(f"no analysis run with id {run_id} in {self._root}")
+        return _run(row, self._detections_of(run_id))
+
+    def runs_for(self, image_id: int) -> list[AnalysisRun]:
+        """Every analysis of this image, oldest first."""
+        rows = self._conn.execute(
+            "SELECT * FROM analysis_runs WHERE image_id = ? ORDER BY id", (image_id,)
+        ).fetchall()
+        return [_run(row, self._detections_of(int(row["id"]))) for row in rows]
+
+    def measurements_for(self, run: AnalysisRun) -> pd.DataFrame:
+        """The measurement table this run produced, read back from its file.
+
+        Returns:
+            The table as it was written. An **empty** table with no columns for a
+            run that measured nothing, which is what `detect` mode produces —
+            the columns of a measurement that did not happen are not this
+            module's to invent (ADR-0031 owns them).
+
+        Raises:
+            MissingFileError: the run has a measurement file and it is not
+                there. Derived data, so it is a re-run rather than a loss — but
+                silently returning an empty table would report "no particles".
+        """
+        if run.measurements_path is None:
+            return pd.DataFrame()
+
+        path = self._root / run.measurements_path
+        if not path.is_file():
+            raise MissingFileError(
+                f"the measurement table for run {run.id} is missing from {path}; "
+                "re-run the analysis to produce it again"
+            )
+        return pd.read_csv(path)
 
     def check_integrity(self) -> IntegrityReport:
         """Compare the index against the filesystem, in both directions.
@@ -300,6 +425,28 @@ class SqliteProjectRepository:
             )
         )
         return IntegrityReport(missing_files=missing, untracked_files=untracked)
+
+    def _detections_of(self, run_id: int) -> tuple[Detection, ...]:
+        rows = self._conn.execute(
+            "SELECT * FROM detections WHERE run_id = ? ORDER BY ordinal", (run_id,)
+        )
+        return tuple(_detection(row) for row in rows)
+
+    def _write_measurements(self, run_id: int, result: PipelineResult) -> str | None:
+        """The measurement table as a file under `results/`, or `None`.
+
+        CSV, because it is what the operator can open and what M4-T11 will
+        export — the difference between the two being that an export is a
+        decision about *their* file, and this is storage.
+        """
+        if result.measurements.empty:
+            return None
+
+        directory = self._root / _RESULTS_DIRECTORY / f"run_{run_id:06d}"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "measurements.csv"
+        result.measurements.to_csv(path, index=False)
+        return path.relative_to(self._root).as_posix()
 
     def _free_name(self, file_name: str) -> Path:
         """A path under `images/` that nothing occupies: `a.spm`, then `a_1.spm`.
@@ -356,6 +503,38 @@ def sha256_of(path: Path) -> str:
         while chunk := handle.read(_HASH_CHUNK_BYTES):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _run(row: sqlite3.Row, detections: tuple[Detection, ...]) -> AnalysisRun:
+    return AnalysisRun(
+        id=row["id"],
+        image_id=row["image_id"],
+        detector=row["detector"],
+        mode=row["mode"],
+        modality=Modality(row["modality"]),
+        pixel_size_nm=row["pixel_size_nm"],
+        measurements_path=row["measurements_path"],
+        created_utc=row["created_utc"],
+        detections=detections,
+    )
+
+
+def _detection(row: sqlite3.Row) -> Detection:
+    """One stored detection, back as the entity the science speaks in.
+
+    A box that was absent stays absent: `bbox` is `None` rather than four
+    `None`s wearing a tuple, which is ADR-0031's rule about the LoG path arriving
+    at the database intact.
+    """
+    corners = (row["bbox_x1"], row["bbox_y1"], row["bbox_x2"], row["bbox_y2"])
+    return Detection(
+        x_px=row["x_px"],
+        y_px=row["y_px"],
+        radius_px=row["radius_px"],
+        radius_nm=row["radius_nm"],
+        confidence=row["confidence"],
+        bbox=None if corners[0] is None else corners,
+    )
 
 
 def _record(row: sqlite3.Row) -> ImageRecord:

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from nanoscope.core.entities.detection import Detection
 from nanoscope.core.values import Modality
 
 
@@ -74,6 +75,34 @@ class OpenedProject:
     name: str
     images: tuple[ImageRecord, ...]
     integrity: IntegrityReport
+
+
+@dataclass(frozen=True)
+class AnalysisRun:
+    """One analysis of one image: what was asked, and where the answer went.
+
+    The *index* of a result, not the result. Its detections are rows in the
+    database; its measurement table is the file at `measurements_path`, because
+    that table is variable by construction (ADR-0031) and this one is not
+    (ADR-0042).
+    """
+
+    id: int
+    image_id: int
+    #: Which detector produced the detections: "log" or "yolo".
+    detector: str
+    #: Which pipeline mode ran: "detect", "baseline" or "segment".
+    mode: str
+    modality: Modality
+    #: `None` when the image has no known scale — a state, not a fabricated 1.0.
+    pixel_size_nm: float | None
+    #: Where the measurement table was written, relative to the project root.
+    #: `None` in `detect` mode, which measures nothing: an empty table with the
+    #: right columns is not a measurement, and writing one would claim it was.
+    measurements_path: str | None
+    created_utc: str
+    #: What was found, in the order the detector returned it.
+    detections: tuple[Detection, ...] = ()
 
 
 @dataclass(frozen=True)

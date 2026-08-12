@@ -4,7 +4,7 @@ The fake here is doing two jobs. The obvious one is speed and control — a
 failure on the third of five files is one line to arrange. The other is the
 reason the port exists at all: if `ProjectRepository` can only ever be satisfied
 by the class it was extracted from, it is a type alias with extra steps. This
-file is the second implementation, and mypy checks it structurally.
+file is the second implementation.
 
 What is *not* tested here: that files land on disk. That is the adapter's
 promise, and `tests/integration/` holds it to it.
@@ -14,10 +14,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from nanoscope.application.use_cases import import_images, open_project
-from nanoscope.core.entities import ImageRecord, IntegrityReport
+from nanoscope.core.entities import (
+    AnalysisRun,
+    ImageRecord,
+    IntegrityReport,
+    PipelineResult,
+)
 from nanoscope.core.errors import MissingFileError, NanoscopeError
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import Modality
@@ -29,6 +35,8 @@ class FakeRepository:
     def __init__(self, name: str = "MyProject", *, refuse: set[str] | None = None) -> None:
         self.name = name
         self.images: list[ImageRecord] = []
+        self.runs: list[AnalysisRun] = []
+        self.measurements: dict[int, pd.DataFrame] = {}
         self.integrity = IntegrityReport()
         self.closed = False
         #: Sources this repository will not accept, by name.
@@ -80,6 +88,34 @@ class FakeRepository:
     def remove_image(self, image_id: int) -> None:
         del self.images[image_id - 1]
 
+    def path_of(self, image: ImageRecord) -> Path:
+        return Path("/nowhere") / image.relative_path
+
+    def save_analysis(self, image_id: int, result: PipelineResult) -> AnalysisRun:
+        run = AnalysisRun(
+            id=len(self.runs) + 1,
+            image_id=image_id,
+            detector=result.detector_name,
+            mode=result.mode,
+            modality=Modality(result.modality),
+            pixel_size_nm=result.pixel_size_nm,
+            measurements_path=None,
+            created_utc="2026-08-12T00:00:00+00:00",
+            detections=tuple(result.detections),
+        )
+        self.runs.append(run)
+        self.measurements[run.id] = result.measurements
+        return run
+
+    def get_run(self, run_id: int) -> AnalysisRun:
+        return self.runs[run_id - 1]
+
+    def runs_for(self, image_id: int) -> list[AnalysisRun]:
+        return [run for run in self.runs if run.image_id == image_id]
+
+    def measurements_for(self, run: AnalysisRun) -> pd.DataFrame:
+        return self.measurements[run.id]
+
     def check_integrity(self) -> IntegrityReport:
         return self.integrity
 
@@ -88,9 +124,14 @@ class FakeRepository:
 
 
 def test_the_fake_satisfies_the_port() -> None:
-    """The assertion this whole file rests on. mypy checks it structurally; this
-    says so at run time, and it is what makes the port more than a type alias
-    for the one class that exists."""
+    """The claim this whole file rests on, and the reason the fake implements
+    methods it never calls: a `ProjectRepository` that only `SqliteProjectRepository`
+    can satisfy is a type alias with extra steps.
+
+    The annotation is the assertion — the tests below do not run unless it
+    holds. mypy does not read `tests/` (`files = ["nanoscope"]`), so it is not
+    checked statically here; what checks it is that every method exists and
+    returns what the use cases go on to use."""
     repository: ProjectRepository = FakeRepository()
 
     assert repository.list_images() == []

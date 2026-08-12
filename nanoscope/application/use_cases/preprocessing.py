@@ -25,6 +25,7 @@ from nanoscope.infrastructure.storage import load_afm
 def run_preprocessing(
     file_path: str | Path,
     fmt: str = "spm",
+    pixel_size_nm: float | None = None,
 ) -> PreprocessingResult:
     """
     Load and preprocess a raw AFM file.
@@ -42,11 +43,18 @@ def run_preprocessing(
     Args:
         file_path: path to the AFM file
         fmt:       file format passed to load_afm ("spm" or "npy")
+        pixel_size_nm: nm/pixel for an "npy", whose file carries no metadata at
+                   all. `None` leaves the scale unknown, which is a state and not
+                   a reason to invent 1.0 (ADR-0025). **Ignored for "spm"**,
+                   where the header is the source — added in M4-T05, when a
+                   project that *knew* an npy's scale was found analysing it as
+                   though it did not, producing `radius_nm=None` for every
+                   particle and skipping the physical minimum-size filter
 
     Returns:
         PreprocessingResult with all arrays and metadata
     """
-    raw = load_afm(str(file_path), fmt=fmt)
+    raw = load_afm(str(file_path), fmt=fmt, pixel_size_nm=pixel_size_nm)
 
     z_plane = flatten_plane(raw.z_raw)
     z_flat = flatten_lines(z_plane)

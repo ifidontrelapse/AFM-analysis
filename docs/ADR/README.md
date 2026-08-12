@@ -49,6 +49,7 @@ Use `TEMPLATE.md` for new records.
 | [0039](ADR-0039-the-schema-has-a-version-and-a-way-forward.md) | The schema has a version and a way forward, and only the tables it has readers for | Accepted | 2026-08-12 |
 | [0040](ADR-0040-the-repository-reports-and-does-not-reconcile.md) | The repository reports what it finds, and never reconciles by deleting | Accepted | 2026-08-12 |
 | [0041](ADR-0041-a-use-case-earns-its-place-or-is-not-written.md) | A use case earns its place, or it is not written | Accepted | 2026-08-12 |
+| [0042](ADR-0042-the-index-is-in-the-database-the-table-is-a-file.md) | The index is in the database, the measurement table is a file | Accepted | 2026-08-12 |
 
 ## When to write one
 

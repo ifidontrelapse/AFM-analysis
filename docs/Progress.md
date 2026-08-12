@@ -7,6 +7,75 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-12 — M4-T05 · **what the analysis found outlives the session**
+
+**Task:** `M4-T05`, the fifth of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
+**ADR-0042**. **M4's second exit criterion is met.**
+
+### The decision
+
+*"Detection and measurement results round-trip through SQLite **and** the filesystem"* — and the
+criterion names the split this task had to make. **The index is relational; the tabular product is
+a file.**
+
+`analysis_runs` and `detections` are schema v2: which analysis ran, on what, with which detector,
+and every detection it produced. The measurement **table** goes to
+`results/run_<id>/measurements.csv`, because ADR-0031 made that table variable by construction — a
+core plus blocks that are present in full or absent in full — and a relational shape for it is
+either one wide grid with NULLs, which ADR-0031 rejected *in those words* because it would claim
+SEM/TEM has heights and they are all missing, or an EAV pivot that loses the dtypes the schema
+declares. The split also reconciles ADR-0003 with itself: its layout says `results/` holds
+measurements as files, its storage rule says SQLite holds them.
+
+Three smaller ones follow from it. A `detect` run writes **no** table, because an empty one is a
+measurement claiming to have happened; a *missing* table raises instead of reading as empty, which
+would report "no particles" for a run that found some; and results **cascade** with their image,
+because ADR-0040's argument for keeping a row does not transfer to derived data — a particle found
+in a scan the project no longer knows about is litter. That cascade is what finally makes M4-T02's
+`PRAGMA foreign_keys = ON` load-bearing rather than a precaution.
+
+Masks are not persisted. SAM2's weights are outside this repository and outside the gate, so any
+format written now would be one nothing under test can produce. The trigger is named in the ADR:
+M5's viewer, or M4-T07's annotations.
+
+### What it turned up
+
+**A live defect, found by a test, in this task's own code: the project knew the scale and the
+analysis threw it away.** An `.npy` carries no metadata, so `run_analysis` loading it without the
+`pixel_size_nm` the operator recorded at import meant the image was analysed *as though the scale
+were unknown* — every `radius_nm` came back `None` and the physical minimum-size filter was
+silently skipped. **That is the D-07 family of defect M3 spent an entire milestone eliminating,
+reintroduced one layer up**, and it is exactly the shape this milestone was warned about: the
+science is correct and the application hands it the wrong arguments. `run_preprocessing` gained a
+`pixel_size_nm` parameter, `run_analysis` passes the record's, and a test now fails if it stops.
+
+**Two of my test assumptions were wrong, and one of them is documentation.** The LoG detector does
+*not* leave `bbox` absent — it synthesises a square box from the radius — so the `bbox is None`
+case has no producer in the gate at all, and pinning ADR-0031's absence rule needs a
+hand-built `PipelineResult`. Worth knowing before M5 draws boxes and finds every detection has one.
+
+**One test file's claim about itself was false.** `test_project_use_cases.py` said mypy checked the
+fake against the port structurally; mypy's `files = ["nanoscope"]` means it never reads `tests/`.
+The claim is now what it actually is: the annotation is the assertion, and the tests do not run
+unless it holds.
+
+### Numbers
+
+- **Golden: byte-identical** — and the first task in M4 where that was not free, since the science
+  is called. `run_pipeline` is called, not modified
+- Tests **585 → 600**; mypy unchanged at **6**; no new dependency
+- Schema **v1 → v2**, and the first migration ever applied to a database with rows in it — the
+  case ADR-0039's mechanism exists for, now exercised by a test that drops the v2 tables and
+  reopens
+
+### Next
+
+**M4-T06** — the job abstraction: submit, progress, cancel, failure reporting. `run_analysis` is
+synchronous today, and a forty-file import or a full-scan segmentation is exactly what the GUI must
+not block on.
+
+---
+
 ## 2026-08-12 — M4-T04 · **a project can be created, opened and populated**
 
 **Task:** `M4-T04`, the fourth of M4. **Branch:** `feat/m4-application-layer`. **ADR:**
