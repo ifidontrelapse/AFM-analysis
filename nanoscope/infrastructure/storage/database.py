@@ -188,6 +188,34 @@ _V5 = (
 # existing rows mean.
 _V6: tuple[str, ...] = ("ALTER TABLE annotations ADD COLUMN points TEXT",)
 
+# A painted mask lives in a file and the row points at it (M7-T04, ADR-0073).
+# PROJECT_RULES §5: no mask bitmaps in the database. Nullable and added empty,
+# like v6 — every row written before this painted nothing.
+_V7: tuple[str, ...] = ("ALTER TABLE annotations ADD COLUMN mask_path TEXT",)
+
+# What an operator measured by hand (M7-T05, ADR-0074). A **new table**, because
+# a line has no area and ADR-0044's annotation shapes are refused without one —
+# and a new *word*, because `measurements.csv` already names what an analysis run
+# produces. `kind` carries the two tools that share this geometry: a distance and
+# a profile (M7-T06).
+_V8: tuple[str, ...] = (
+    """
+    CREATE TABLE rulers (
+        id          INTEGER PRIMARY KEY,
+        image_id    INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        kind        TEXT    NOT NULL,
+        x1          REAL    NOT NULL,
+        y1          REAL    NOT NULL,
+        x2          REAL    NOT NULL,
+        y2          REAL    NOT NULL,
+        label       TEXT    NOT NULL,
+        created_utc TEXT    NOT NULL,
+        CHECK (kind IN ('distance', 'profile'))
+    )
+    """,
+    "CREATE INDEX rulers_by_image ON rulers(image_id)",
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1),
     (2, _V2),
@@ -195,6 +223,8 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (4, _V4),
     (5, _V5),
     (6, _V6),
+    (7, _V7),
+    (8, _V8),
 )
 
 #: What this application writes and can read. Derived from the list rather than

@@ -80,6 +80,8 @@ Use `TEMPLATE.md` for new records.
 | [0070](ADR-0070-hand-work-is-drawn-as-hand-work.md) | Hand work is drawn as hand work | Accepted | 2026-08-13 |
 | [0071](ADR-0071-the-shape-is-a-box-and-a-tool-does-not-invent-one.md) | The shape is a box, and a tool does not invent one | Accepted | 2026-08-13 |
 | [0072](ADR-0072-an-outline-is-stored-beside-the-box.md) | An outline is stored beside the box | Accepted | 2026-08-14 |
+| [0073](ADR-0073-a-painted-mask-is-a-file-and-the-row-points-at-it.md) | A painted mask is a file, and the row points at it | Accepted | 2026-08-14 |
+| [0074](ADR-0074-a-ruler-is-not-an-annotation.md) | A ruler is not an annotation, and the word "measurement" is taken | Accepted | 2026-08-14 |
 
 ## When to write one
 

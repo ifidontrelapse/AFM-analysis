@@ -7,6 +7,85 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-14 — M7-T05 · **a distance somebody measured, in the units they can defend**
+
+**Task:** `M7-T05`. **ADR:** **ADR-0074**. **Schema v8.** The first output in this project that no
+algorithm produced — which is exactly what the roadmap's risk line for M7 is about.
+
+### The decisions
+
+**It is not an annotation**, for the reason that refused the point one task earlier: a line has no
+area, and ADR-0044's shapes are refused without one, twice.
+
+**The word "measurement" is taken.** `measurements.csv` is what an analysis run produces — derived,
+re-runnable, shaped by its producer — and calling both by that name makes *"where are the
+measurements?"* a question with two answers. The table is `rulers`, and it carries a `kind` so the
+profile line (M7-T06) shares one migration.
+
+**The length is computed, never stored**, and the arithmetic is `core/science/metrology.py`: two
+points and Pythagoras in a widget would be the first science in `gui/` in seven milestones.
+
+**Without a scale there is no length in nanometres** — pixels, and the words *"scale unknown"*.
+ADR-0025 at the first surface that **produces** a physical number rather than reading one; a
+non-positive scale raises, because wrong and absent are different.
+
+### What it turned up
+
+**Undo reloaded annotations only, so undoing a ruler left the line on the canvas.** M7-T02 wired the
+Undo label to `annotations_changed` and wrote down why it was allowed to — every command mutated
+annotations, and the first that did not would need its own signal. The ruler is that command, one
+task later, and the note it left is what made the fix obvious rather than mysterious.
+
+**The gate ran against a tree that had already moved:** M7-T04's `make check` was started in the
+background while M7-T05's edits landed in the same working tree, so it reported a failure belonging
+to neither task. The two tasks are committed together under one clean gate.
+
+### Numbers
+
+17 tests, **1231** in the suite; golden byte-identical; mypy unchanged at 6. Schema **7 → 8**.
+
+**Next:** `M7-T06` — the height profile along one of these lines, which is the second reading of the
+same geometry.
+
+---
+
+## 2026-08-14 — M7-T04 · **a painted mask is a file, and the row points at it**
+
+**Task:** `M7-T04`. **ADR:** **ADR-0073**. **Schema v7.** The third shape, and the first that is not
+a handful of numbers.
+
+### The decisions
+
+PROJECT_RULES §5 decided where a mask goes before this task existed, so the decisions were about
+**storage and honesty**. **The mask is a file and the row keeps its path** —
+`annotations/mask_<id>.png`, written *after* the row because the id is the name (M4-T05's sequence)
+— and **PNG rather than `.npy`**, because a mask an operator painted is a picture of their judgement
+and a format every image viewer can open is worth more than a few bytes.
+
+**The box is derived from the painted pixels**, so all three shapes now agree on one rule: whatever a
+reader wants as a box, the repository computes from what was actually drawn.
+
+**Undoing an add removes the row and leaves the file** — ADR-0040's rule for the third time — and
+**nothing is painted into the scan**, because a tool that edited the data being measured would be
+the worst version of this feature. **A missing mask file is a refusal, not an empty mask**: an empty
+one reads as *"the operator painted nothing"*.
+
+### What it turned up
+
+**`check_integrity` does not look at `annotations/`.** It has reported the disagreement between
+`images/` and the index since M4-T03, and a painted mask is the second kind of file a row can point
+at. A mask deleted behind the application's back is found when something tries to draw it — handled,
+but late. Recorded as a negative consequence; extending the report needs an answer to *"what should
+an orphaned mask do"*, which is an operator's question.
+
+### Numbers
+
+15 tests, **1207** in the suite; golden byte-identical; mypy unchanged at 6. Schema **6 → 7**.
+
+**Next:** `M7-T05` — the measurement line, which is a **new output** and gets its own tests.
+
+---
+
 ## 2026-08-14 — M7-T03 · **a polygon is a box that kept its outline**
 
 **Task:** `M7-T03`. **ADR:** **ADR-0072**. **Schema v6** — the first change to the schema in three

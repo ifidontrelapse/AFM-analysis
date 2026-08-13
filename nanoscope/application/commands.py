@@ -28,10 +28,15 @@ may choose an id (ADR-0045).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
+
 from collections.abc import Sequence
 from typing import Protocol
 
-from nanoscope.core.entities import Annotation, AnnotationSource
+from nanoscope.core.entities import Annotation, AnnotationSource, Ruler, RulerKind
 from nanoscope.core.ports import ProjectRepository
 
 
@@ -152,6 +157,7 @@ class AddAnnotation:
         source: AnnotationSource = AnnotationSource.MANUAL,
         note: str | None = None,
         points: Sequence[tuple[float, float]] | None = None,
+        mask: np.ndarray | None = None,
     ) -> None:
         self._repository = repository
         self._image_id = image_id
@@ -160,6 +166,9 @@ class AddAnnotation:
         #: **redo** puts the polygon back rather than its bounding box, which
         #: would quietly redraw the operator's work as a rectangle (M7-T03).
         self._points = points
+        #: A painted mask, for the same reason as the outline: a redo that
+        #: dropped it would put back a row pointing at nothing (M7-T04).
+        self._mask = mask
         self._label_text = label_text
         self._source = source
         self._note = note
@@ -183,6 +192,7 @@ class AddAnnotation:
             source=self._source,
             note=self._note,
             points=self._points,
+            mask=self._mask,
         )
 
     def undo(self) -> None:
@@ -190,6 +200,57 @@ class AddAnnotation:
             self._removed = self.annotation
             self._repository.remove_annotation(self.annotation.id)
             self.annotation = None
+
+
+class AddRuler:
+    """Draw a line. Undoing it removes the row; redoing it puts **that row** back.
+
+    The same shape as `AddAnnotation`, and for the same reason: everything above
+    this command on the stack refers to the ruler by id, so a redo that inserted
+    a fresh one would leave them pointing at nothing (M4-T08, ADR-0045).
+    """
+
+    def __init__(
+        self,
+        repository: ProjectRepository,
+        image_id: int,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        *,
+        kind: RulerKind = RulerKind.DISTANCE,
+        label_text: str,
+    ) -> None:
+        self._repository = repository
+        self._image_id = image_id
+        self._start = start
+        self._end = end
+        self._kind = kind
+        self._label_text = label_text
+        self._removed: Ruler | None = None
+        self.ruler: Ruler | None = None
+
+    @property
+    def label(self) -> str:
+        return f"measure {self._label_text}"
+
+    def do(self) -> None:
+        if self._removed is not None:
+            self.ruler = self._repository.restore_ruler(self._removed)
+            self._removed = None
+            return
+        self.ruler = self._repository.add_ruler(
+            self._image_id,
+            self._start,
+            self._end,
+            kind=self._kind,
+            label=self._label_text,
+        )
+
+    def undo(self) -> None:
+        if self.ruler is not None:
+            self._removed = self.ruler
+            self._repository.remove_ruler(self.ruler.id)
+            self.ruler = None
 
 
 class UpdateAnnotation:

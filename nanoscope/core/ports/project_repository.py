@@ -28,10 +28,13 @@ from nanoscope.core.entities.project import (
     AnnotationSource,
     ImageRecord,
     IntegrityReport,
+    Ruler,
+    RulerKind,
 )
 from nanoscope.core.values import Modality
 
-if TYPE_CHECKING:  # pandas is heavy, and importing the domain must stay cheap (M2-T09).
+if TYPE_CHECKING:
+    import numpy as np  # pandas is heavy, and importing the domain must stay cheap (M2-T09).
     import pandas as pd
 
 
@@ -126,11 +129,14 @@ class ProjectRepository(Protocol):
         source: AnnotationSource = AnnotationSource.MANUAL,
         note: str | None = None,
         points: Sequence[tuple[float, float]] | None = None,
+        mask: np.ndarray | None = None,
     ) -> Annotation:
         """Record a box the operator drew, and return it with its id.
 
-        `points` is the outline when they drew one; `box` is then derived from
-        it, so a polygon and its bounding box cannot disagree (ADR-0072).
+        `points` is the outline when they drew one and `mask` is a painted one;
+        `box` is derived from whichever was given, so the shape and its bounding
+        box cannot disagree (ADR-0072, ADR-0073). A mask is **written to a
+        file** and the row keeps its path (PROJECT_RULES §5).
         """
         ...
 
@@ -145,6 +151,34 @@ class ProjectRepository(Protocol):
 
     def get_annotation(self, annotation_id: int) -> Annotation:
         """One annotation."""
+        ...
+
+    def add_ruler(
+        self,
+        image_id: int,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        *,
+        kind: RulerKind = RulerKind.DISTANCE,
+        label: str,
+    ) -> Ruler:
+        """Record a line an operator drew. Its length is not stored (ADR-0074)."""
+        ...
+
+    def get_ruler(self, ruler_id: int) -> Ruler: ...
+
+    def rulers_for(self, image_id: int) -> list[Ruler]:
+        """Every line drawn on this image, oldest first."""
+        ...
+
+    def remove_ruler(self, ruler_id: int) -> None: ...
+
+    def restore_ruler(self, ruler: Ruler) -> Ruler:
+        """Put one back as itself, id intact — undo's rule (ADR-0045)."""
+        ...
+
+    def mask_of(self, annotation: Annotation) -> np.ndarray | None:
+        """The painted mask it points at, or `None` when it has none."""
         ...
 
     def annotations_for(self, image_id: int) -> list[Annotation]:

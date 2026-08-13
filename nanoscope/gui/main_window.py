@@ -89,7 +89,11 @@ class MainWindow(QMainWindow):
         #: signal that says "the history moved" — and the Undo menu is labelled
         #: by what it would take back. When a command touches something else,
         #: this needs a signal of its own (M7-T08).
+        #: Both signals, because either can mean "the history moved": M7-T02
+        #: could rely on annotations alone, and M7-T05's ruler is the command
+        #: that ended that (ADR-0074).
         self.session.annotations_changed.connect(lambda _annotations: self._update_actions())
+        self.session.rulers_changed.connect(lambda _rulers: self._update_actions())
 
         #: The log reaches the screen through one handler, attached by `app/`
         #: because that is the only layer allowed to attach one (ADR-0051), and
@@ -182,6 +186,11 @@ class MainWindow(QMainWindow):
         self.viewer.view.box_drawn.connect(self.annotate.box_drawn)
         self.annotate.outline.toggled.connect(self.viewer.view.set_outlining)
         self.viewer.view.polygon_drawn.connect(self.annotate.polygon_drawn)
+        self.annotate.brush.toggled.connect(self.viewer.view.set_painting)
+        self.annotate.brush_size.valueChanged.connect(self.viewer.view.set_brush)
+        self.viewer.view.mask_painted.connect(self.annotate.mask_painted)
+        self.annotate.measure.toggled.connect(self.viewer.view.set_measuring)
+        self.viewer.view.line_drawn.connect(self.annotate.line_drawn)
 
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)

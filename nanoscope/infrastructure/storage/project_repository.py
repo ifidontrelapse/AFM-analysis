@@ -40,6 +40,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self, cast
 
+import numpy as np
 import pandas as pd
 
 from nanoscope.core.entities import Detection, PipelineResult
@@ -50,10 +51,13 @@ from nanoscope.core.entities.project import (
     AnnotationSource,
     ImageRecord,
     IntegrityReport,
+    Ruler,
+    RulerKind,
 )
 from nanoscope.core.errors import InvalidParameterError, MissingFileError
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage.database import open_database
+from nanoscope.infrastructure.storage.masks import read_mask, write_mask
 from nanoscope.infrastructure.storage.project_format import (
     DIRECTORIES,
     ProjectManifest,
@@ -65,6 +69,7 @@ from nanoscope.infrastructure.storage.project_format import (
 _IMAGES_DIRECTORY = "images"
 _RESULTS_DIRECTORY = "results"
 _EXPORTS_DIRECTORY = "exports"
+_ANNOTATIONS_DIRECTORY = "annotations"
 
 #: 1 MiB. Large enough that the loop is not the cost, small enough that a
 #: multi-gigabyte scan does not arrive in memory to be hashed.
@@ -462,8 +467,9 @@ class SqliteProjectRepository:
         source: AnnotationSource = AnnotationSource.MANUAL,
         note: str | None = None,
         points: Sequence[tuple[float, float]] | None = None,
+        mask: np.ndarray | None = None,
     ) -> Annotation:
-        """Record a box the operator drew (M4-T07), with its outline if it has one.
+        """Record a box the operator drew (M4-T07), with whatever shape it has.
 
         Args:
             image_id: which image it is on.
@@ -477,6 +483,11 @@ class SqliteProjectRepository:
                 vertices, in pixels. **`box` is then ignored and derived from
                 them**, so a polygon and its bounding box cannot disagree
                 (M7-T03, ADR-0072).
+            mask: a painted mask, the shape of the scan. **Written to a file**
+                under `annotations/` and the row keeps its path, because an
+                array the size of a scan is not a database column
+                (PROJECT_RULES §5, ADR-0073); `box` is derived from the painted
+                pixels, by the same rule as `points`.
 
         Returns:
             The stored annotation, with its id.
@@ -488,6 +499,14 @@ class SqliteProjectRepository:
                 vertices, which is a line or the point ADR-0071 declined.
         """
         self.get_image(image_id)
+        painted = None if mask is None else np.asarray(mask, dtype=bool)
+        if painted is not None:
+            if not painted.any():
+                raise InvalidParameterError(
+                    "a painted mask with no pixels in it has no shape; nothing was painted"
+                )
+            box = _mask_bounds(painted)
+
         outline = None if points is None else tuple((float(x), float(y)) for x, y in points)
         if outline is not None:
             if len(outline) < 3:
@@ -509,8 +528,17 @@ class SqliteProjectRepository:
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (image_id, label, x1, y1, x2, y2, str(source), note, now, now, _points_json(outline)),
         )
+        annotation_id = int(cursor.lastrowid or 0)
+        if painted is not None:
+            #: Written **after** the row, because the id is the file's name —
+            #: `save_analysis`'s own sequence (M4-T05).
+            relative = f"{_ANNOTATIONS_DIRECTORY}/mask_{annotation_id}.png"
+            write_mask(self._root / relative, painted)
+            self._conn.execute(
+                "UPDATE annotations SET mask_path = ? WHERE id = ?", (relative, annotation_id)
+            )
         self._conn.commit()
-        return self.get_annotation(int(cursor.lastrowid or 0))
+        return self.get_annotation(annotation_id)
 
     @_serialised
     def restore_annotation(self, annotation: Annotation) -> Annotation:
@@ -536,8 +564,8 @@ class SqliteProjectRepository:
             self._conn.execute(
                 "INSERT INTO annotations "
                 "(id, image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc, "
-                "points) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "points, mask_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     annotation.id,
                     annotation.image_id,
@@ -551,6 +579,9 @@ class SqliteProjectRepository:
                     #: box and dropped the polygon would silently redraw the
                     #: operator's work as a rectangle (M7-T03).
                     _points_json(annotation.points),
+                    #: The path comes back too, pointing at the file the undo
+                    #: left alone (ADR-0040's rule, third application).
+                    annotation.mask_path,
                 ),
             )
         except sqlite3.IntegrityError as exc:
@@ -573,6 +604,109 @@ class SqliteProjectRepository:
         if row is None:
             raise InvalidParameterError(f"no annotation with id {annotation_id} in {self._root}")
         return _annotation(row)
+
+    @_serialised
+    def add_ruler(
+        self,
+        image_id: int,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        *,
+        kind: RulerKind = RulerKind.DISTANCE,
+        label: str,
+    ) -> Ruler:
+        """Record a line an operator drew (M7-T05).
+
+        The **length is not stored**: it is arithmetic over the endpoints
+        (`core.science.metrology`), and a stored copy is a second answer waiting
+        to disagree with the first.
+
+        Raises:
+            InvalidParameterError: no image has that id, or the two ends are the
+                same point — a line of zero length measures nothing, which is
+                the same refusal a zero-area box gets (ADR-0044 §5).
+        """
+        self.get_image(image_id)
+        if start == end:
+            raise InvalidParameterError(
+                f"a ruler needs two different points; both ends are {start}"
+            )
+
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        cursor = self._conn.execute(
+            "INSERT INTO rulers (image_id, kind, x1, y1, x2, y2, label, created_utc) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (image_id, str(kind), *start, *end, label, now),
+        )
+        self._conn.commit()
+        return self.get_ruler(int(cursor.lastrowid or 0))
+
+    @_serialised
+    def get_ruler(self, ruler_id: int) -> Ruler:
+        """One ruler.
+
+        Raises:
+            InvalidParameterError: no ruler has that id.
+        """
+        row = self._conn.execute("SELECT * FROM rulers WHERE id = ?", (ruler_id,)).fetchone()
+        if row is None:
+            raise InvalidParameterError(f"no ruler with id {ruler_id} in {self._root}")
+        return _ruler(row)
+
+    @_serialised
+    def rulers_for(self, image_id: int) -> list[Ruler]:
+        """Every line drawn on this image, oldest first."""
+        rows = self._conn.execute(
+            "SELECT * FROM rulers WHERE image_id = ? ORDER BY id", (image_id,)
+        ).fetchall()
+        return [_ruler(row) for row in rows]
+
+    @_serialised
+    def remove_ruler(self, ruler_id: int) -> None:
+        """Forget a line. What an undo of drawing one does."""
+        self.get_ruler(ruler_id)
+        self._conn.execute("DELETE FROM rulers WHERE id = ?", (ruler_id,))
+        self._conn.commit()
+
+    @_serialised
+    def restore_ruler(self, ruler: Ruler) -> Ruler:
+        """Put one back **as itself**, id intact — the rule M4-T08 set for undo.
+
+        Raises:
+            InvalidParameterError: that id is taken, or its image is gone.
+        """
+        self.get_image(ruler.image_id)
+        try:
+            self._conn.execute(
+                "INSERT INTO rulers (id, image_id, kind, x1, y1, x2, y2, label, created_utc) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    ruler.id,
+                    ruler.image_id,
+                    str(ruler.kind),
+                    *ruler.start,
+                    *ruler.end,
+                    ruler.label,
+                    ruler.created_utc,
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise InvalidParameterError(f"cannot restore ruler {ruler.id}: {exc}") from exc
+        self._conn.commit()
+        return self.get_ruler(ruler.id)
+
+    @_serialised
+    def mask_of(self, annotation: Annotation) -> np.ndarray | None:
+        """The painted mask this annotation points at, or `None` if it has none.
+
+        Raises:
+            MissingFileError: the row points at a file that is not there — the
+                dangling half of `check_integrity`'s report, met from the side
+                that wanted to draw it (ADR-0040).
+        """
+        if annotation.mask_path is None:
+            return None
+        return read_mask(self._root / annotation.mask_path)
 
     @_serialised
     def annotations_for(self, image_id: int) -> list[Annotation]:
@@ -911,6 +1045,16 @@ def _bounds(points: tuple[tuple[float, float], ...]) -> tuple[float, float, floa
     return min(xs), min(ys), max(xs), max(ys)
 
 
+def _mask_bounds(mask: np.ndarray) -> tuple[float, float, float, float]:
+    """The painted pixels' bounding box — derived, like an outline's (ADR-0072).
+
+    Inclusive on the far edge by one pixel, so a single painted pixel is a box
+    with area rather than the zero-area one the `CHECK` refuses.
+    """
+    ys, xs = np.nonzero(mask)
+    return float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1)
+
+
 def _points_json(points: tuple[tuple[float, float], ...] | None) -> str | None:
     """The outline as text, or `None` for a box drawn as a box.
 
@@ -935,6 +1079,19 @@ def _annotation(row: sqlite3.Row) -> Annotation:
             if row["points"] is None
             else tuple((float(x), float(y)) for x, y in json.loads(row["points"]))
         ),
+        mask_path=row["mask_path"],
+    )
+
+
+def _ruler(row: sqlite3.Row) -> Ruler:
+    return Ruler(
+        id=row["id"],
+        image_id=row["image_id"],
+        kind=RulerKind(row["kind"]),
+        start=(row["x1"], row["y1"]),
+        end=(row["x2"], row["y2"]),
+        label=row["label"],
+        created_utc=row["created_utc"],
     )
 
 

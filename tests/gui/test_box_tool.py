@@ -191,21 +191,26 @@ class TestTheToolSuspendsPanning:
 
 
 class TestThereIsNoPointTool:
-    def test_every_tool_the_panel_offers_draws_a_shape_with_an_extent(
+    def test_every_annotation_tool_draws_a_shape_with_an_extent(
         self, session: SessionViewModel
     ) -> None:
         """ADR-0044 stores shapes with area and refuses a zero-area one twice. A
         point has no extent, so a point tool must invent one — and a "point
         size" control is that invention wearing a label. The condition for
         revisiting it is ADR-0044's own: a shape that has a reader. M7-T03 added
-        outlines, which are such a shape; a point is still not."""
+        outlines and M7-T04 painted masks — both shapes with area; a point is still not."""
         from PySide6.QtWidgets import QPushButton
 
         panel = AnnotatePanel(session)
 
+        #: The ruler is on this list and is **not** an annotation tool: a line
+        #: has no area either, which is why it got a table of its own rather
+        #: than a shape (ADR-0074).
         assert [button.text() for button in panel.findChildren(QPushButton)] == [
             "Draw boxes",
             "Draw outlines",
+            "Paint masks",
+            "Measure distance",
         ]
 
     def test_a_zero_extent_annotation_cannot_be_stored_at_all(

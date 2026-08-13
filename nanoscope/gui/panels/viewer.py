@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import numpy as np
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QLineF, QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QImage,
@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsEllipseItem,
     QGraphicsItem,
+    QGraphicsLineItem,
     QGraphicsPathItem,
     QGraphicsPixmapItem,
     QGraphicsPolygonItem,
@@ -106,6 +107,14 @@ class ImageView(QGraphicsView):
     #: An outline the operator closed: `((x, y), …)`, at least three vertices.
     polygon_drawn = Signal(tuple)
 
+    #: A line the operator dragged: `((x1, y1), (x2, y2))` in scene pixels.
+    line_drawn = Signal(tuple)
+
+    #: A stroke the operator painted, as a boolean mask the size of the scan.
+    #: Emitted when the brush is lifted; the scan itself is never touched — the
+    #: viewer shows the file (ADR-0056, ADR-0073 §4).
+    mask_painted = Signal(object)
+
     #: The index of the overlay item that was clicked, or `None` for a click on
     #: bare image. A **click**, not a press: this view drags to pan (M5-T05), so
     #: a selection is a release that did not move (ADR-0065).
@@ -128,12 +137,21 @@ class ImageView(QGraphicsView):
         self._overlay: list[QGraphicsItem] = []
         self._masks: list[QGraphicsItem] = []
         self._annotations: list[QGraphicsItem] = []
+        self._painted: list[QGraphicsItem] = []
+        self._rulers: list[QGraphicsItem] = []
         self._pressed_at: QPoint | None = None
         self._drawing = False
         self._outlining = False
         self._vertices: list[QPointF] = []
         self._sketch: QGraphicsPathItem | None = None
-        self._rubber: QGraphicsRectItem | None = None
+        self._painting = False
+        self._measuring = False
+        self._brush_px = 8
+        self._stroke: np.ndarray | None = None
+        self._stroke_item: QGraphicsPixmapItem | None = None
+        #: The shape being dragged right now — a rectangle for the box tool,
+        #: a line for the ruler. One at a time, because one tool at a time.
+        self._rubber: QGraphicsRectItem | QGraphicsLineItem | None = None
         self._origin: QPointF | None = None
 
     def show_pixmap(self, pixmap: QPixmap) -> None:
@@ -147,6 +165,8 @@ class ImageView(QGraphicsView):
         self.draw_detections(())
         self.draw_masks(())
         self.draw_annotations(())
+        self.draw_painted(())
+        self.draw_rulers(())
 
     def draw_annotations(self, annotations: Iterable[Annotation]) -> None:
         """The hand work, **above** everything else in the scene.
@@ -164,6 +184,19 @@ class ImageView(QGraphicsView):
     @property
     def annotation_overlay(self) -> list[QGraphicsItem]:
         return list(self._annotations)
+
+    def draw_painted(self, masks: Iterable[np.ndarray]) -> None:
+        """Painted annotations, outlined like every other mask (ADR-0064 §6)."""
+        for item in self._painted:
+            self.scene().removeItem(item)
+        self._painted = [_outline(mask, tokens.SUCCESS) for mask in masks]
+        for item in self._painted:
+            item.setZValue(1.0)
+            self.scene().addItem(item)
+
+    @property
+    def painted_overlay(self) -> list[QGraphicsItem]:
+        return list(self._painted)
 
     def draw_masks(self, masks: Iterable[np.ndarray]) -> None:
         """Outline each mask, in scene coordinates like everything else.
@@ -231,6 +264,102 @@ class ImageView(QGraphicsView):
             self.scene().removeItem(self._sketch)
         self._sketch = None
         self._vertices = []
+
+    @property
+    def painting(self) -> bool:
+        return self._painting
+
+    @property
+    def measuring(self) -> bool:
+        return self._measuring
+
+    def set_measuring(self, on: bool) -> None:
+        """Turn the ruler on, and panning off with it (ADR-0071 §2)."""
+        self._measuring = on
+        self._discard_rubber()
+        self.setDragMode(
+            QGraphicsView.DragMode.NoDrag if on else QGraphicsView.DragMode.ScrollHandDrag
+        )
+        self.setCursor(Qt.CursorShape.CrossCursor if on else Qt.CursorShape.ArrowCursor)
+
+    def draw_rulers(self, lines: Iterable[tuple[tuple[float, float], tuple[float, float]]]) -> None:
+        """The stored lines, above the scan and below the hand-drawn shapes."""
+        for item in self._rulers:
+            self.scene().removeItem(item)
+        self._rulers = [_ruler_item(start, end) for start, end in lines]
+        for item in self._rulers:
+            item.setZValue(1.0)
+            self.scene().addItem(item)
+
+    @property
+    def ruler_overlay(self) -> list[QGraphicsItem]:
+        return list(self._rulers)
+
+    def _discard_rubber(self) -> None:
+        if self._rubber is not None:
+            self.scene().removeItem(self._rubber)
+        self._rubber, self._origin = None, None
+
+    def set_painting(self, on: bool, *, brush_px: int = 8) -> None:
+        """Turn the brush on, and panning off with it (ADR-0071 §2)."""
+        self._painting = on
+        self._brush_px = max(1, brush_px)
+        self._discard_stroke()
+        self.setDragMode(
+            QGraphicsView.DragMode.NoDrag if on else QGraphicsView.DragMode.ScrollHandDrag
+        )
+        self.setCursor(Qt.CursorShape.CrossCursor if on else Qt.CursorShape.ArrowCursor)
+
+    def set_brush(self, brush_px: int) -> None:
+        self._brush_px = max(1, brush_px)
+
+    def paint_at(self, point: QPointF) -> None:
+        """Add one dab to the stroke in progress, and show it.
+
+        Into a mask of its own, never into the scan: a tool that edited the data
+        an operator is measuring would be the worst version of this feature.
+        """
+        pixmap = self._item.pixmap()
+        if pixmap.isNull():
+            return
+        if self._stroke is None:
+            self._stroke = np.zeros((pixmap.height(), pixmap.width()), dtype=bool)
+
+        height, width = self._stroke.shape
+        y, x = round(point.y()), round(point.x())
+        radius = self._brush_px
+        ys, xs = np.ogrid[:height, :width]
+        self._stroke |= (ys - y) ** 2 + (xs - x) ** 2 <= radius**2
+        self._show_stroke()
+
+    def finish_stroke(self) -> None:
+        """Hand the stroke over, if anything was painted."""
+        stroke = self._stroke
+        self._discard_stroke()
+        if stroke is not None and stroke.any():
+            self.mask_painted.emit(stroke)
+
+    def _show_stroke(self) -> None:
+        if self._stroke is None:
+            return
+        rgb = np.zeros((*self._stroke.shape, 3), dtype=np.uint8)
+        colour = tokens.qcolor(tokens.SUCCESS)
+        rgb[self._stroke] = (colour.red(), colour.green(), colour.blue())
+        image = _to_qimage(rgb)
+        image.setAlphaChannel(
+            _to_qimage(np.repeat((self._stroke * 160).astype(np.uint8)[..., None], 3, axis=2))
+        )
+        if self._stroke_item is None:
+            self._stroke_item = QGraphicsPixmapItem()
+            self._stroke_item.setZValue(2.0)
+            self.scene().addItem(self._stroke_item)
+        self._stroke_item.setPixmap(QPixmap.fromImage(image))
+
+    def _discard_stroke(self) -> None:
+        if self._stroke_item is not None:
+            self.scene().removeItem(self._stroke_item)
+        self._stroke_item = None
+        self._stroke = None
 
     def set_drawing(self, on: bool) -> None:
         """Turn the box tool on, and panning off with it.
@@ -322,6 +451,19 @@ class ImageView(QGraphicsView):
         if self._outlining and not self._item.pixmap().isNull():
             self.add_vertex(self.mapToScene(event.position().toPoint()))
             return
+        if self._painting:
+            self.paint_at(self.mapToScene(event.position().toPoint()))
+            return
+        if self._measuring and not self._item.pixmap().isNull():
+            self._origin = self.mapToScene(event.position().toPoint())
+            self._rubber = QGraphicsLineItem(QLineF(self._origin, self._origin))
+            pen = QPen(tokens.qcolor(tokens.ACCENT))
+            pen.setWidthF(OVERLAY_WIDTH_PX)
+            pen.setCosmetic(True)
+            self._rubber.setPen(pen)
+            self._rubber.setZValue(2.0)
+            self.scene().addItem(self._rubber)
+            return
         self._pressed_at = event.position().toPoint()
         if self._drawing and not self._item.pixmap().isNull():
             self._origin = self.mapToScene(self._pressed_at)
@@ -342,10 +484,20 @@ class ImageView(QGraphicsView):
         tolerance, half of an operator's clicks would be pans that selected
         nothing.
         """
-        if self._rubber is not None and self._origin is not None:
+        if self._painting:
+            self.finish_stroke()
+            return
+        if isinstance(self._rubber, QGraphicsLineItem) and self._origin is not None:
+            line = self._rubber.line()
+            self._discard_rubber()
+            self._pressed_at = None
+            self.line_drawn.emit(((line.x1(), line.y1()), (line.x2(), line.y2())))
+            return
+
+        if isinstance(self._rubber, QGraphicsRectItem) and self._origin is not None:
             rect = self._rubber.rect()
-            self.scene().removeItem(self._rubber)
-            self._rubber, self._origin, self._pressed_at = None, None, None
+            self._discard_rubber()
+            self._pressed_at = None
             self.box_drawn.emit((rect.left(), rect.top(), rect.right(), rect.bottom()))
             return
 
@@ -363,7 +515,9 @@ class ImageView(QGraphicsView):
         self.picked.emit(None)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
-        if self._rubber is not None and self._origin is not None:
+        if isinstance(self._rubber, QGraphicsLineItem) and self._origin is not None:
+            self._rubber.setLine(QLineF(self._origin, self.mapToScene(event.position().toPoint())))
+        elif isinstance(self._rubber, QGraphicsRectItem) and self._origin is not None:
             self._rubber.setRect(
                 QRectF(self._origin, self.mapToScene(event.position().toPoint())).normalized()
             )
@@ -389,6 +543,7 @@ class ImageViewer(QWidget):
         session.preview_changed.connect(lambda _preview: self.show_image(session.image))
         session.run_changed.connect(self._run_changed)
         session.annotations_changed.connect(lambda _annotations: self._draw_overlay())
+        session.rulers_changed.connect(lambda _rulers: self._draw_overlay())
 
         self.view = ImageView(self)
         self.view.hovered.connect(self._describe)
@@ -478,7 +633,22 @@ class ImageViewer(QWidget):
         self.view.highlight(self._session.particle)
         annotations = self._session.annotations if self.show_annotations.isChecked() else ()
         self.view.draw_annotations(annotations)
+        #: A painted mask is a file, so the layer asks for it rather than
+        #: carrying it — and what is drawn is what was painted, not its
+        #: bounding box (ADR-0072's rule, third shape).
+        self.view.draw_painted(
+            [
+                painted
+                for annotation in annotations
+                if (painted := self._session.mask_of(annotation)) is not None
+            ]
+        )
         self.show_annotations.setText(_annotation_count(self._session.annotations))
+        self.view.draw_rulers(
+            [(ruler.start, ruler.end) for ruler in self._session.rulers]
+            if self.show_annotations.isChecked()
+            else []
+        )
 
         masks = _mask_arrays(run) if run is not None and self.show_masks.isChecked() else ()
         self.view.draw_masks(masks)
@@ -642,7 +812,7 @@ def _mask_arrays(run: AnalysisRun) -> list[np.ndarray]:
     return [entry["mask"] for entry in run.masks if entry.get("mask") is not None]
 
 
-def _outline(mask: np.ndarray) -> QGraphicsItem:
+def _outline(mask: np.ndarray, colour: str = tokens.SUCCESS) -> QGraphicsItem:
     """One mask as a path around its pixels.
 
     Built from the mask's own rectangles rather than a contour finder: tracing
@@ -658,7 +828,7 @@ def _outline(mask: np.ndarray) -> QGraphicsItem:
             path.addRect(QRectF(float(x1), float(y), float(x2 - x1), 1.0))
 
     item = QGraphicsPathItem(path.simplified())
-    pen = QPen(tokens.qcolor(tokens.SUCCESS))
+    pen = QPen(tokens.qcolor(colour))
     pen.setWidthF(OVERLAY_WIDTH_PX)
     pen.setCosmetic(True)
     item.setPen(pen)
@@ -700,3 +870,13 @@ def _annotation_item(annotation: Annotation) -> QGraphicsItem:
 def _annotation_count(annotations: tuple[Annotation, ...]) -> str:
     """The toggle's label: how much hand work this scan carries."""
     return "Annotations" if not annotations else f"Annotations ({len(annotations)})"
+
+
+def _ruler_item(start: tuple[float, float], end: tuple[float, float]) -> QGraphicsItem:
+    """One measured line. The number is in the panel; this is where it was."""
+    item = QGraphicsLineItem(QLineF(QPointF(*start), QPointF(*end)))
+    pen = QPen(tokens.qcolor(tokens.ACCENT))
+    pen.setWidthF(OVERLAY_WIDTH_PX)
+    pen.setCosmetic(True)
+    item.setPen(pen)
+    return item

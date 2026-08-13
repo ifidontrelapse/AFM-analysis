@@ -65,8 +65,29 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T03` done 2026-08-14 (ADR-0072); `M7-T04` — the brush — is next, and it needs a
-mask rather than an outline.**
+**None selected. `M7-T05` done 2026-08-14 (ADR-0074); `M7-T06` — the height profile — is next, and
+it is the second reading of the geometry M7-T05 stored.**
+
+**`M7-T05` done 2026-08-14 (ADR-0074, schema v8) — a distance somebody measured.** The first output
+in this project that **no algorithm produced**. **It is not an annotation** (a line has no area, and
+ADR-0044's shapes are refused without one) and **the word "measurement" is taken** by what an
+analysis run produces — so the table is `rulers`, with a `kind` that lets the profile line share one
+migration. **The length is computed, never stored**, in `core/science/metrology.py`, because two
+points and Pythagoras in a widget would be the first science in `gui/` in seven milestones. **Without
+a scale there is no length in nanometres** — pixels, and the words *scale unknown*. **Found:** undo
+reloaded annotations only, so undoing a ruler left the line on the canvas — M7-T02 had written down
+why relying on `annotations_changed` was allowed *until* a command touched something else, and this
+is that command. 17 tests, **1231** in the suite.
+
+**`M7-T04` done 2026-08-14 (ADR-0073) — a painted mask is a file, and the row points at it. Schema
+v7.** PROJECT_RULES §5 had already decided where a mask goes, so the decisions were about storage and
+honesty: the file is `annotations/mask_<id>.png`, written *after* the row because the id is its name;
+**PNG rather than `.npy`**, because a painted mask is a picture of somebody's judgement; **the box is
+derived from the painted pixels**, so all three shapes now share one rule; **undo removes the row and
+leaves the file** (ADR-0040, third application); **nothing is painted into the scan**; and **a
+missing mask file is a refusal, not an empty mask**. **Found:** `check_integrity` does not look at
+`annotations/`, so a mask deleted behind the application's back is found only when something tries to
+draw it. 15 tests, **1207** in the suite.
 
 **`M7-T03` done 2026-08-14 (ADR-0072) — a polygon is a box that kept its outline. Schema v6**, the
 first schema change in three milestones. **The outline is stored beside the box, not instead of

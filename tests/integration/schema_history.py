@@ -35,6 +35,8 @@ TABLES_BY_VERSION: dict[int, tuple[str, ...]] = {
     4: ("settings",),
     5: ("models",),
     6: (),
+    7: (),
+    8: ("rulers",),
 }
 
 #: What each step added to a table that already existed. **v6 is the first
@@ -45,6 +47,7 @@ TABLES_BY_VERSION: dict[int, tuple[str, ...]] = {
 #: undoing one is a statement rather than a table rebuild.
 COLUMNS_BY_VERSION: dict[int, tuple[tuple[str, str], ...]] = {
     6: (("annotations", "points"),),
+    7: (("annotations", "mask_path"),),
 }
 
 

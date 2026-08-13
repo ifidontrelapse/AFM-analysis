@@ -159,6 +159,47 @@ class Annotation:
     #: **bounding box** of these points, derived by the repository so the two
     #: cannot disagree (ADR-0072).
     points: tuple[tuple[float, float], ...] | None = None
+    #: Where a painted mask lives, relative to the project root — `None` unless
+    #: the operator painted one. **Not the mask itself**: an array the size of a
+    #: scan is a file (PROJECT_RULES §5), and the row keeps the path the way an
+    #: analysis run keeps the path to its measurement table (ADR-0042,
+    #: ADR-0073).
+    mask_path: str | None = None
+
+
+class RulerKind(StrEnum):
+    """What a hand-drawn line is for.
+
+    Two tools share one geometry: a distance is read as a length, a profile as
+    the heights underneath it (M7-T05, M7-T06). One table, one migration.
+    """
+
+    DISTANCE = "distance"
+    PROFILE = "profile"
+
+
+@dataclass(frozen=True)
+class Ruler:
+    """A line an operator drew, and what they called it.
+
+    **Not an annotation.** A line has no area, and ADR-0044's shapes are refused
+    without one — twice. It is also not a *measurement* in this project's sense:
+    `measurements.csv` is what an analysis run produces (ADR-0031, ADR-0042),
+    derived and re-runnable, and a hand-drawn distance is neither. Hence the
+    word `ruler` (ADR-0074).
+
+    The length is **not** stored: it is `distance_px(start, end)` and cannot
+    disagree with the points unless somebody stores it twice.
+    """
+
+    id: int
+    image_id: int
+    kind: RulerKind
+    #: `(x, y)` in pixels, both ends.
+    start: tuple[float, float]
+    end: tuple[float, float]
+    label: str
+    created_utc: str
 
 
 @dataclass(frozen=True)

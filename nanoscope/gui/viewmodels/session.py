@@ -29,16 +29,23 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from nanoscope.application import capabilities, use_cases
 from nanoscope.application.capabilities import DetectorOption
-from nanoscope.application.commands import AddAnnotation
+from nanoscope.application.commands import AddAnnotation, AddRuler
 from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.settings import Scope
 from nanoscope.application.use_cases.display import DisplayImage, Stage, load_for_display
 from nanoscope.application.use_cases.preprocessing import PreprocessingParams
-from nanoscope.core.entities import AnalysisRun, PipelineConfig, PreprocessingResult
+from nanoscope.core.entities import (
+    AnalysisRun,
+    PipelineConfig,
+    PreprocessingResult,
+    Ruler,
+    RulerKind,
+)
 from nanoscope.core.entities.device import Device
 from nanoscope.core.entities.model import ModelTask
 from nanoscope.core.entities.project import (
@@ -108,6 +115,9 @@ class SessionViewModel(QObject):
     #: M7-T01 it was also the only data with no representation on screen.
     annotations_changed = Signal(object)
 
+    #: The selected image's rulers — the lines an operator measured by hand.
+    rulers_changed = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -128,6 +138,7 @@ class SessionViewModel(QObject):
         self._preprocessing = PreprocessingParams()
         self._run: AnalysisRun | None = None
         self._annotations: tuple[Annotation, ...] = ()
+        self._rulers: tuple[Ruler, ...] = ()
         self._particle: int | None = None
         self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
@@ -359,6 +370,58 @@ class SessionViewModel(QObject):
         self.reload_annotations()
         return True
 
+    def add_mask(self, mask: np.ndarray, *, label: str) -> bool:
+        """Record a painted mask, through the command stack.
+
+        The array goes to a **file** and the row keeps its path
+        (PROJECT_RULES §5, ADR-0073); the box is derived from the painted
+        pixels. A stroke that painted nothing stores nothing — quietly, like an
+        accidental click (ADR-0071 §4).
+        """
+        repository = self._app.repository
+        if repository is None or self._image_id is None or not np.any(mask):
+            return False
+        if not label.strip():
+            self._refuse("an annotation needs a label: a painted shape with no label is a stain")
+            return False
+
+        command = AddAnnotation(
+            repository,
+            self._image_id,
+            (0.0, 0.0, 1.0, 1.0),  # replaced by the mask's own bounds
+            label_text=label.strip(),
+            mask=np.asarray(mask, dtype=bool),
+        )
+        try:
+            self._app.commands.run(command)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        logger.info(
+            "painted %r over %d pixel(s)",
+            label.strip(),
+            int(np.count_nonzero(mask)),
+            extra={"image_id": self._image_id},
+        )
+        self.reload_annotations()
+        return True
+
+    def mask_of(self, annotation: Annotation) -> np.ndarray | None:
+        """The painted mask behind an annotation, for the layer that draws it.
+
+        A missing file is a refusal rather than an empty mask: an empty one
+        would read as *"the operator painted nothing"* (ADR-0040).
+        """
+        repository = self._app.repository
+        if repository is None or annotation.mask_path is None:
+            return None
+        try:
+            return repository.mask_of(annotation)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return None
+
     def undo(self) -> bool:
         """Take back the last edit, and redraw what is now true."""
         return self._history(self._app.commands.undo)
@@ -375,7 +438,13 @@ class SessionViewModel(QObject):
         """
         if step() is None:
             return False
+        #: **Both**, because the stack does not say what a command touched.
+        #: M7-T02 wired the window's Undo label to `annotations_changed` while
+        #: every command mutated annotations; M7-T05's ruler is the first that
+        #: does not, and undoing one left the line on the canvas until this
+        #: reloaded rulers too (ADR-0074).
         self.reload_annotations()
+        self.reload_rulers()
         return True
 
     @property
@@ -385,6 +454,69 @@ class SessionViewModel(QObject):
     @property
     def redo_label(self) -> str | None:
         return self._app.commands.redo_label
+
+    @property
+    def rulers(self) -> tuple[Ruler, ...]:
+        return self._rulers
+
+    def reload_rulers(self) -> None:
+        repository = self._app.repository
+        self._rulers = (
+            ()
+            if repository is None or self._image_id is None
+            else tuple(repository.rulers_for(self._image_id))
+        )
+        self.rulers_changed.emit(self._rulers)
+
+    def add_ruler(
+        self,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        *,
+        label: str,
+        kind: RulerKind = RulerKind.DISTANCE,
+    ) -> bool:
+        """Record a line an operator drew, through the command stack.
+
+        A line of zero length measures nothing and is discarded silently, like
+        an accidental click (ADR-0071 §4). The **length is not stored**: it is
+        arithmetic over the endpoints, and a stored copy is a second answer
+        waiting to disagree (ADR-0074).
+        """
+        repository = self._app.repository
+        if repository is None or self._image_id is None or start == end:
+            return False
+        if not label.strip():
+            self._refuse("a measurement needs a label: an unlabelled line is a scratch")
+            return False
+
+        command = AddRuler(
+            repository, self._image_id, start, end, kind=kind, label_text=label.strip()
+        )
+        try:
+            self._app.commands.run(command)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        stored = command.ruler
+        logger.info(
+            "measured %r: %.1f px",
+            label.strip(),
+            0.0 if stored is None else self.ruler_length(stored)[0],
+            extra={"image_id": self._image_id},
+        )
+        self.reload_rulers()
+        return True
+
+    def ruler_length(self, ruler: Ruler) -> tuple[float, float | None]:
+        """`(pixels, nanometres)` — the second `None` when the scale is unknown.
+
+        Computed, never read from a row: the length and the endpoints cannot
+        disagree if only one of them is stored (ADR-0074).
+        """
+        record = None if self._image_id is None else self.image_record(self._image_id)
+        return use_cases.ruler_length(ruler, None if record is None else record.pixel_size_nm)
 
     def reload_annotations(self) -> None:
         """Re-read them from the project — on selection, and after an edit.
@@ -717,6 +849,7 @@ class SessionViewModel(QObject):
         self._clear_preview()
         self._show_newest_run()
         self.reload_annotations()
+        self.reload_rulers()
         try:
             self._image = load_for_display(repository, image_id)
         except NanoscopeError as refusal:
@@ -901,6 +1034,8 @@ class SessionViewModel(QObject):
         self._run = None
         self._particle = None
         self._annotations = ()
+        self._rulers = ()
+        self.rulers_changed.emit(())
         self.particle_selected.emit(None)
         self.run_changed.emit(None)
         self.annotations_changed.emit(())
