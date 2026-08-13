@@ -30,6 +30,7 @@ from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.gui.dialogs import ImportOptions, SettingsDialog
 from nanoscope.gui.panels import (
+    DetectionPanel,
     ImageViewer,
     JobStatus,
     LogPanel,
@@ -58,6 +59,7 @@ PROJECT_DOCK = "Project"  # M5-T04
 PROPERTIES_DOCK = "Properties"  # M5-T06
 LOG_DOCK = "Log"  # M5-T08
 PREPROCESSING_DOCK = "Preprocessing"  # M6-T01
+DETECTION_DOCK = "Detection"  # M6-T02
 
 
 class MainWindow(QMainWindow):
@@ -123,6 +125,14 @@ class MainWindow(QMainWindow):
         #: Tabbed with Properties rather than stacked: they answer different
         #: questions about the same scan, and both want the height.
         self.tabifyDockWidget(properties_dock, preprocessing_dock)
+        properties_dock.raise_()
+
+        self.detection = DetectionPanel(self.session, self)
+        detection_dock = QDockWidget(DETECTION_DOCK, self)
+        detection_dock.setObjectName("dock.detection")
+        detection_dock.setWidget(self.detection)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, detection_dock)
+        self.tabifyDockWidget(preprocessing_dock, detection_dock)
         properties_dock.raise_()
 
         self.log = LogPanel(self.log_stream, self)

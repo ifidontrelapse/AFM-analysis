@@ -22,7 +22,11 @@ down (ADR-0042 §5).
 from __future__ import annotations
 
 from nanoscope.application.use_cases.pipeline import run_pipeline
-from nanoscope.application.use_cases.preprocessing import afm_format, run_preprocessing
+from nanoscope.application.use_cases.preprocessing import (
+    PreprocessingParams,
+    afm_format,
+    run_preprocessing,
+)
 from nanoscope.core.entities import (
     AnalysisRun,
     MicroscopyData,
@@ -39,6 +43,7 @@ def run_analysis(
     image_id: int,
     config: PipelineConfig,
     predictor: object | None = None,
+    preprocessing: PreprocessingParams | None = None,
 ) -> AnalysisRun:
     """Run the pipeline over one of the project's images and store the result.
 
@@ -55,6 +60,11 @@ def run_analysis(
             on it.
         predictor: an initialised SAM2 predictor, required when
             `config.mode == "segment"` and rejected before any file is read.
+        preprocessing: the levelling and substrate parameters for an AFM scan.
+            Its defaults are `run_preprocessing`'s own, so omitting it is what
+            this function always did — and passing it is what stops a scan
+            *previewed* at one opening scale being *analysed* at another
+            without anything saying so (M6-T02).
 
     Returns:
         The stored run, with its detections and the path to its measurements.
@@ -82,7 +92,15 @@ def run_analysis(
         # D-07 family of defect M3 spent a milestone removing, reintroduced one
         # layer up. An SPM's header wins, because `load_afm` ignores the
         # argument there.
-        data = run_preprocessing(path, fmt=afm_format(path), pixel_size_nm=record.pixel_size_nm)
+        params = preprocessing or PreprocessingParams()
+        data = run_preprocessing(
+            path,
+            fmt=afm_format(path),
+            pixel_size_nm=record.pixel_size_nm,
+            min_size_nm=params.min_size_nm,
+            manual_radius_px=params.manual_radius_px,
+            opening_scale=params.opening_scale,
+        )
     else:
         # `Literal["sem", "tem"]` where the record carries a `Modality`. The
         # value is the same string — `Modality` is a `StrEnum` — and adopting

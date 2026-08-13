@@ -31,16 +31,15 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Signal
 
-from nanoscope.application import use_cases
+from nanoscope.application import capabilities, use_cases
+from nanoscope.application.capabilities import DetectorOption
 from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.settings import Scope
 from nanoscope.application.use_cases.display import DisplayImage, Stage, load_for_display
-from nanoscope.application.use_cases.preprocessing import (
-    DEFAULT_MIN_SIZE_NM,
-    DEFAULT_OPENING_SCALE,
-)
-from nanoscope.core.entities import PreprocessingResult
+from nanoscope.application.use_cases.preprocessing import PreprocessingParams
+from nanoscope.core.entities import AnalysisRun, PipelineConfig, PreprocessingResult
 from nanoscope.core.entities.device import Device
+from nanoscope.core.entities.model import ModelTask
 from nanoscope.core.entities.project import ImageRecord, ImportReport, OpenedProject
 from nanoscope.core.errors import NanoscopeError
 from nanoscope.core.values import Modality
@@ -83,6 +82,10 @@ class SessionViewModel(QObject):
     #: `run_analysis` and the rows it stores (ADR-0042, ADR-0061).
     preview_changed = Signal(object)
 
+    #: A run was stored, with its detections and its measurement table. Unlike
+    #: a preview, this is a *result* — the difference ADR-0061 §5 exists for.
+    run_stored = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -96,6 +99,11 @@ class SessionViewModel(QObject):
         self._image: DisplayImage | None = None
         self._job: Job | None = None
         self._preview: PreprocessingResult | None = None
+        #: The numbers the preprocessing panel is showing. Held here so a
+        #: *detection* uses the same ones: a scan previewed at one opening scale
+        #: and analysed at another, with nothing saying so, is the defect this
+        #: single value prevents (M6-T02).
+        self._preprocessing = PreprocessingParams()
         self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
         #: carries the handle, not a snapshot**, so every update emitted during
@@ -166,13 +174,15 @@ class SessionViewModel(QObject):
         self._stage = stage
         self.preview_changed.emit(self._preview)
 
-    def preprocess(
-        self,
-        *,
-        min_size_nm: float = DEFAULT_MIN_SIZE_NM,
-        manual_radius_px: float | None = None,
-        opening_scale: float = DEFAULT_OPENING_SCALE,
-    ) -> Job | None:
+    @property
+    def preprocessing(self) -> PreprocessingParams:
+        return self._preprocessing
+
+    def set_preprocessing(self, params: PreprocessingParams) -> None:
+        """What the preprocessing panel currently says. One place, two readers."""
+        self._preprocessing = params
+
+    def preprocess(self) -> Job | None:
         """Level the selected scan and estimate its substrate, in the background.
 
         A job because preprocessing a 4096² scan is seconds of NumPy
@@ -191,15 +201,57 @@ class SessionViewModel(QObject):
 
         def work(context: JobContext) -> PreprocessingResult:
             context.report(0, 0, "levelling and estimating the substrate")
-            return use_cases.preprocess_image(
-                repository,
-                image_id,
-                min_size_nm=min_size_nm,
-                manual_radius_px=manual_radius_px,
-                opening_scale=opening_scale,
-            )
+            return use_cases.preprocess_image(repository, image_id, self._preprocessing)
 
         name = f"Preprocessing {self.image_record(image_id).display_name}"  # type: ignore[union-attr]
+        self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
+        return self._job
+
+    def detector_options(self) -> tuple[DetectorOption, ...]:
+        """What the selected image's modality allows, and why the rest does not.
+
+        The panel renders this and decides nothing: PROJECT_RULES §2.5 keeps
+        detector names out of `gui/`, and M6's exit criterion asks for a UI that
+        cannot express an invalid request rather than one that apologises after
+        the fact (ADR-0062).
+        """
+        repository = self._app.repository
+        record = None if self._image_id is None else self.image_record(self._image_id)
+        if repository is None or record is None:
+            return ()
+
+        frameworks = {
+            model.framework for model in repository.list_models() if model.task is ModelTask.DETECT
+        }
+        #: Nothing constructs a segmentation predictor before M6-T04, and
+        #: claiming otherwise would offer a mode that fails at the last moment.
+        return capabilities.detector_options(
+            record.modality.value, frameworks=frameworks, has_predictor=False
+        )
+
+    def detect(self, config: PipelineConfig) -> Job | None:
+        """Run the pipeline over the selected scan, and **store what it found**.
+
+        Not a preview: `run_analysis` writes the run, its detections and its
+        measurement table (ADR-0042). The preprocessing parameters travel with
+        it, so the arrays this analyses are the arrays the preview showed.
+
+        Returns:
+            The handle, or `None` when nothing is selected or something is
+            already running.
+        """
+        repository = self._app.repository
+        image_id = self._image_id
+        if repository is None or image_id is None or self.is_busy:
+            return None
+
+        params = self._preprocessing
+
+        def work(context: JobContext) -> AnalysisRun:
+            context.report(0, 0, f"{config.mode} with {config.detector}")
+            return use_cases.run_analysis(repository, image_id, config, preprocessing=params)
+
+        name = f"Analysing {self.image_record(image_id).display_name}"  # type: ignore[union-attr]
         self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
         return self._job
 
@@ -430,6 +482,21 @@ class SessionViewModel(QObject):
         if not job.is_finished or job is not self._job or job is self._settled:
             return
         self._settled = job
+
+        if job.state is JobState.SUCCEEDED and isinstance(job.result, AnalysisRun):
+            logger.info(
+                "%s finished: %d detection(s), run %d",
+                job.name,
+                len(job.result.detections),
+                job.result.id,
+                extra={"image_id": self._image_id},
+            )
+            self.run_stored.emit(job.result)
+            self.reported.emit(
+                f"{job.result.mode} with {job.result.detector}: "
+                f"{len(job.result.detections)} detection(s)"
+            )
+            return
 
         if job.state is JobState.SUCCEEDED and isinstance(job.result, PreprocessingResult):
             self._preview = job.result

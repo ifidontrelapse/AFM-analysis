@@ -69,6 +69,7 @@ Use `TEMPLATE.md` for new records.
 | [0059](ADR-0059-a-log-line-is-a-fact-and-a-notification-is-a-count.md) | A log line is a fact, and a notification is a count | Accepted | 2026-08-13 |
 | [0060](ADR-0060-a-setting-is-offered-only-if-something-reads-it.md) | A setting is offered only if something reads it | Accepted | 2026-08-13 |
 | [0061](ADR-0061-a-preview-is-asked-for-and-names-the-array-it-shows.md) | A preview is asked for, and names the array it shows | Accepted | 2026-08-13 |
+| [0062](ADR-0062-the-matrix-decides-what-may-be-asked-for.md) | The matrix decides what may be asked for | Accepted | 2026-08-13 |
 
 ## When to write one
 

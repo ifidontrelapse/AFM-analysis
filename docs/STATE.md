@@ -61,9 +61,23 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T01` done 2026-08-13 (ADR-0061); `M6-T02` — the detection panel — is next**,
-and its own rule is already written: the invalid combinations are disabled **because the capability
-matrix says so**, not because a widget repeated them.
+**None selected. `M6-T02` done 2026-08-13 (ADR-0062); `M6-T03` — detections drawn on the canvas — is
+next**, and it is the first thing an operator wants after reading "30 detection(s)" in a status bar.
+
+**`M6-T02` done 2026-08-13 (ADR-0062) — a detection panel that offers what the matrix allows, and
+says why not. M6's third exit criterion is met**, verified in a window: one detector enabled, the
+other disabled with *"no ultralytics model is registered in this project"*, `segment` disabled with
+*"segmentation needs a loaded predictor"*, and the AFM-only mode present for an AFM scan and absent
+for an SEM one. **`detector_options` answers "what may be offered"**, beside the matrix it reads —
+which had exactly one caller since M2-T10, a validator running *after* a request was assembled.
+**An unavailable entry is offered, disabled and explains itself**, because *"you need to register a
+model"* and *"this application cannot do that"* are different sentences. **Running it stores a run**
+(ADR-0042) — the other half of ADR-0061 §5 — and **the preprocessing parameters travel with it**.
+**Found:** the name guard failed on this panel's own docstring, which quoted the rule including the
+names it is about; **`run_analysis` preprocessed with its own defaults**, so a previewed scan would
+have been analysed at different numbers with nothing saying so; `QComboBox.model()` needs a `cast`
+to disable an entry Qt's own way; and `detector_options` needed a second table. 18 tests, **1074**
+in the suite.
 
 **`M6-T01` done 2026-08-13 (ADR-0061) — preprocessing an operator can see the stages of, and asked
 for.** The first analysis step reachable from a window, and the one every later step stands on. It

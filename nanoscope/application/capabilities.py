@@ -18,8 +18,10 @@ messages are unchanged so anything matching on the text still works.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 
+from nanoscope.core.entities.model import ModelFramework
 from nanoscope.core.errors import UnsupportedRequestError
 
 # The modes, spelled as they appear in `PipelineConfig.mode`.
@@ -95,3 +97,104 @@ def validate_request(modality: str, detector: str, mode: str, has_predictor: boo
         raise UnsupportedRequestError("predictor must be provided when mode='segment'")
 
     return row
+
+
+# ── What a UI may offer (M6-T02, ADR-0062) ───────────────────────────────────
+#
+# M6's third exit criterion: *"invalid combinations are disabled in the UI
+# **because the capability matrix says so** — not by a duplicated rule."* The
+# matrix has had one caller since M2-T10, and it validates a request that has
+# already been assembled. This is the other direction: **what may be asked for**,
+# so a panel cannot express an invalid request in the first place.
+#
+# It lives here rather than in `gui/` for the reason PROJECT_RULES §2.5 gives:
+# the strings `"log"` and `"yolo"` may not appear in a widget, and a widget that
+# knows one detector's name is a widget that will grow an `if` about it.
+
+
+@dataclass(frozen=True)
+class ModeOption:
+    """One mode of one detector, and whether it can run right now."""
+
+    mode: str
+    available: bool
+    #: Why not — a sentence for an operator, never an error code. An entry
+    #: greyed out with no explanation is the failure this criterion is against,
+    #: not a lesser version of it.
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class DetectorOption:
+    """One detector, its modes for a given modality, and what it needs."""
+
+    detector: str
+    modes: tuple[ModeOption, ...]
+    available: bool
+    reason: str | None = None
+
+
+#: What each detector needs loaded before it can run, as the framework a
+#: `ModelDescriptor` carries. `None` means "nothing but NumPy" — which is why
+#: the LoG detector is the one that works in CI, on a fresh install, and on a
+#: machine with no GPU (ADR-0050's registry is keyed by exactly this).
+DETECTOR_FRAMEWORKS: dict[str, ModelFramework | None] = {
+    "log": None,
+    "yolo": ModelFramework.ULTRALYTICS,
+}
+
+
+def detector_options(
+    modality: str,
+    *,
+    frameworks: Collection[ModelFramework] = (),
+    has_predictor: bool = False,
+) -> tuple[DetectorOption, ...]:
+    """What a panel may offer for this modality, and why the rest is refused.
+
+    Args:
+        modality: the image's own, which is what makes `baseline` an AFM-only
+            row rather than a rule a widget remembers.
+        frameworks: the frameworks this project has a **detection** model
+            registered for (ADR-0050). A detector whose framework is missing is
+            offered and disabled, not hidden: "you need to register a model" is
+            a different sentence from "this application cannot do that".
+        has_predictor: whether a segmentation predictor exists. Nothing
+            constructs one before M6-T04, so today this is `False` and every
+            `segment` row says so.
+
+    Returns:
+        One entry per detector the matrix knows, in its own order, each with its
+        modes for this modality.
+    """
+    options: list[DetectorOption] = []
+    for detector, framework in DETECTOR_FRAMEWORKS.items():
+        needs_model = framework is not None and framework not in frameworks
+        reason = (
+            f"no {framework} model is registered in this project; register one to use it"
+            if needs_model
+            else None
+        )
+        modes = tuple(
+            ModeOption(
+                mode=row.mode,
+                available=not needs_model and (has_predictor or not row.requires_predictor),
+                reason=reason
+                or (
+                    "segmentation needs a loaded predictor, which arrives in M6-T04"
+                    if row.requires_predictor and not has_predictor
+                    else None
+                ),
+            )
+            for row in CAPABILITIES
+            if row.modality == modality and row.detector == detector
+        )
+        options.append(
+            DetectorOption(
+                detector=detector,
+                modes=modes,
+                available=not needs_model and any(mode.available for mode in modes),
+                reason=reason,
+            )
+        )
+    return tuple(options)

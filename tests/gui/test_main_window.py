@@ -25,6 +25,7 @@ from PySide6.QtWidgets import QApplication, QDockWidget, QMenu, QMessageBox, QTo
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
 from nanoscope.gui.main_window import (
+    DETECTION_DOCK,
     GEOMETRY_SETTING,
     LOG_DOCK,
     PREPROCESSING_DOCK,
@@ -73,7 +74,13 @@ class TestTheWindowIsBuilt:
 
         docks = {dock.windowTitle() for dock in window.findChildren(QDockWidget)}
 
-        assert docks == {PROJECT_DOCK, PROPERTIES_DOCK, LOG_DOCK, PREPROCESSING_DOCK}
+        assert docks == {
+            PROJECT_DOCK,
+            PROPERTIES_DOCK,
+            LOG_DOCK,
+            PREPROCESSING_DOCK,
+            DETECTION_DOCK,
+        }
 
     def test_every_dock_has_a_panel_in_it(self, app: Nanoscope) -> None:
         """M5-T02 filled each dock with a label naming the task that would
@@ -89,6 +96,7 @@ class TestTheWindowIsBuilt:
             "PropertiesPanel",
             "LogPanel",
             "PreprocessingPanel",
+            "DetectionPanel",
         }
 
     def test_docks_are_named_so_a_saved_layout_can_find_them(self, app: Nanoscope) -> None:
@@ -194,7 +202,7 @@ class TestTheLayoutIsRemembered:
         window = MainWindow(app)
 
         assert window.statusBar().currentMessage() == "No project open"
-        assert len(window.findChildren(QDockWidget)) == 4
+        assert len(window.findChildren(QDockWidget)) == 5
 
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)

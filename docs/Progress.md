@@ -7,6 +7,58 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T02 · **a detection panel that offers what the matrix allows, and says why not**
+
+**Task:** `M6-T02`. **ADR:** **ADR-0062**. **M6's third exit criterion is met** — *"invalid
+combinations are disabled in the UI because the capability matrix says so, not by a duplicated
+rule"* — and verified in a window: `log` enabled, the other detector disabled with *"no ultralytics
+model is registered in this project"*, `segment` disabled with *"segmentation needs a loaded
+predictor"*, and `baseline` present for an AFM scan and **absent** for an SEM one.
+
+### The decisions
+
+**`detector_options(modality, frameworks, has_predictor)` answers "what may be offered"**, beside
+the matrix it reads. The panel renders it and decides nothing: its combos contain the matrix's own
+strings, which it received rather than typed. The matrix has had one caller since M2-T10 — a
+validator that runs *after* a request is assembled — and this is the direction that stops an invalid
+request being expressible at all.
+
+**An unavailable entry is offered, disabled and explains itself.** "You need to register a model"
+and "this application cannot do that" are different sentences, and an operator who cannot tell them
+apart files the second as a bug. The AFM-only mode is **absent** rather than greyed, because the
+matrix has no such row and a greyed one would be the widget restating the rule.
+
+**Running it stores a run** — the run, its detections and its measurement table (ADR-0042). M6-T01's
+preview was explicitly not a result; this explicitly is.
+
+**The preprocessing parameters travel with it.** One `PreprocessingParams`, held by the session and
+written by the preprocessing panel on every change.
+
+### What it turned up
+
+**The name guard failed on this panel's own docstring**, which quoted PROJECT_RULES §2.5 — including
+the two model names the rule is about. The wording changed rather than the guard: a strict guard
+that occasionally forces a rephrase beats a clever one with holes.
+
+**`run_analysis` preprocessed with its own defaults**, so a scan previewed at `opening_scale = 4.0`
+would have been *analysed* at 2.5 with nothing saying so. Found by asking where M6-T01's numbers
+actually went.
+
+**`QComboBox.model()` is typed as the abstract base**, so disabling an entry Qt's own way does not
+type-check — one helper with a `cast`, rather than writing a magic value into `UserRole - 1`.
+
+**`detector_options` needed a second table**: which framework a detector requires is not in
+`CAPABILITIES`. Recorded as a negative consequence rather than hidden.
+
+### Numbers
+
+18 tests, **1074** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M6-T03` — drawing detections on the canvas, which is the first thing an operator will
+want after seeing "30 detection(s)" in a status bar.
+
+---
+
 ## 2026-08-13 — M6-T01 · **preprocessing an operator can see the stages of, and asked for**
 
 **Task:** `M6-T01`, the first of M6. **ADR:** **ADR-0061**. The first analysis step reachable from a

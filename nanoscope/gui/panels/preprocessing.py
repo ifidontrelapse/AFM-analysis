@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 from nanoscope.application.use_cases.preprocessing import (
     DEFAULT_MIN_SIZE_NM,
     DEFAULT_OPENING_SCALE,
+    PreprocessingParams,
 )
 from nanoscope.core.entities import PreprocessingResult
 from nanoscope.gui.theme import tokens
@@ -106,19 +107,36 @@ class PreprocessingPanel(QWidget):
         layout.addWidget(self.report)
         layout.addStretch(1)
 
+        for box in (self.min_size, self.opening_scale, self.manual_radius):
+            #: The session holds what these say, so a detection run uses the
+            #: same numbers as the last preview (M6-T02, ADR-0062).
+            box.valueChanged.connect(lambda _value: self._publish())
+        self._publish()
+
         session.image_changed.connect(self._image_changed)
         session.preview_changed.connect(self._preview_changed)
         session.job_changed.connect(lambda _job: self._update_button())
         self._preview_changed(session.preview)
 
-    def preview(self) -> None:
-        """Ask for it. The session runs it; this passes three numbers."""
+    @property
+    def params(self) -> PreprocessingParams:
+        """What the boxes currently say. Read by the session, and by a *detection*
+        run through it — a scan previewed at one opening scale and analysed at
+        another, with nothing saying so, is what one shared value prevents."""
         radius = self.manual_radius.value()
-        self._session.preprocess(
+        return PreprocessingParams(
             min_size_nm=self.min_size.value(),
             manual_radius_px=radius if radius > 0 else None,
             opening_scale=self.opening_scale.value(),
         )
+
+    def _publish(self) -> None:
+        self._session.set_preprocessing(self.params)
+
+    def preview(self) -> None:
+        """Ask for it. The session runs it; this hands over the numbers."""
+        self._publish()
+        self._session.preprocess()
         self._update_button()
 
     def _image_changed(self, _image: object) -> None:

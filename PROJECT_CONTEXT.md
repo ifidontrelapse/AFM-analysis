@@ -57,7 +57,8 @@ AFM-analysis/
 │   │       ├── detection/              # base.py (ABC), log.py (LoG — pure NumPy)
 │   │       └── measurement/            # height.py (AFM), geometry.py (any modality)
 │   ├── application/
-│   │   ├── capabilities.py             # THE execution matrix, validated before inference
+│   │   ├── capabilities.py             # THE execution matrix: validated before inference, and
+│   │   │                               #   asked what a UI may offer (M6-T02)
 │   │   ├── jobs.py                     # JobRunner, cooperative cancel, progress (M4-T06)
 │   │   ├── commands.py                 # CommandStack + annotation commands (M4-T08)
 │   │   ├── settings.py                 # the merged view of two scopes (M4-T10), and the
@@ -91,8 +92,8 @@ AFM-analysis/
 │   │   ├── dialogs/                    # import_options.py (M5-T07), settings.py (M5-T09)
 │   │   └── panels/                     # project_explorer.py (M5-T04), viewer.py (M5-T05),
 │   │                                   #   properties.py (M5-T06), job_status.py (M5-T07),
-│   │                                   #   log_panel.py (M5-T08), preprocessing.py (M6-T01) —
-│   │                                   #   each takes the viewmodel
+│   │                                   #   log_panel.py (M5-T08), preprocessing.py (M6-T01),
+│   │                                   #   detection.py (M6-T02) — each takes the viewmodel
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
@@ -102,7 +103,7 @@ AFM-analysis/
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…M6-T01) — 160 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M6-T02) — 175 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

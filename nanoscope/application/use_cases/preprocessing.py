@@ -11,6 +11,7 @@ M2-T13 kept it deliberately.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from nanoscope.core.entities import ImageRecord, PreprocessingResult
@@ -33,6 +34,21 @@ from nanoscope.infrastructure.storage import load_afm
 #: bare literal in a science signature this task does not rewrite
 #: (PROJECT_RULES §4.1); a test asserts the two agree.
 DEFAULT_MIN_SIZE_NM = 5.0
+
+
+@dataclass(frozen=True)
+class PreprocessingParams:
+    """The three numbers the substrate step takes, as one thing to pass around.
+
+    One object rather than three keyword arguments threaded through three layers
+    (M6-T02): the detection run and the preview must use the *same* numbers, and
+    the way they stay the same is that there is one value to hand over.
+    """
+
+    min_size_nm: float = DEFAULT_MIN_SIZE_NM
+    manual_radius_px: float | None = None
+    opening_scale: float = DEFAULT_OPENING_SCALE
+
 
 #: What each AFM extension is called on the way into `load_afm`. Here rather
 #: than in `analysis.py`, which owned it until M6-T01: this is the module that
@@ -132,10 +148,7 @@ def afm_format(path: Path) -> str:
 def preprocess_image(
     repository: ProjectRepository,
     image_id: int,
-    *,
-    min_size_nm: float = DEFAULT_MIN_SIZE_NM,
-    manual_radius_px: float | None = None,
-    opening_scale: float = DEFAULT_OPENING_SCALE,
+    params: PreprocessingParams | None = None,
 ) -> PreprocessingResult:
     """Preprocess one of a project's images, by id (M6-T01).
 
@@ -155,6 +168,7 @@ def preprocess_image(
             as they are (ADR-0031).
         MissingFileError: the file is gone (ADR-0040, from the other side).
     """
+    params = params or PreprocessingParams()
     record: ImageRecord = repository.get_image(image_id)
     if record.modality is not Modality.AFM:
         raise UnsupportedRequestError(
@@ -167,7 +181,7 @@ def preprocess_image(
         path,
         fmt=afm_format(path),
         pixel_size_nm=record.pixel_size_nm,
-        min_size_nm=min_size_nm,
-        manual_radius_px=manual_radius_px,
-        opening_scale=opening_scale,
+        min_size_nm=params.min_size_nm,
+        manual_radius_px=params.manual_radius_px,
+        opening_scale=params.opening_scale,
     )
