@@ -29,6 +29,7 @@ from nanoscope.application.use_cases.display import (
 from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.values import Modality
 from nanoscope.gui.panels.viewer import BAR_LENGTHS_NM, MAX_ZOOM, ImageViewer, _bar_length_nm
+from nanoscope.gui.viewmodels import SessionViewModel
 from nanoscope.infrastructure.storage import SqliteProjectRepository
 
 pytestmark = pytest.mark.usefixtures("qt_app")
@@ -62,8 +63,17 @@ def app(tmp_path: Path, project: Path) -> Iterator[Nanoscope]:
 
 
 @pytest.fixture
-def viewer(app: Nanoscope) -> ImageViewer:
-    return ImageViewer(app)
+def session(app: Nanoscope) -> SessionViewModel:
+    """M5-T06: the panel is given the session, and loading happens there. What
+    is left in the widget is an array, a colormap and a pixmap."""
+    model = SessionViewModel(app)
+    model.refresh()
+    return model
+
+
+@pytest.fixture
+def viewer(session: SessionViewModel) -> ImageViewer:
+    return ImageViewer(session)
 
 
 def image_ids(app: Nanoscope) -> list[int]:
@@ -167,47 +177,53 @@ class TestTheScaleBar:
 
         assert _bar_length_nm(small, 1.0) < _bar_length_nm(large, 1.0)
 
-    def test_there_is_no_bar_without_a_scale(self, app: Nanoscope, viewer: ImageViewer) -> None:
+    def test_there_is_no_bar_without_a_scale(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
+    ) -> None:
         """A viewer that draws a bar without a scale is a viewer inventing one —
         the substitution ADR-0025 spent a milestone removing."""
-        viewer.show_image(image_ids(app)[1])
+        session.select_image(image_ids(app)[1])
 
         assert viewer.scale_label.text() == "scale unknown"
 
-    def test_there_is_one_when_there_is_a_scale(self, app: Nanoscope, viewer: ImageViewer) -> None:
-        viewer.show_image(image_ids(app)[0])
+    def test_there_is_one_when_there_is_a_scale(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
+    ) -> None:
+        session.select_image(image_ids(app)[0])
 
         assert "nm" in viewer.scale_label.text()
         assert "unknown" not in viewer.scale_label.text()
 
 
 class TestThePanel:
-    def test_showing_an_image_announces_its_size(self, app: Nanoscope, viewer: ImageViewer) -> None:
+    def test_showing_an_image_announces_its_size(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
+    ) -> None:
         said: list[str] = []
         viewer.readout.connect(said.append)
 
-        assert viewer.show_image(image_ids(app)[0]) is True
+        assert session.select_image(image_ids(app)[0]) is True
 
         assert "64 x 64 px" in said[-1]
         assert "160 x 160 nm" in said[-1]
 
     def test_an_unscaled_image_says_so_rather_than_inventing_a_size(
-        self, app: Nanoscope, viewer: ImageViewer
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
     ) -> None:
         said: list[str] = []
         viewer.readout.connect(said.append)
 
-        viewer.show_image(image_ids(app)[1])
+        session.select_image(image_ids(app)[1])
 
         assert "scale unknown" in said[-1]
 
     def test_the_readout_gives_nm_and_px_and_the_value(
-        self, app: Nanoscope, viewer: ImageViewer
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
     ) -> None:
         """Both, because a pixel index is what you click and a nanometre is what
         you report."""
         said: list[str] = []
-        viewer.show_image(image_ids(app)[0])
+        session.select_image(image_ids(app)[0])
         viewer.readout.connect(said.append)
 
         viewer._describe((10, 20))
@@ -217,10 +233,10 @@ class TestThePanel:
         assert "value=" in said[-1]
 
     def test_the_readout_omits_nm_when_there_is_no_scale(
-        self, app: Nanoscope, viewer: ImageViewer
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
     ) -> None:
         said: list[str] = []
-        viewer.show_image(image_ids(app)[1])
+        session.select_image(image_ids(app)[1])
         viewer.readout.connect(said.append)
 
         viewer._describe((10, 20))
@@ -228,19 +244,27 @@ class TestThePanel:
         assert "px" in said[-1]
         assert "nm" not in said[-1]
 
-    def test_a_missing_file_becomes_a_message_not_a_dialog(
-        self, app: Nanoscope, viewer: ImageViewer, project: Path
+    def test_a_missing_file_empties_the_canvas_and_says_why(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer, project: Path
     ) -> None:
-        """The operator clicked a row, not a button labelled "load"."""
-        (project / "images" / "scaled.npy").unlink()
+        """The operator clicked a row, not a button labelled "load" — so it is a
+        sentence, not a dialog (ADR-0056). M5-T06 moved the sentence to
+        `failed`, where the window decides what to do with it; what the widget
+        owes is to stop showing the scan it can no longer see."""
+        session.select_image(image_ids(app)[0])
+        (project / "images" / "unscaled.npy").unlink()
         said: list[str] = []
-        viewer.readout.connect(said.append)
+        session.failed.connect(said.append)
 
-        assert viewer.show_image(image_ids(app)[0]) is False
+        assert session.select_image(image_ids(app)[1]) is False
+
         assert said
+        assert viewer.view._item.pixmap().isNull()
 
-    def test_changing_the_colormap_redraws(self, app: Nanoscope, viewer: ImageViewer) -> None:
-        viewer.show_image(image_ids(app)[0])
+    def test_changing_the_colormap_redraws(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
+    ) -> None:
+        session.select_image(image_ids(app)[0])
 
         viewer.colormap.setCurrentText("viridis")
 
@@ -248,26 +272,30 @@ class TestThePanel:
         assert not viewer.view._item.pixmap().isNull()
 
     def test_closing_the_project_empties_the_canvas(
-        self, app: Nanoscope, viewer: ImageViewer
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
     ) -> None:
-        viewer.show_image(image_ids(app)[0])
+        session.select_image(image_ids(app)[0])
 
-        viewer.show_nothing()
+        session.close_project()
 
         assert viewer.view._item.pixmap().isNull()
         assert viewer.scale_label.text() == ""
 
 
 class TestZoom:
-    def test_it_starts_fitted(self, app: Nanoscope, viewer: ImageViewer) -> None:
-        viewer.show_image(image_ids(app)[0])
+    def test_it_starts_fitted(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
+    ) -> None:
+        session.select_image(image_ids(app)[0])
 
         assert 0 < viewer.view.zoom <= MAX_ZOOM
 
-    def test_it_will_not_go_past_the_limits(self, app: Nanoscope, viewer: ImageViewer) -> None:
+    def test_it_will_not_go_past_the_limits(
+        self, app: Nanoscope, session: SessionViewModel, viewer: ImageViewer
+    ) -> None:
         """Past `MAX_ZOOM` a pixel fills the window and there is nothing more to
         see; the transform loses precision long before that is interesting."""
-        viewer.show_image(image_ids(app)[0])
+        session.select_image(image_ids(app)[0])
         view = viewer.view
 
         for _ in range(100):

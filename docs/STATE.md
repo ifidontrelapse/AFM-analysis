@@ -40,8 +40,28 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T05` done 2026-08-13 (ADR-0056); `M5-T06` — the viewmodel layer — is next**,
-and it now has two consumers to justify it (the explorer and the viewer).
+**None selected. `M5-T06` done 2026-08-13 (ADR-0057); `M5-T07` — the background job runner — is
+next**, and ADR-0057 §7 exists for it: there is now a main-thread `QObject` to marshal ADR-0043's
+worker-thread listener onto.
+
+**`M5-T06` done 2026-08-13 (ADR-0057) — the viewmodel holds the session, and a widget emits intent.
+ADR-0055 §4's condition was met and paid** rather than deferred a fourth time: it declined a
+viewmodel *"until M5-T05's viewer needs the same selection"*, and there are now three consumers of
+one selection. **One viewmodel, not one per view** — the session (open project, selected image id,
+loaded array) is shared; the colormap and the zoom are not, and stay in the widget. **Intent goes in
+as a call, state comes out as a signal, and no panel is wired to a panel:**
+`explorer.image_selected.connect(viewer.show_image)` is one line at two panels and n² at n. **The
+image is loaded once** for every panel showing it — a second read is a disk read per selection *and*
+two panels able to disagree about one scan. **The viewmodel holds no widget and opens no dialog**;
+its tests construct none, and ADR-0055's confirmation stays in the panel that asks it. **A refusal is
+one `failed(str)`**, with the dialog where the button was (ADR-0056 stated once, not per panel), and
+**a failed load is still a selection**, so *Remove* follows the row the operator clicked. **M5's
+fifth exit criterion is met** — no `gui/` module imports `core.science` or `infrastructure`, and no
+panel imports the composition root, both as tests. **Found:** the new guard's own
+`startswith("nanoscope.app")` rejected `nanoscope.application`, the layer panels are *supposed* to
+use; opening a second project kept the first one's selection (ids are per-project); and the panel
+read `Modality: afm` — caught by rendering a phantom into a window, not by a test. 46 tests, **972**
+in the suite.
 
 **`M5-T05` done 2026-08-13 (ADR-0056) — a scan on screen, with the numbers that make it a
 measurement. M5's second exit criterion is met**, verified by rendering a characterization phantom
@@ -106,8 +126,9 @@ guard — it is now lazy through a PEP 562 `__getattr__`. `print` got one scoped
 `pyproject.toml` and in M2-T11's test, because a CLI that logs instead of printing has no output.
 16 tests, **golden byte-identical**.
 
-Two obligations from M4 are still outstanding, both needing a widget: **count annotations before
-`remove_image`** (ADR-0044) and **marshal a job's listener onto the main thread** (ADR-0043).
+One obligation from M4 is still outstanding: **marshal a job's listener onto the main thread**
+(ADR-0043), which M5-T07 pays onto the `QObject` M5-T06 created for it. The other — **count
+annotations before `remove_image`** (ADR-0044) — was discharged by M5-T04.
 
 ## Completed
 

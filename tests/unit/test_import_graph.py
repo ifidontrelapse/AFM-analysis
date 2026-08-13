@@ -148,6 +148,59 @@ def test_qt_stays_inside_the_gui(path: pathlib.Path) -> None:
     )
 
 
+# ── The GUI reaches inward, and only so far (M5-T06) ─────────────────────────
+#
+# Two rules, both from Architecture §3.2's table, both previously true by habit:
+#
+# 1. **`gui` may not import `core.science` or `infrastructure`.** M5's fifth exit
+#    criterion asks for a check that proves it; this is that check, in the same
+#    form as every other rule this project enforces — a test, not a review note.
+# 2. **A panel may not import the composition root.** M5-T06 gave the panels a
+#    viewmodel; without this, the next one quietly takes the container again and
+#    the layer becomes decoration.
+
+FORBIDDEN_FOR_GUI = ("nanoscope.core.science", "nanoscope.infrastructure", "torch")
+
+GUI_MODULES = sorted(GUI.rglob("*.py"))
+PANEL_MODULES = sorted((GUI / "panels").rglob("*.py"))
+
+
+def test_the_gui_package_is_not_empty() -> None:
+    """A glob that matches nothing passes vacuously."""
+    assert len(GUI_MODULES) >= 5 and len(PANEL_MODULES) >= 3, (GUI_MODULES, PANEL_MODULES)
+
+
+@pytest.mark.parametrize("path", GUI_MODULES, ids=lambda p: str(p.relative_to(GUI)))
+def test_the_gui_does_not_reach_past_the_application_layer(path: pathlib.Path) -> None:
+    offenders = {
+        name
+        for name in _imported_modules(path)
+        for bad in FORBIDDEN_FOR_GUI
+        if name == bad or name.startswith(bad + ".")
+    }
+    assert not offenders, (
+        f"{path.relative_to(ROOT)} imports {sorted(offenders)}. A widget may format and lay out; "
+        "deciding what to compute, or how a value becomes a colour, belongs to `application` "
+        "(Architecture §3.2, ADR-0056)."
+    )
+
+
+@pytest.mark.parametrize("path", PANEL_MODULES, ids=lambda p: str(p.relative_to(GUI)))
+def test_no_panel_holds_the_composition_root(path: pathlib.Path) -> None:
+    #: `== "nanoscope.app"` and not `startswith`, which also matches
+    #: `nanoscope.application` — the layer the panels are *supposed* to use.
+    offenders = {
+        name
+        for name in _imported_modules(path)
+        if name == "nanoscope.app" or name.startswith("nanoscope.app.")
+    }
+    assert not offenders, (
+        f"{path.relative_to(ROOT)} imports {sorted(offenders)}. Panels take the session "
+        "viewmodel; the container is constructed in one place and held by one object "
+        "(ADR-0057)."
+    )
+
+
 @pytest.mark.parametrize(
     "module",
     ["nanoscope.application.use_cases", "nanoscope.application.jobs", "nanoscope.app.logging"],

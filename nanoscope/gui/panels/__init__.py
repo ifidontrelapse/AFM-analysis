@@ -1,11 +1,12 @@
 """The dockable panels (M5-T04 onward).
 
-Each one takes the composition root and calls it. A panel holds no adapter of
-its own — Architecture §2.3, and the reason `Nanoscope.repository` is typed as a
-port rather than as the SQLite class.
+Each one takes the **session viewmodel** and nothing else — not the composition
+root, and never another panel. Intent goes up as a method call, state comes back
+as a signal, and no panel is wired to a panel (ADR-0057, Architecture §2.3).
 """
 
 from nanoscope.gui.panels.project_explorer import ProjectExplorer
+from nanoscope.gui.panels.properties import PropertiesPanel
 from nanoscope.gui.panels.viewer import ImageViewer
 
-__all__ = ["ImageViewer", "ProjectExplorer"]
+__all__ = ["ImageViewer", "ProjectExplorer", "PropertiesPanel"]

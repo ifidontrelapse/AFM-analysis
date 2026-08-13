@@ -33,8 +33,8 @@ from PySide6.QtWidgets import (
 )
 
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.core.errors import NanoscopeError
-from nanoscope.gui.panels import ImageViewer, ProjectExplorer
+from nanoscope.gui.panels import ImageViewer, ProjectExplorer, PropertiesPanel
+from nanoscope.gui.viewmodels import SessionViewModel
 
 if TYPE_CHECKING:
     from nanoscope.app.container import Nanoscope
@@ -50,17 +50,13 @@ STATE_SETTING = "window.state"
 #: Each dock, and the task that fills it. Written as data so the next task
 #: replaces one line instead of hunting for its placeholder.
 DOCKS: tuple[tuple[str, str, Qt.DockWidgetArea], ...] = (
-    (
-        "Properties",
-        "Image and run properties arrive in M5-T06.",
-        Qt.DockWidgetArea.RightDockWidgetArea,
-    ),
     ("Log", "The log panel arrives in M5-T08.", Qt.DockWidgetArea.BottomDockWidgetArea),
 )
 
-#: The one dock with a panel in it (M5-T04). The others are still placeholders,
+#: The docks with a panel in them (M5-T04, M5-T06). The rest are placeholders,
 #: and each names the task that replaces it.
 PROJECT_DOCK = "Project"
+PROPERTIES_DOCK = "Properties"
 
 
 class MainWindow(QMainWindow):
@@ -69,9 +65,17 @@ class MainWindow(QMainWindow):
     def __init__(self, app: Nanoscope) -> None:
         super().__init__()
         self._app = app
+        #: The one viewmodel, constructed here because this is the one place a
+        #: panel is constructed (ADR-0057). Panels subscribe to it; nothing
+        #: subscribes to a panel.
+        self._last_failure = ""
+        self.session = SessionViewModel(app, self)
+        self.session.project_changed.connect(self._project_changed)
+        self.session.image_changed.connect(self._image_changed)
+        self.session.failed.connect(self._failed)
 
         self.setWindowTitle("nanoscope")
-        self.viewer = ImageViewer(self._app, self)
+        self.viewer = ImageViewer(self.session, self)
         self.viewer.readout.connect(self.statusBar().showMessage)
         self.setCentralWidget(self.viewer)
         self._build_docks()
@@ -83,12 +87,17 @@ class MainWindow(QMainWindow):
     # ── Building ──────────────────────────────────────────────────────────────
 
     def _build_docks(self) -> None:
-        self.explorer = ProjectExplorer(self._app, self)
-        self.explorer.image_selected.connect(self.viewer.show_image)
+        self.explorer = ProjectExplorer(self.session, self)
         project_dock = QDockWidget(PROJECT_DOCK, self)
         project_dock.setObjectName("dock.project")
         project_dock.setWidget(self.explorer)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, project_dock)
+
+        self.properties = PropertiesPanel(self.session, self)
+        properties_dock = QDockWidget(PROPERTIES_DOCK, self)
+        properties_dock.setObjectName("dock.properties")
+        properties_dock.setWidget(self.properties)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, properties_dock)
 
         for title, message, area in DOCKS:
             dock = QDockWidget(title, self)
@@ -110,7 +119,6 @@ class MainWindow(QMainWindow):
         self.remove_action = QAction("&Remove Image from Project", self)
         self.remove_action.triggered.connect(self.explorer.remove_selected)
         self.remove_action.setEnabled(False)
-        self.explorer.image_selected.connect(lambda _: self.remove_action.setEnabled(True))
 
         self.close_action = QAction("&Close Project", self)
         self.close_action.triggered.connect(self.close_project)
@@ -141,7 +149,7 @@ class MainWindow(QMainWindow):
             self.open_project(directory)
 
     def open_project(self, project_dir: Path | str) -> OpenedProject | None:
-        """Open a project through the container, and say what happened.
+        """Open a project through the session, and say what happened.
 
         Separate from `choose_project` so a test — and, later, a "recent
         projects" menu — can open one without a modal dialog.
@@ -149,33 +157,39 @@ class MainWindow(QMainWindow):
         Returns:
             What was opened, or `None` if it was refused.
         """
-        try:
-            opened = self._app.open(project_dir)
-        except NanoscopeError as refusal:
-            #: Our errors are messages (ADR-0030, ADR-0052 §3). A traceback in a
-            #: dialog is an application blaming its user for its diagnostics.
-            self._refuse(str(refusal))
-            return None
-
-        self.explorer.show_project(opened)
-        self.setWindowTitle(f"{opened.name} — nanoscope")
-        self.close_action.setEnabled(True)
-        self.statusBar().showMessage(_summarise(opened))
+        opened = self.session.open_project(project_dir)
+        if opened is None:
+            #: A dialog here and nowhere else: the operator pressed a button
+            #: labelled with this action. A failure to *display* a scan is a
+            #: status line, because they clicked a row (ADR-0056).
+            QMessageBox.warning(self, "Cannot open that", self._last_failure)
         return opened
 
     def close_project(self) -> None:
-        self._app.close_project()
-        self.viewer.show_nothing()
-        self.explorer.show_project(None)
-        self.remove_action.setEnabled(False)
-        self.setWindowTitle("nanoscope")
-        self.close_action.setEnabled(False)
-        self.statusBar().showMessage("No project open")
+        self.session.close_project()
 
-    def _refuse(self, message: str) -> None:
-        logger.error("refused to open a project: %s", message)
+    # ── What the session says back ────────────────────────────────────────────
+
+    def _project_changed(self, opened: OpenedProject | None) -> None:
+        """The window's own chrome. The panels heard the same signal."""
+        self.close_action.setEnabled(opened is not None)
+        self.setWindowTitle("nanoscope" if opened is None else f"{opened.name} — nanoscope")
+        self.statusBar().showMessage("No project open" if opened is None else _summarise(opened))
+
+    def _image_changed(self, _image: object) -> None:
+        """Removal follows the *selection*, not the load.
+
+        A scan whose file is missing loads as `None` and is still selected —
+        and forgetting it is the likeliest thing an operator wants to do next.
+        """
+        self.remove_action.setEnabled(self.session.image_id is not None)
+
+    def _failed(self, message: str) -> None:
+        """Our errors are messages (ADR-0030, ADR-0052 §3). A traceback in a
+        dialog is an application blaming its user for its diagnostics. The
+        viewmodel logged it; what is added here is showing it."""
+        self._last_failure = message
         self.statusBar().showMessage(message)
-        QMessageBox.warning(self, "Cannot open that", message)
 
     # ── Layout, remembered ────────────────────────────────────────────────────
 

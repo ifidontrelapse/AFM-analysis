@@ -23,6 +23,7 @@ from PySide6.QtWidgets import QMessageBox
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
 from nanoscope.gui.panels import ProjectExplorer
+from nanoscope.gui.viewmodels import SessionViewModel
 from nanoscope.infrastructure.storage import SqliteProjectRepository
 
 pytestmark = pytest.mark.usefixtures("qt_app")
@@ -42,17 +43,22 @@ def project(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def app(tmp_path: Path, project: Path) -> Iterator[Nanoscope]:
+def app(tmp_path: Path) -> Iterator[Nanoscope]:
     with Nanoscope(settings_path=tmp_path / "settings.json") as container:
-        container.open(project)
         yield container
 
 
 @pytest.fixture
-def explorer(app: Nanoscope) -> ProjectExplorer:
-    panel = ProjectExplorer(app)
-    panel.refresh()
-    return panel
+def session(app: Nanoscope, project: Path) -> SessionViewModel:
+    """The panel's only collaborator (M5-T06): it holds no container."""
+    model = SessionViewModel(app)
+    model.open_project(project)
+    return model
+
+
+@pytest.fixture
+def explorer(session: SessionViewModel) -> ProjectExplorer:
+    return ProjectExplorer(session)
 
 
 def rows(panel: ProjectExplorer) -> list[str]:
@@ -74,35 +80,45 @@ class TestWhatItShows:
         assert tree.topLevelItem(0).text(1) == "1.95 nm/px"
         assert tree.topLevelItem(1).text(1) == "scale unknown"
 
-    def test_a_missing_file_is_marked(self, app: Nanoscope, project: Path) -> None:
+    def test_a_missing_file_is_marked(self, session: SessionViewModel, project: Path) -> None:
         """A panel that lists an image whose file is gone without saying so is a
         panel that lies quietly. The report is already in hand (ADR-0040)."""
         (project / "images" / "monday.spm").unlink()
-        panel = ProjectExplorer(app)
+        session.refresh()
 
-        panel.refresh()
+        panel = ProjectExplorer(session)
 
         assert "file missing" in rows(panel)[0]
         assert "file missing" not in rows(panel)[1]
 
-    def test_closing_the_project_empties_it(self, explorer: ProjectExplorer) -> None:
-        explorer.show_project(None)
+    def test_closing_the_project_empties_it(
+        self, explorer: ProjectExplorer, session: SessionViewModel
+    ) -> None:
+        """The panel is not told to empty itself; it hears that the project
+        closed and rebuilds from that."""
+        session.close_project()
 
         assert rows(explorer) == []
 
-    def test_selecting_a_row_announces_the_image(self, explorer: ProjectExplorer) -> None:
-        """The signal M5-T05's viewer consumes."""
-        announced: list[int] = []
-        explorer.image_selected.connect(announced.append)
-
+    def test_selecting_a_row_tells_the_session(
+        self, explorer: ProjectExplorer, session: SessionViewModel
+    ) -> None:
+        """A selection is an *intent*: the panel hands it to the viewmodel, and
+        the viewer hears about it from there rather than from this widget
+        (ADR-0057). The file is a stub, so it does not load — and the selection
+        stands anyway, which is the distinction `image_id` exists for."""
         explorer.tree.setCurrentItem(explorer.tree.topLevelItem(1))
 
-        assert announced == [explorer.selected_image_id]
+        assert session.image_id == explorer.selected_image_id
 
 
 class TestRemovingAnImage:
     def test_it_asks_first_and_says_how_many_annotations_would_go(
-        self, app: Nanoscope, explorer: ProjectExplorer, monkeypatch: pytest.MonkeyPatch
+        self,
+        app: Nanoscope,
+        session: SessionViewModel,
+        explorer: ProjectExplorer,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """ADR-0044's obligation, discharged: the dialog carries the **count**,
         not "are you sure?"."""
@@ -110,7 +126,7 @@ class TestRemovingAnImage:
         image = app.repository.list_images()[0]
         for _ in range(3):
             app.repository.add_annotation(image.id, BOX, label="particle")
-        explorer.refresh()
+        session.refresh()
         explorer.tree.setCurrentItem(explorer.tree.topLevelItem(0))
 
         asked: list[str] = []
@@ -130,12 +146,16 @@ class TestRemovingAnImage:
         assert "images/monday.spm" in asked[0]
 
     def test_cancelling_changes_nothing(
-        self, app: Nanoscope, explorer: ProjectExplorer, monkeypatch: pytest.MonkeyPatch
+        self,
+        app: Nanoscope,
+        session: SessionViewModel,
+        explorer: ProjectExplorer,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         assert app.repository is not None
         image = app.repository.list_images()[0]
         app.repository.add_annotation(image.id, BOX, label="particle")
-        explorer.refresh()
+        session.refresh()
         explorer.tree.setCurrentItem(explorer.tree.topLevelItem(0))
         monkeypatch.setattr(
             QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Cancel

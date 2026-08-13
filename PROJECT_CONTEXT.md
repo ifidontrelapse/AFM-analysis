@@ -83,17 +83,19 @@ AFM-analysis/
 │   │   ├── launcher.py                 # QApplication + the event loop (M5-T02)
 │   │   ├── main_window.py              # menus, docks, status bar, layout (M5-T02)
 │   │   ├── theme/                      # tokens.py + style.qss, one colour table (M5-T03)
-│   │   └── panels/                     # project_explorer.py (M5-T04), viewer.py (M5-T05)
+│   │   ├── viewmodels/session.py       # the session every panel subscribes to (M5-T06)
+│   │   └── panels/                     # project_explorer.py (M5-T04), viewer.py (M5-T05),
+│   │                                   #   properties.py (M5-T06) — each takes the viewmodel
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings, device, log sinks — 690 tests
+│   │                                   #   commands, settings, device, log sinks — 724 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01) — 153 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…T05) — 69 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…T06) — 96 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
@@ -132,7 +134,10 @@ M1-T05). There is no `pythonpath` entry anywhere: the package is installed.
 `tests/unit/test_import_graph.py` parses every module under `core/` and fails if one
 imports `application`, `infrastructure` or `gui`; a second check runs in a subprocess and
 fails if importing the domain loads torch, ultralytics, sam2, matplotlib, PySide6, cv2 or
-pandas. Both were proven to fail on a real violation (M2-T09).
+pandas. Both were proven to fail on a real violation (M2-T09). The same file guards the
+outermost ring (M5-T06): no module under `gui/` imports `core.science`, `infrastructure` or
+torch — M5's fifth exit criterion — and no module under `gui/panels/` imports the
+composition root, because panels take the session viewmodel (ADR-0057).
 
 The library is synchronous and in-process. There is no server, task queue, database or DI
 container yet — `app/` is where they will be wired (M5, M6).

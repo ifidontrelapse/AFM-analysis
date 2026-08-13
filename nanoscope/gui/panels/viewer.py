@@ -17,9 +17,6 @@ for figures that get saved.
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
-
 import numpy as np
 from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QImage, QMouseEvent, QPainter, QPixmap, QResizeEvent, QWheelEvent
@@ -38,16 +35,10 @@ from PySide6.QtWidgets import (
 from nanoscope.application.use_cases.display import (
     COLORMAPS,
     DisplayImage,
-    load_for_display,
     render,
     value_range,
 )
-from nanoscope.core.errors import NanoscopeError
-
-if TYPE_CHECKING:
-    from nanoscope.app.container import Nanoscope
-
-logger = logging.getLogger(__name__)
+from nanoscope.gui.viewmodels import SessionViewModel
 
 #: How far in and out the wheel may go. Not taste: past 64x a pixel fills the
 #: window and there is nothing more to see, and below 1/32 the scan is a dot.
@@ -146,10 +137,10 @@ class ImageViewer(QWidget):
     #: the sentence.
     readout = Signal(str)
 
-    def __init__(self, app: Nanoscope, parent: QWidget | None = None) -> None:
+    def __init__(self, session: SessionViewModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._app = app
         self._image: DisplayImage | None = None
+        session.image_changed.connect(self.show_image)
 
         self.view = ImageView(self)
         self.view.hovered.connect(self._describe)
@@ -179,38 +170,26 @@ class ImageViewer(QWidget):
         layout.addLayout(controls)
         layout.addWidget(self.view)
 
-        self.show_nothing()
+        self.show_image(session.image)
 
     # ── What it shows ─────────────────────────────────────────────────────────
 
-    def show_image(self, image_id: int) -> bool:
-        """Load and draw one of the project's images.
+    def show_image(self, image: DisplayImage | None) -> None:
+        """Draw what the session loaded, or empty the canvas.
 
-        Returns:
-            Whether it could be shown. A refusal — a missing file, a format with
-            no reader — becomes a readout line rather than a dialog: the
-            operator clicked a row, not a button labelled "load".
+        The loading happened in the viewmodel — a widget that reads a file
+        decides *what* to read, which is the line Architecture §2.3 draws. What
+        is left here is the part that is genuinely presentation: an array, a
+        colormap, and a pixmap.
         """
-        repository = self._app.repository
-        if repository is None:
-            return False
-
-        try:
-            self._image = load_for_display(repository, image_id)
-        except NanoscopeError as refusal:
-            logger.error("cannot display image %d: %s", image_id, refusal)
-            self.show_nothing()
-            self.readout.emit(str(refusal))
-            return False
+        self._image = image
+        if image is None:
+            self.view.clear()
+            self.scale_label.setText("")
+            return
 
         self._redraw()
         self.readout.emit(self._summary())
-        return True
-
-    def show_nothing(self) -> None:
-        self._image = None
-        self.view.clear()
-        self.scale_label.setText("")
 
     def _redraw(self) -> None:
         if self._image is None:

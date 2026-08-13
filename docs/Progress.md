@@ -7,6 +7,69 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T06 · **the viewmodel holds the session, and a widget emits intent**
+
+**Task:** `M5-T06`. **ADR:** **ADR-0057**. ADR-0055 §4 declined a viewmodel *with a condition
+attached* — *"when M5-T05's viewer needs the same selection, there will be two consumers and a
+reason"*. M5-T05 shipped it, so this task pays the debt rather than deferring it a fourth time.
+
+### The decisions
+
+**One viewmodel, not one per view.** `SessionViewModel` holds what more than one panel needs: the
+open project, the selected image id, the loaded array. State only one widget can want — the
+viewer's colormap, its zoom — stays in that widget. ADR-0041's rule at a different altitude: *a
+layer earns its place or is not written*, and what earns it here is shared state, not symmetry with
+a diagram.
+
+**Intent goes in as a call, state comes out as a signal, and no panel is wired to a panel.** Before
+this, `explorer.image_selected.connect(viewer.show_image)` — one line at two panels, three at
+three, and n² at n. Every panel now subscribes to the session and to nothing else.
+
+**The image is loaded once.** The viewer draws the array and the new Properties panel describes it;
+loading it in each would cost a disk read per selection and let two panels disagree about one scan.
+
+**The viewmodel holds no widget and opens no dialog** — `tests/gui/test_session_viewmodel.py`
+constructs none. ADR-0055's confirmation stays in the panel that asks it, because *whether* to ask
+and in what words is a view decision.
+
+**A refusal is one `failed(str)`**, and the dialog stays where the button was: opening a project is
+a modal warning, failing to display a scan is a status line, because the operator clicked a row
+(ADR-0056, now stated once instead of per panel). **The selection survives a failed load** — a scan
+whose file is missing is still the row they clicked, and *Remove* follows the selection.
+
+**It is a `QObject` because M5-T07 needs it to be:** ADR-0043 says a job's listener fires on the
+worker thread, and a queued signal is how Qt gets that onto the thread the widgets live on. Nothing
+marshals yet; what this task does is make the object it will marshal onto exist.
+
+### What it turned up
+
+**The new guard failed on the layer it exists to permit.** `startswith("nanoscope.app")` also
+matches `nanoscope.application`, so the check that panels do not hold the composition root rejected
+`nanoscope.application.use_cases.display` — precisely what a panel *should* import. The rest of
+`test_import_graph.py` has used `== bad or startswith(bad + ".")` since M2-T09, and this is why.
+
+**M5's fifth exit criterion had no owner and no check.** *"Lint rule proves no `gui/` module imports
+`core.science` or `infrastructure`"* was true by habit only; no M5 task claimed it. It is now a
+test, in the file that already enforces the dependency rule.
+
+**Opening a second project kept the first one's selection** — ids are per-project, so image 3 of the
+old project is not image 3 of the new one. Cleared where the project changes, not in each panel.
+
+**"Modality: afm"** — found by rendering `afm_dense_overlapping` into a real window and reading the
+panel, not by a test. The enum's value is a storage token; three instrument names that are acronyms
+everywhere else read as typos. Same lesson as M5-T05: the tests passed throughout.
+
+### Numbers
+
+46 new tests — 15 over the viewmodel with no widget constructed, 8 over the properties panel, 4
+over the window's wiring, and 19 layering cases across `gui/` and `gui/panels/` — **972** in the
+suite;
+golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M5-T07` — the background job runner, which is what §7 above was written for.
+
+---
+
 ## 2026-08-13 — M5-T05 · **a scan on screen, with the numbers that make it a measurement**
 
 **Task:** `M5-T05`. **ADR:** **ADR-0056**. **M5's second exit criterion is met** — verified by

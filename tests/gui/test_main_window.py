@@ -28,6 +28,7 @@ from nanoscope.gui.main_window import (
     DOCKS,
     GEOMETRY_SETTING,
     PROJECT_DOCK,
+    PROPERTIES_DOCK,
     STATE_SETTING,
     MainWindow,
 )
@@ -71,12 +72,12 @@ class TestTheWindowIsBuilt:
 
         docks = {dock.windowTitle() for dock in window.findChildren(QDockWidget)}
 
-        assert docks == {PROJECT_DOCK, *(title for title, _, _ in DOCKS)}
+        assert docks == {PROJECT_DOCK, PROPERTIES_DOCK, *(title for title, _, _ in DOCKS)}
 
     def test_the_docks_without_a_panel_yet_say_which_task_fills_them(self, app: Nanoscope) -> None:
         """An empty panel is a promise when it names its task, and a bug when it
-        does not. The Project dock is no longer on this list — M5-T04 filled
-        it, which is what the promise was for."""
+        does not. Project (M5-T04) and Properties (M5-T06) are no longer on this
+        list — they were filled, which is what the promise was for."""
         window = MainWindow(app)
 
         docks = {dock.windowTitle(): dock for dock in window.findChildren(QDockWidget)}
@@ -188,7 +189,8 @@ class TestTheLayoutIsRemembered:
         window = MainWindow(app)
 
         assert window.statusBar().currentMessage() == "No project open"
-        assert len(window.findChildren(QDockWidget)) == len(DOCKS) + 1  # + the Project dock
+        # + the Project and Properties docks, which are panels rather than promises
+        assert len(window.findChildren(QDockWidget)) == len(DOCKS) + 2
 
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)
@@ -197,3 +199,61 @@ class TestTheLayoutIsRemembered:
         window.close()
 
         assert app.application_settings.get_setting(GEOMETRY_SETTING)
+
+
+class TestTheWindowIsWiredThroughTheSession:
+    """M5-T06: the window connects panels to the viewmodel and to nothing else.
+
+    What is asserted here is the wiring, since that is what changed: a selection
+    reaches the viewer without the explorer knowing the viewer exists, and a
+    refusal to *display* is a status line while a refusal to *open* is a dialog.
+    """
+
+    def test_a_selection_travels_through_the_viewmodel(self, app: Nanoscope, project: Path) -> None:
+        window = MainWindow(app)
+        window.open_project(project)
+
+        window.explorer.tree.setCurrentItem(window.explorer.tree.topLevelItem(0))
+
+        assert window.session.image_id == window.explorer.selected_image_id
+
+    def test_removal_follows_the_selection_and_not_the_load(
+        self, app: Nanoscope, project: Path
+    ) -> None:
+        """The fixture's scan is three bytes of `b"AFM"`, so it does not load —
+        and forgetting it is exactly what an operator would want to do next."""
+        window = MainWindow(app)
+        window.open_project(project)
+
+        window.explorer.tree.setCurrentItem(window.explorer.tree.topLevelItem(0))
+
+        assert window.session.image is None
+        assert window.remove_action.isEnabled()
+
+    def test_a_display_refusal_is_a_status_line_and_not_a_dialog(
+        self, app: Nanoscope, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADR-0056, kept: the operator clicked a row, not a button labelled
+        "load". The dialog belongs to the action they asked for by name."""
+        shown: list[object] = []
+        said: list[str] = []
+        monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: shown.append(args))
+        window = MainWindow(app)
+        window.open_project(project)
+        window.session.failed.connect(said.append)
+
+        window.explorer.tree.setCurrentItem(window.explorer.tree.topLevelItem(0))
+
+        assert shown == []
+        assert window.statusBar().currentMessage() == said[0]
+
+    def test_closing_a_project_empties_every_panel(self, app: Nanoscope, project: Path) -> None:
+        window = MainWindow(app)
+        window.open_project(project)
+        window.explorer.tree.setCurrentItem(window.explorer.tree.topLevelItem(0))
+
+        window.close_project()
+
+        assert window.explorer.tree.topLevelItemCount() == 0
+        assert window.properties.values["Name"].text() == "—"
+        assert not window.remove_action.isEnabled()

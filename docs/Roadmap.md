@@ -199,7 +199,10 @@ runner with progress and cancellation; log panel; settings dialog; headless GUI 
       (M5-T05, ADR-0056 — verified on a characterization phantom in a real window)
 - [ ] A long-running job shows progress and can be cancelled without freezing the UI
 - [ ] GUI smoke tests pass headless in CI
-- [ ] Lint rule proves no `gui/` module imports `core.science` or `infrastructure`
+- [x] Lint rule proves no `gui/` module imports `core.science` or `infrastructure`
+      (M5-T06 — a test rather than a lint rule, in `tests/unit/test_import_graph.py`,
+      which is the form every other rule in this project takes; it also proves no
+      panel imports the composition root — ADR-0057)
 
 **Risk to scientific output:** none.
 
