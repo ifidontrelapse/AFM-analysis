@@ -161,9 +161,9 @@ class TestAnUnavailableEntrySaysWhy:
         assert all(enabled for _text, enabled in entries(panel.detector))
 
     def test_segmentation_is_refused_with_its_reason(self, session: SessionViewModel) -> None:
-        """The matrix says the mode needs a predictor; nothing constructs one
-        before M6-T04, and the panel says that rather than failing at the end of
-        a run."""
+        """The matrix says the mode needs a predictor; a fresh project has no
+        model to build one from, and the panel says that rather than failing at
+        the end of a run (M6-T04 made it selectable once one is registered)."""
         panel = DetectionPanel(session)
         session.select_image(image_ids(session)[0])
 
@@ -171,7 +171,7 @@ class TestAnUnavailableEntrySaysWhy:
         index = [text for text, _ in entries(panel.mode)].index("segment")
 
         assert "segment" in texts
-        assert "predictor" in panel.mode.itemData(index, 3)
+        assert "registered" in panel.mode.itemData(index, 3)
 
     def test_the_panel_opens_on_something_that_can_run(self, session: SessionViewModel) -> None:
         """A combo opening on a disabled entry is a combo whose Run button is

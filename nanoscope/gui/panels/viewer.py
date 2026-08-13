@@ -26,6 +26,7 @@ from PySide6.QtGui import (
     QImage,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPen,
     QPixmap,
     QResizeEvent,
@@ -36,6 +37,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsEllipseItem,
     QGraphicsItem,
+    QGraphicsPathItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
@@ -93,6 +95,7 @@ class ImageView(QGraphicsView):
         #: while it is, and leaves the operator's zoom alone once it is not.
         self._fitted = True
         self._overlay: list[QGraphicsItem] = []
+        self._masks: list[QGraphicsItem] = []
 
     def show_pixmap(self, pixmap: QPixmap) -> None:
         self._item.setPixmap(pixmap)
@@ -103,6 +106,23 @@ class ImageView(QGraphicsView):
         self._item.setPixmap(QPixmap())
         self.setSceneRect(QRectF())
         self.draw_detections(())
+        self.draw_masks(())
+
+    def draw_masks(self, masks: Iterable[np.ndarray]) -> None:
+        """Outline each mask, in scene coordinates like everything else.
+
+        An **outline**, not a filled sheet: a filled overlay hides the pixels it
+        describes, and those pixels are the measurement (ADR-0064).
+        """
+        for item in self._masks:
+            self.scene().removeItem(item)
+        self._masks = [_outline(mask) for mask in masks]
+        for item in self._masks:
+            self.scene().addItem(item)
+
+    @property
+    def mask_overlay(self) -> list[QGraphicsItem]:
+        return list(self._masks)
 
     def draw_detections(self, detections: Iterable[Detection]) -> None:
         """Put one item on each particle, in **scene** coordinates.
@@ -214,6 +234,14 @@ class ImageViewer(QWidget):
         )
         self.show_detections.toggled.connect(lambda _: self._draw_overlay())
 
+        self.show_masks = QCheckBox("Masks", self)
+        self.show_masks.setChecked(True)
+        self.show_masks.setToolTip(
+            "Segmentation outlines from the run in this session. Masks are not "
+            "stored, so a run read back from the project has none (ADR-0042)."
+        )
+        self.show_masks.toggled.connect(lambda _: self._draw_overlay())
+
         #: Which array is on screen. ADR-0056's rule was never "show the file
         #: and nothing else" — it was *never show something the file does not
         #: contain without saying so*, and this label is how that promise
@@ -226,6 +254,7 @@ class ImageViewer(QWidget):
         controls.addWidget(self.colormap)
         controls.addWidget(self.full_range)
         controls.addWidget(self.show_detections)
+        controls.addWidget(self.show_masks)
         #: Beside the controls rather than at the far right: it was clipped to
         #: "result (flatte…" when it competed with the scale bar for the end of
         #: the row, and a label nobody can finish reading is not a statement.
@@ -249,6 +278,11 @@ class ImageViewer(QWidget):
         run = self._session.run
         detections = run.detections if run is not None and self.show_detections.isChecked() else ()
         self.view.draw_detections(detections)
+        masks = _mask_arrays(run) if run is not None and self.show_masks.isChecked() else ()
+        self.view.draw_masks(masks)
+        #: Hidden entirely when there are none: a control for something that
+        #: does not exist teaches an operator to ignore the row it sits in.
+        self.show_masks.setVisible(bool(run is not None and run.masks))
         #: The count rides on the checkbox rather than on a label of its own:
         #: the row was already carrying a colormap, a range, a stage and a scale
         #: bar, and the sixth widget was **clipped mid-word** in a real
@@ -396,3 +430,35 @@ def _shape(detection: Detection) -> QGraphicsItem:
 def _count(run: AnalysisRun | None) -> str:
     """The checkbox's label: what there is to show, or that there is nothing."""
     return "Detections" if run is None else f"Detections ({len(run.detections)})"
+
+
+def _mask_arrays(run: AnalysisRun) -> list[np.ndarray]:
+    """The boolean arrays out of the mask entries, and nothing else from them.
+
+    A mask entry also carries scores and geometry; the viewer wants the shape.
+    """
+    return [entry["mask"] for entry in run.masks if entry.get("mask") is not None]
+
+
+def _outline(mask: np.ndarray) -> QGraphicsItem:
+    """One mask as a path around its pixels.
+
+    Built from the mask's own rectangles rather than a contour finder: tracing
+    contours is `skimage`, which `gui/` may not import (Architecture §3.2), and
+    a per-row span is exact where a polygon approximation is a second shape.
+    """
+    path = QPainterPath()
+    rows = np.asarray(mask, dtype=bool)
+    for y, row in enumerate(rows):
+        starts = np.flatnonzero(np.diff(np.concatenate(([0], row.view(np.int8), [0]))) == 1)
+        ends = np.flatnonzero(np.diff(np.concatenate(([0], row.view(np.int8), [0]))) == -1)
+        for x1, x2 in zip(starts, ends, strict=True):
+            path.addRect(QRectF(float(x1), float(y), float(x2 - x1), 1.0))
+
+    item = QGraphicsPathItem(path.simplified())
+    pen = QPen(tokens.qcolor(tokens.SUCCESS))
+    pen.setWidthF(OVERLAY_WIDTH_PX)
+    pen.setCosmetic(True)
+    item.setPen(pen)
+    item.setBrush(QBrush())
+    return item

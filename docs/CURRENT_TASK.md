@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M6-T03`
-**Title:** The detections, drawn where they were found
-**Milestone:** M6 — Analysis workflow in the GUI, third task
-**Defect:** — · **ADR:** **ADR-0063**
+**ID:** `M6-T04`
+**Title:** The predictor the matrix keeps asking for, and the masks it produces
+**Milestone:** M6 — Analysis workflow in the GUI, fourth task
+**Defect:** — · **ADR:** **ADR-0064**
 **Branch:** `feat/m6-analysis-workflow`
 **Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,44 +11,53 @@
 
 ## Why this task is next
 
-M6-T02 ends with *"30 detection(s)"* in a status bar and a scan on screen with nothing on it. Looking
-at where a detector put its particles is the only way an operator can tell a good run from a bad one
-— it is what the whole milestone is for, and it is what the evaluation harness (M3-T15) does with
-numbers instead of eyes.
+M6-T02 disables every `segment` row with *"segmentation needs a loaded predictor, which arrives in
+M6-T04"*. This is M6-T04, and the sentence is a promise with a date on it.
+
+It is also the last unwired half of ADR-0050: the registry hands back **factories**, and until now
+nothing has ever called one. `resolve()` has no caller outside its own tests.
 
 ---
 
 ## The decisions this task has to make
 
-**1. What is drawn?** What each detection actually carries, and nothing inferred.
+**1. Who builds the predictor?** The composition root, lazily, once.
 
-A `bbox` is `None` on the LoG path (ADR-0031) and present for a box detector, so: **a box when there
-is one, a circle of `radius_px` when there is not.** Drawing an invented box around a circle would be
-a shape the detector never produced — the same class of substitution ADR-0028 removed from
-`confidence`.
+`Nanoscope.segmentation_predictor()` looks up a `SEGMENT`-task model in the open project, resolves
+its factory (ADR-0050), and constructs it with the device `select_device` chose (ADR-0049). It is
+`app/`'s work by PROJECT_RULES §2.7 — nothing else constructs infrastructure — and it is **cached**,
+because building it loads weights off a disk.
 
-**2. Where does the overlay live?** In the scene, in pixel coordinates.
+**2. When?** Inside the job, never on the main thread.
 
-`QGraphicsView` transforms the scene, so an item placed at `(x_px, y_px)` stays on its particle at
-every zoom for free, and the pen is cosmetic so a circle does not turn into a blob at 32×. A
-`paintEvent` drawing over the viewport would have to redo that arithmetic, and would be wrong at the
-first pan.
+Loading weights is seconds of I/O and GPU allocation. `has_predictor` for the *matrix* is answered by
+a **registered model**, not a constructed one: ADR-0050 made the registry cheap on purpose, so
+asking "can this project segment?" must not load anything.
 
-**3. Which run is shown?** The newest one for the selected image, loaded when it is selected.
+**3. Where does the panel for it go?** There is no new panel, and that is the decision.
 
-`runs_for` has existed since M4-T05 and nothing has read it. Selecting a scan that was analysed
-yesterday and seeing nothing would make the stored run invisible — M6-T09 owns *proving* that across
-a restart; showing it at all is this task's job.
+The detection panel already offers modes from the matrix, and `segment` is one of its rows. A second
+panel would have its own detector and mode choices — the duplication ADR-0062 exists to prevent, one
+task after it was written. What this task adds is the mode becoming *available*, and the masks
+becoming visible.
 
-**4. Can it be turned off?** Yes, and that is not decoration: the overlay covers the data it
-describes, and *"what does this look like without the circles?"* is a question an operator asks
-about every false positive.
+**4. The mask parameters are not offered, and the reason is worth writing down.**
+`PipelineConfig`'s fields for them are named after the framework, **the golden records that class's
+field names**, and a widget setting them would have to write the name PROJECT_RULES §2.5 forbids in
+`gui/`. Renaming the fields is a golden-moving change and gets its own commit (ADR-0010). They stay
+at their defaults, which is what every call before this one used.
 
-**5. Does the overlay colour mean anything?** It is one colour, and it is not the colormap's.
+**5. How does a mask reach the screen if masks are not stored?**
 
-A per-confidence colour ramp would be a second scale on screen competing with the one that carries
-the measurement, and the LoG path has no confidence at all (ADR-0028) — so half the detections would
-be coloured by an absence.
+ADR-0042 did not persist them — SAM2's weights are outside the gate, so the format would have been
+written blind. So the run **carries them in memory**: `AnalysisRun.masks`, empty on everything the
+repository returns, filled on the run you just computed. The overlay therefore shows masks for this
+session's run and says nothing about older ones, which is the truth about what is stored.
+
+**6. What is drawn?** The mask's outline, not a filled sheet.
+
+A filled overlay hides the pixels it describes, and the pixels are the measurement. One outline per
+mask, in the same accent as the detections, under the same kind of toggle.
 
 ---
 
@@ -56,40 +65,50 @@ be coloured by an absence.
 
 **In scope**
 
-1. `gui/viewmodels/session.py` — the current run, loaded on selection and replaced when one is
-   stored
-2. `gui/panels/viewer.py` — the overlay items, the toggle, and the count
-3. **ADR-0063** — what is drawn, where it lives, and which run it belongs to
-4. Tests: a box detection draws a box, a circle detection draws a circle, the overlay follows the
-   selection, the newest stored run is shown, the toggle empties the scene, and a new run replaces
-   the old one
+1. `app/container.py` — `segmentation_predictor()`: registry → factory → device, cached
+2. `core/entities/project.py` — `AnalysisRun.masks`, in memory only
+3. `application/use_cases/analysis.py` — the masks travel back with the run
+4. `gui/viewmodels/session.py` — a predictor when the mode needs one, `has_predictor` from the
+   registry
+5. `gui/panels/viewer.py` — the mask outlines and their toggle
+6. **ADR-0064** — who builds the predictor, why there is no second panel, and why masks are
+   in-memory
+7. Tests, with a **stub predictor** registered through the registry — the only way this path can be
+   tested at all, and M3-T14's precedent
 
 **Out of scope**
 
-- **Selecting a detection** — M6-T05 needs it for the table, and builds it there
-- **Masks** — M6-T04
-- **Editing a detection** — M7's annotation tools
+- **Persisting masks** — a format decision with a migration behind it; ADR-0042's deferral stands
+- **The mask parameters** — decision 4
+- **Choosing between two segmentation models** — a project has at most one today
 
 ---
 
 ## Definition of done
 
-- [x] Detections from the newest run are drawn over the scan, at every zoom
-- [x] A box is drawn when the detector produced one, a circle when it did not
-- [x] The overlay can be turned off, and says how many it is showing
-- [x] ADR-0063 + the ADR index
-- [x] `make check` green — 1084 tests, golden byte-identical
+- [x] A registered segmentation model makes the mode selectable, without loading weights
+- [x] The predictor is built once, in the job, by the composition root
+- [x] Masks from the run just computed are drawn as outlines, and can be turned off
+- [x] ADR-0064 + the ADR index
+- [x] `make check` green — 1095 tests, golden byte-identical
 - [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M6-T03: the detections, drawn where they were found`
+- [x] Commit: `M6-T04: the predictor the matrix keeps asking for, and the masks it produces`
 
 ---
 
 ## What it turned up
 
-**The circle branch has no producer in this application.** The blob detector synthesises a bbox —
-recorded in M3-T24 and again in M4-T05 — so every detection currently draws as a box. The branch
-stays: the entity says the field is optional, and the next detector may mean it.
+**The panel this task was scheduled to build already existed.** The detection panel offers modes
+from the matrix, and `segment` is one of its rows — a segmentation panel would have carried a second
+detector and mode choice, which is precisely what ADR-0062 was written to prevent one task earlier.
+Closed with an argument rather than with code, the way M4 closed three of its own.
 
-**The count label was the seventh widget in the viewer's control row, and clipped mid-word.** Seen
-in the window. It rides on the toggle now — `Detections (30)` — which also says something a separate
-label had to spell out: an unticked box is "hidden", `(0)` is "found none".
+**A `has_predictor=False` written in M6-T02 survived the edit that was supposed to replace it** —
+the formatter had reflowed the block my replacement was matching on, so the substitution silently
+did nothing and the mode stayed disabled with a registered model in the project. Caught by the test
+that asserted the opposite. **A search-and-replace that matches nothing is a change that did not
+happen**, and only the test noticed.
+
+**The refusal sentence named a task that had just shipped.** *"...which arrives in M6-T04"* would
+have been wrong the moment this commit landed; it now says what is actually missing — a registered
+model — which is a sentence that stays true.

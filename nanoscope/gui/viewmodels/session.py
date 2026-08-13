@@ -246,13 +246,14 @@ class SessionViewModel(QObject):
         if repository is None or record is None:
             return ()
 
-        frameworks = {
-            model.framework for model in repository.list_models() if model.task is ModelTask.DETECT
-        }
-        #: Nothing constructs a segmentation predictor before M6-T04, and
-        #: claiming otherwise would offer a mode that fails at the last moment.
+        models = repository.list_models()
+        frameworks = {model.framework for model in models if model.task is ModelTask.DETECT}
+        #: A **registered** model, not a constructed predictor: ADR-0050 made
+        #: the registry cheap so that asking "can this project segment?" reads
+        #: nothing off a disk. The weights are loaded inside the job (ADR-0064).
+        can_segment = any(model.task is ModelTask.SEGMENT for model in models)
         return capabilities.detector_options(
-            record.modality.value, frameworks=frameworks, has_predictor=False
+            record.modality.value, frameworks=frameworks, has_predictor=can_segment
         )
 
     def detect(self, config: PipelineConfig) -> Job | None:
@@ -272,10 +273,20 @@ class SessionViewModel(QObject):
             return None
 
         params = self._preprocessing
+        needs_predictor = any(
+            row.requires_predictor
+            for row in capabilities.CAPABILITIES
+            if (row.detector, row.mode) == (config.detector, config.mode)
+        )
 
         def work(context: JobContext) -> AnalysisRun:
             context.report(0, 0, f"{config.mode} with {config.detector}")
-            return use_cases.run_analysis(repository, image_id, config, preprocessing=params)
+            #: Built here, on the worker thread: constructing it reads weights
+            #: off a disk, and the main thread is the one drawing (ADR-0064).
+            predictor = self._app.segmentation_predictor() if needs_predictor else None
+            return use_cases.run_analysis(
+                repository, image_id, config, predictor=predictor, preprocessing=params
+            )
 
         name = f"Analysing {self.image_record(image_id).display_name}"  # type: ignore[union-attr]
         self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)

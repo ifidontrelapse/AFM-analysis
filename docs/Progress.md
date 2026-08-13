@@ -7,6 +7,52 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T04 · **the predictor the matrix keeps asking for, and the masks it produces**
+
+**Task:** `M6-T04`. **ADR:** **ADR-0064**. M6-T02 disabled every `segment` row with a sentence
+naming this task; this is the task that makes it true, and it is the **last unwired half of
+ADR-0050** — the registry hands back factories, and `resolve()` had no caller outside its own tests.
+
+### The decisions
+
+**The composition root builds the predictor, lazily and once**, from a registered segmentation model
+and the device `select_device` would choose; dropped when the project closes. **"Can this project
+segment?" is answered by a registered model, not a built one** — the registry was made cheap so that
+filling a combo box reads no weights — and the predictor is constructed **inside the job**.
+
+**There is no new panel.** The detection panel already offers the matrix's modes; a second panel
+would carry its own detector and mode choice, which is ADR-0062's own case one task later.
+
+**The mask parameters are not offered**, because `PipelineConfig`'s fields for them are named after
+the framework, **the golden records that class's field names**, and a widget setting them would have
+to write the name PROJECT_RULES §2.5 forbids. The rename is a golden-moving change with its own
+commit (ADR-0010).
+
+**The masks ride on the run, in memory only** — empty on everything the repository returns, because
+ADR-0042 did not persist them. **A mask is an outline, not a fill:** the pixels it covers are the
+measurement, and its toggle disappears when there are none.
+
+### What it turned up
+
+**The panel this task was scheduled to build already existed** — closed with an argument rather than
+code, the way M4 closed three of its own.
+
+**A `has_predictor=False` from M6-T02 survived the edit meant to replace it**: the formatter had
+reflowed the block the replacement matched on, so the substitution silently did nothing.
+**A search-and-replace that matches nothing is a change that did not happen**, and only the test
+noticed.
+
+**The refusal sentence named a task that had just shipped** — it now names what is actually missing.
+
+### Numbers
+
+11 tests, **1095** in the suite; golden byte-identical; mypy unchanged at 6. Exercised by a stub
+predictor registered through the registry, because there are no weights here or in CI.
+
+**Next:** `M6-T05` — the measurements table, with selection that works in both directions.
+
+---
+
 ## 2026-08-13 — M6-T03 · **the detections, drawn where they were found**
 
 **Task:** `M6-T03`. **ADR:** **ADR-0063**. M6-T02 ended with *"30 detection(s)"* in a status bar and

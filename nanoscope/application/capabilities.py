@@ -181,7 +181,7 @@ def detector_options(
                 available=not needs_model and (has_predictor or not row.requires_predictor),
                 reason=reason
                 or (
-                    "segmentation needs a loaded predictor, which arrives in M6-T04"
+                    "segmentation needs a model registered for it in this project"
                     if row.requires_predictor and not has_predictor
                     else None
                 ),

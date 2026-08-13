@@ -21,6 +21,8 @@ down (ADR-0042 §5).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from nanoscope.application.use_cases.pipeline import run_pipeline
 from nanoscope.application.use_cases.preprocessing import (
     PreprocessingParams,
@@ -113,4 +115,9 @@ def run_analysis(
         )
 
     result = run_pipeline(data, config, predictor=predictor)
-    return repository.save_analysis(image_id, result)
+    run = repository.save_analysis(image_id, result)
+    #: The masks travel back with the run they came from, and **only** with that
+    #: one: the repository stores none, so a run read back later has an empty
+    #: tuple and an overlay drawn from it would be showing something the project
+    #: cannot restore (ADR-0042, ADR-0064).
+    return replace(run, masks=tuple(result.masks))

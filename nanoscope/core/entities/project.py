@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from nanoscope.core.entities.detection import Detection
 from nanoscope.core.values import Modality
@@ -104,6 +105,13 @@ class AnalysisRun:
     created_utc: str
     #: What was found, in the order the detector returned it.
     detections: tuple[Detection, ...] = ()
+    #: The masks a segmentation produced — **in memory only**. Empty on every
+    #: run the repository hands back, filled on the one just computed. ADR-0042
+    #: did not persist them, because the weights that produce them are outside
+    #: the gate and the format would have been written blind; an overlay that
+    #: showed them anyway would be showing something the project cannot restore
+    #: (M6-T04, ADR-0064).
+    masks: tuple[dict[str, Any], ...] = ()
 
 
 class AnnotationSource(StrEnum):

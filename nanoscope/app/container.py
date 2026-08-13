@@ -25,10 +25,12 @@ from nanoscope.application.commands import CommandStack
 from nanoscope.application.jobs import JobRunner
 from nanoscope.application.settings import DEVICE_SETTING, Settings
 from nanoscope.application.use_cases import open_project
+from nanoscope.core.entities.model import ModelTask
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import DeviceKind
 from nanoscope.infrastructure.device import DeviceManager
+from nanoscope.infrastructure.models.registry import resolve
 from nanoscope.infrastructure.storage import JsonSettings, SqliteProjectRepository
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,9 @@ class Nanoscope:
         #: (Architecture §3.2), and a container that hands out a concrete
         #: adapter is a container that makes the rule unenforceable (M5-T04).
         self.repository: ProjectRepository | None = None
+        #: Built on demand and kept: loading weights is seconds of disk and GPU,
+        #: and a second run must not pay it again (M6-T04).
+        self._predictor: object | None = None
 
     # ── The open project ──────────────────────────────────────────────────────
 
@@ -107,6 +112,8 @@ class Nanoscope:
         detach_project_log()
         self.repository.close()
         self.repository = None
+        #: A predictor belongs to the project whose model produced it.
+        self._predictor = None
         #: The history goes with the project: undo is a session, and a stack
         #: whose commands refer to another project's rows is worse than none
         #: (ADR-0045).
@@ -122,7 +129,52 @@ class Nanoscope:
         """
         return Settings(self.application_settings, self.repository)
 
+    def segmentation_predictor(self) -> object | None:
+        """The predictor a `segment` run needs, built once (M6-T04, ADR-0064).
+
+        The last unwired half of ADR-0050: the registry hands back **factories**,
+        and until now nothing called one. This looks up a segmentation model in
+        the open project, resolves its factory, and constructs it with the device
+        `select_device` chose (ADR-0049).
+
+        **Constructing loads weights**, so this is called inside a job and never
+        to answer *"can this project segment?"* — that question is answered by a
+        registered model, which is why the registry was made cheap.
+
+        Returns:
+            The predictor, or `None` when the project has no segmentation model.
+
+        Raises:
+            UnsupportedRequestError: a model is registered for a framework this
+                version cannot load (ADR-0050's own message).
+        """
+        if self._predictor is not None:
+            return self._predictor
+        if self.repository is None:
+            return None
+
+        models = [m for m in self.repository.list_models() if m.task is ModelTask.SEGMENT]
+        if not models:
+            return None
+
+        descriptor = models[0]
+        factory = resolve(descriptor)
+        device = self.devices.select(self._preferred_kind()).device
+        logger.info("loading segmentation model %r on %s", descriptor.model_id, device.torch_name)
+        self._predictor = factory(self.repository.path_of_model(descriptor), device)
+        return self._predictor
+
     # ── Policy that needs two components to answer ────────────────────────────
+
+    def _preferred_kind(self) -> DeviceKind | None:
+        """The stored device preference, or `None` for "let the policy decide"."""
+        preferred = self.settings.get(DEVICE_SETTING)
+        if preferred is None:
+            return None
+        try:
+            return DeviceKind(str(preferred))
+        except ValueError:
+            return None
 
     def select_device(self) -> str:
         """Resolve the device, honouring the operator's stored preference.
