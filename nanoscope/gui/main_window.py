@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
         self.session.failed.connect(self._failed)
         self.session.reported.connect(self.statusBar().showMessage)
         self.session.job_changed.connect(self._job_changed)
+        self.session.run_changed.connect(self._run_changed)
 
         #: The log reaches the screen through one handler, attached by `app/`
         #: because that is the only layer allowed to attach one (ADR-0051), and
@@ -187,6 +188,14 @@ class MainWindow(QMainWindow):
         self.close_action.triggered.connect(self.close_project)
         self.close_action.setEnabled(False)
 
+        self.export_run_action = QAction("&Export This Run…", self)
+        self.export_run_action.triggered.connect(lambda: self.export(everything=False))
+        self.export_run_action.setEnabled(False)
+
+        self.export_all_action = QAction("Export &All Measurements…", self)
+        self.export_all_action.triggered.connect(lambda: self.export(everything=True))
+        self.export_all_action.setEnabled(False)
+
         self.settings_action = QAction("Se&ttings…", self)
         self.settings_action.triggered.connect(self.edit_settings)
 
@@ -199,6 +208,11 @@ class MainWindow(QMainWindow):
             toolbar.addAction(action)
         file_menu.addSeparator()
         file_menu.addAction(self.remove_action)
+        file_menu.addSeparator()
+        #: Two scopes, named rather than implied: a single item that silently
+        #: meant one of them is one somebody uses wrong once (ADR-0067).
+        file_menu.addAction(self.export_run_action)
+        file_menu.addAction(self.export_all_action)
         file_menu.addSeparator()
         file_menu.addAction(self.settings_action)
         file_menu.addAction(quit_action)
@@ -241,6 +255,11 @@ class MainWindow(QMainWindow):
         """Open the preferences. The dialog stores and applies; this opens it."""
         SettingsDialog(self.session, self).exec()
 
+    def export(self, *, everything: bool) -> None:
+        """Ask for a CSV. The session writes it; the status bar says where."""
+        self.session.export(everything=everything)
+        self._update_actions()
+
     def open_project(self, project_dir: Path | str) -> OpenedProject | None:
         """Open a project through the session, and say what happened.
 
@@ -275,6 +294,9 @@ class MainWindow(QMainWindow):
     def _job_changed(self, _job: object) -> None:
         self._update_actions()
 
+    def _run_changed(self, _run: object) -> None:
+        self._update_actions()
+
     def _update_actions(self) -> None:
         """One place decides what can be pressed, because three signals change it.
 
@@ -293,6 +315,8 @@ class MainWindow(QMainWindow):
         self.close_action.setEnabled(not busy and has_project)
         self.import_action.setEnabled(not busy and has_project)
         self.remove_action.setEnabled(not busy and self.session.image_id is not None)
+        self.export_run_action.setEnabled(not busy and self.session.run is not None)
+        self.export_all_action.setEnabled(not busy and has_project)
 
     def _logged(self, line: LogLine) -> None:
         """Count what an operator has not looked at, and say so in the title.

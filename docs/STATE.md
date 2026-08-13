@@ -61,8 +61,17 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T06` done 2026-08-13 (ADR-0066); `M6-T07` — the CSV export from the UI — is
-next.**
+**None selected. `M6-T07` done 2026-08-13 (ADR-0067); `M6-T08` — multi-image navigation — is next.**
+**M6's first exit criterion is now reachable end to end** — load, preprocess, detect, measure and
+export, all from the window.
+
+**`M6-T07` done 2026-08-13 (ADR-0067) — the export an operator can ask for.** **Two scopes, named in
+the menu** (this run / every run), because ADR-0048 built the second deliberately and a single item
+that silently means one of them is used wrong exactly once. **The file lands in the project's
+`exports/`**, timestamped, and the status bar says where; **nothing to export is the use case's own
+sentence**, not a disabled button. **Found:** two test files with the same basename broke collection
+**for the second time** — and this time the lesson ships as a **guard** that walks `tests/` and fails
+on any clash. 7 tests and the guard, **1135** in the suite.
 
 **`M6-T06` done 2026-08-13 (ADR-0066) — what the run says about the sample.** **`application`
 computes and the widget renders**; `count` is finite values, the spread is the **sample** standard

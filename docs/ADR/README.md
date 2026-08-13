@@ -74,6 +74,7 @@ Use `TEMPLATE.md` for new records.
 | [0064](ADR-0064-the-predictor-is-built-once-and-the-masks-are-not-stored.md) | The predictor is built once, and the masks are not stored | Accepted | 2026-08-13 |
 | [0065](ADR-0065-a-row-and-a-particle-are-linked-by-position.md) | A row and a particle are linked by position | Accepted | 2026-08-13 |
 | [0066](ADR-0066-statistics-are-computed-below-the-widget.md) | Statistics are computed below the widget | Accepted | 2026-08-13 |
+| [0067](ADR-0067-an-export-names-its-scope-and-lands-in-the-project.md) | An export names its scope, and lands in the project | Accepted | 2026-08-13 |
 
 ## When to write one
 

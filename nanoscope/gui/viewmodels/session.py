@@ -354,6 +354,38 @@ class SessionViewModel(QObject):
         self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
         return self._job
 
+    def export(self, *, everything: bool) -> Job | None:
+        """Write measurements to a CSV under the project's `exports/` (M6-T07).
+
+        Args:
+            everything: every run of every image, which is ADR-0048's reason for
+                taking a collection — *"statistics across a dataset is why the
+                measurements exist"*. `False` exports the run on screen.
+
+        Returns:
+            The handle, or `None` when there is no project, nothing selected, or
+            something already running. A run that measured nothing is **not**
+            refused here: `export_measurements` says so in a sentence, and
+            pre-empting it with a silent no-op would say less (ADR-0048).
+        """
+        repository = self._app.repository
+        run = self._run
+        if repository is None or self.is_busy or (not everything and run is None):
+            return None
+
+        #: `None` is "every run of every image"; a one-element list is this one.
+        #: Narrowed here rather than in the closure, so the type says what the
+        #: guard above already proved.
+        runs: list[AnalysisRun] | None = None if everything else [_not_none(run)]
+
+        def work(context: JobContext) -> str:
+            context.report(0, 0, "collecting measurements")
+            return use_cases.export_measurements(repository, runs)
+
+        name = "Exporting every run" if everything else f"Exporting run {_not_none(run).id}"
+        self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
+        return self._job
+
     def _clear_preview(self) -> None:
         """A preview belongs to the scan it was computed from.
 
@@ -583,6 +615,14 @@ class SessionViewModel(QObject):
             return
         self._settled = job
 
+        if job.state is JobState.SUCCEEDED and isinstance(job.result, str):
+            #: The path the export went to, relative to the project root — the
+            #: one thing an operator needs after asking for a file they never
+            #: chose a name for (ADR-0067).
+            logger.info("%s finished: %s", job.name, job.result)
+            self.reported.emit(f"Exported to {job.result}")
+            return
+
         if job.state is JobState.SUCCEEDED and isinstance(job.result, AnalysisRun):
             logger.info(
                 "%s finished: %d detection(s), run %d",
@@ -683,3 +723,9 @@ def _summarise(report: ImportReport | None, *, cancelled: bool) -> str:
     if cancelled:
         line += " — cancelled; what was copied is in the project"
     return line
+
+
+def _not_none(run: AnalysisRun | None) -> AnalysisRun:
+    """The run the caller's own guard already proved is there."""
+    assert run is not None
+    return run

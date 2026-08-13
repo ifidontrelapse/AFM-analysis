@@ -7,6 +7,41 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T07 · **the export an operator can ask for, and the scope they mean**
+
+**Task:** `M6-T07`. **ADR:** **ADR-0067**. The last step of M6's first exit criterion:
+`export_measurements` had been in `application` since M4-T11 with **tests as its only callers**.
+
+### The decisions
+
+**Two scopes, named in the menu** — *this run* and *every run in the project*. ADR-0048 built the
+second deliberately, and one item that silently meant one of them is one somebody uses wrong exactly
+once, on the export they then analyse.
+
+**The file lands in the project's `exports/`**, with the name the use case chooses, and the status
+bar says where it went. Asking an operator where to put a file they have not seen yet is asking them
+to invent a filing system per export.
+
+**Nothing to export is the use case's own sentence**, not a disabled button: a detect-only run
+raises, because a file with headers and no rows says *"we measured and found nothing"*, which is a
+different statement.
+
+### What it turned up
+
+**Two test files with the same basename broke collection — for the second time.** `test_export.py`
+against the integration one, exactly M5-T07's `test_jobs.py` trap: every targeted run passed and
+`make check` could not collect. Renamed, and **this time the lesson ships as a guard** — a test walks
+`tests/` and fails on any basename clash. A lesson that lives only in a Progress entry is one the
+project gets to learn twice.
+
+### Numbers
+
+7 tests and the guard, **1135** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M6-T08` — navigating a project's images without going back to the explorer every time.
+
+---
+
 ## 2026-08-13 — M6-T06 · **what the run says about the sample, not about one particle**
 
 **Task:** `M6-T06`. **ADR:** **ADR-0066**.

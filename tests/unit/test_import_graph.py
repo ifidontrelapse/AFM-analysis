@@ -215,3 +215,26 @@ def test_the_application_layer_runs_without_qt(module: str) -> None:
     loaded = set(out.stdout.split())
 
     assert not [q for q in QT if q in loaded], f"importing {module} loaded Qt"
+
+
+# ── Test modules have unique names (M6-T07) ──────────────────────────────────
+#
+# pytest imports test modules by basename when there are no `__init__.py` files,
+# so two files called `test_export.py` in different directories collide **at
+# collection**: every targeted run passes and `make check` cannot even collect.
+# It happened in M5-T07 (`tests/unit/test_jobs.py` against a new
+# `tests/gui/test_jobs.py`) and again in M6-T07, which is one time too many for a
+# lesson that lives only in a `Progress.md` entry.
+
+
+def test_no_two_test_modules_share_a_basename() -> None:
+    seen: dict[str, pathlib.Path] = {}
+    clashes: list[tuple[pathlib.Path, pathlib.Path]] = []
+    for path in sorted((ROOT / "tests").rglob("test_*.py")):
+        first = seen.setdefault(path.name, path)
+        if first != path:
+            clashes.append((first, path))
+
+    assert not clashes, "pytest imports test modules by basename: " + "; ".join(
+        f"{a.relative_to(ROOT)} and {b.relative_to(ROOT)}" for a, b in clashes
+    )
