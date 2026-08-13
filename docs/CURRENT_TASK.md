@@ -1,54 +1,56 @@
 # CURRENT TASK
 
-**ID:** `M6-T08`
-**Title:** Moving through a project's scans without going back to the list
-**Milestone:** M6 — Analysis workflow in the GUI, eighth task
-**Defect:** — · **ADR:** **ADR-0068**
-**Branch:** `feat/m6-analysis-workflow`
-**Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
+**ID:** `M7-T01`
+**Title:** The hand work, on screen and told apart from the machine's
+**Milestone:** M7 — Annotation & metrology tools, first task
+**Defect:** — · **ADR:** **ADR-0070** (to be written)
+**Branch:** `feat/m7-annotation-tools`
+**Status:** planning 2026-08-13.
 
 ---
 
-## Why this task is next
+## Why this task is first
 
-The workflow M6 has been assembling is *look at a scan, run it, read the numbers* — and the real
-version of that is doing it to forty scans in a row. Every one of them currently costs a trip back to
-the explorer, a click on the next row, and a search for where you were.
+M4-T07 made an annotation a row **because it cannot be recomputed** (ADR-0044). M4-T08 built undo
+around it. M5-T04's confirmation counts them before an image is removed. And **nothing in a window
+has ever drawn one** — the most expensive data in a project is the only data with no representation
+on screen.
 
-It is also the last task before M6-T09, which has to prove results survive a restart: proving it is
-easier when moving between images is one keystroke.
+Every tool in M7 puts annotations *into* that layer, so the layer comes first.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Where does the selection live?** In the viewmodel, as it already does.
+**1. Are annotations detections?** No, and they must not look like them.
 
-Navigation is `select_image` with a different id — not a second mechanism. What is new is *which* id,
-and that comes from the open project's own order (ADR-0057, and the reason there is one place to ask).
+A detection is what a machine found; an annotation is what a person judged. ADR-0044 made the
+distinction load-bearing for training — *"a model trained on its own output is confirming itself"* —
+and a screen that draws them in one colour undoes that in the only place an operator would notice
+it. Different colour, drawn **above** the detections, and its own toggle.
 
-**2. Does it wrap?** No. The ends are the ends.
+**2. What does an annotation adopted from a detection look like?**
 
-Wrapping takes an operator from the fortieth scan back to the first without saying so, which in a
-batch review means quietly starting again — and the review that is *"did I look at all of them?"* is
-exactly the one that must not lie. The actions go dead instead.
+`source` is `manual` or `from_detection` (ADR-0044 §3), and that distinction exists *because* the
+two must not be confused. So it is visible: a box an operator drew and a box they accepted from the
+machine are not the same claim, and M8 will care about which is which.
 
-**3. How does an operator know where they are?** A count in the status bar: **"3 of 40"**.
+**3. Where does the layer live?** In the same scene as everything else.
 
-Half of navigating is knowing whether there is anywhere left to go. A permanent label costs one
-widget and answers it without a trip to the list.
+The overlay stack, bottom to top: the scan, the masks, the detections, the annotations. Hand work on
+top, because it is what the operator is working on and what a click should reach first when M7-T02
+arrives.
 
-**4. Does the explorer follow?** Yes, and without echoing.
+**4. Who loads them?** The session, on selection, like the run.
 
-A panel listing the images while a different one is on screen is a panel that lies. It sets its row
-with its signals blocked, because otherwise selecting the row asks the session for the selection it
-just announced — the loop M6-T05 already met once, on the measurements table.
+`annotations_for` has had one caller since M4-T07 — M5-T04's confirmation dialog, which counts them
+without ever showing one.
 
-**5. Does the zoom survive the move?** No, and that is a deliberate absence.
+**5. Does the label show?** Yes, above the box, and it is the operator's own text.
 
-Every scan gets fitted, because scans differ in size and a zoom held across a smaller one shows a
-corner. A *"keep the view"* toggle is a real feature for comparing two scans of the same sample, and
-it is a feature, with a control and a name — not a default.
+An annotation's label is why it exists; a box with no label is a rectangle. It is drawn small and in
+the annotation's colour, and it does not scale with the zoom — a label that grows to fill the screen
+at 32× is a label nobody can read at 32×.
 
 ---
 
@@ -56,38 +58,26 @@ it is a feature, with a control and a name — not a default.
 
 **In scope**
 
-1. `gui/viewmodels/session.py` — `select_next`, `select_previous`, and the position in the project
-2. `MainWindow` — the two actions, their shortcuts, and the "3 of 40" label
-3. `gui/panels/project_explorer.py` — the row follows the session
-4. **ADR-0068** — one selection mechanism, no wrapping, and where the operator is
-5. Tests: the order is the project's, the ends disable the actions, the explorer follows without
-   echoing, and the count is right
+1. `gui/viewmodels/session.py` — the selected image's annotations, and a signal
+2. `gui/panels/viewer.py` — the annotation layer, its labels, its toggle, and the stacking order
+3. **ADR-0070** — annotations are not detections, and the screen says which is which
+4. Tests: they are loaded on selection, drawn above the detections in their own colour, the two
+   sources are distinguishable, the label is the operator's text, and the toggle empties the layer
 
 **Out of scope**
 
-- **Keeping the zoom across images** — decision 5
-- **Filtering or sorting the list** — the project's order is the import order, and a sort is view
-  state nothing has asked for
-- **Running a batch across images** — analysing forty scans unattended is a job that reports per
-  scan, and it is not this task
+- **Drawing a new one** — M7-T02's tools, which this layer exists to receive
+- **Editing or deleting from the canvas** — M7-T07
+- **Anything that mutates** — this task adds no command to the stack
 
 ---
 
 ## Definition of done
 
-- [x] Next and previous move through the project's order, and stop at the ends
-- [x] The status bar says which scan of how many
-- [x] The explorer's row follows, without a loop
-- [x] ADR-0068 + the ADR index
-- [x] `make check` green — 1145 tests, golden byte-identical
-- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M6-T08: moving through a project's scans without going back to the list`
-
----
-
-## What it turned up
-
-**`next_action` was enabled with no project open.** The window set every action's state from the
-session's signals and never from its own initial state, so between construction and the first signal
-each one sat in whatever Qt's default was. A test asked the obvious question and got the wrong
-answer; the window now starts in the state the session implies.
+- [ ] Annotations of the selected image are drawn, labelled, above the detections
+- [ ] A manual annotation and one adopted from a detection are distinguishable
+- [ ] The layer has its own toggle and its own count
+- [ ] ADR-0070 + the ADR index
+- [ ] `make check` green, golden byte-identical
+- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [ ] Commit: `M7-T01: the hand work, on screen and told apart from the machine's`

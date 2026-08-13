@@ -216,7 +216,12 @@ runner with progress and cancellation; log panel; settings dialog; headless GUI 
 
 ---
 
-## M6 — Analysis workflow in the GUI (active)
+## M6 — Analysis workflow in the GUI ✅
+
+**Closed 2026-08-13.** All nine tasks, ADR-0061…ADR-0069, **all four exit criteria met**, and the
+golden did not move once. Tests 1034 → **1151**, of which 243 are headless GUI tests. Milestone
+summary in `docs/Progress.md`. Left open on purpose: masks are still not persisted (ADR-0042/0064), a
+run does not store the configuration it ran with (ADR-0069), and **B-069** needs an operator's view.
 
 **Goal.** The full existing pipeline is driveable from the application.
 
@@ -234,7 +239,7 @@ statistics panel with histograms; CSV export UI; multi-image navigation within a
 
 ---
 
-## M7 — Annotation & metrology tools
+## M7 — Annotation & metrology tools (active)
 
 **Goal.** The operator can correct the machine and measure by hand, GWYDDION-style.
 

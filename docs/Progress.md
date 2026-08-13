@@ -7,6 +7,125 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — **M6 closed**, and M7 opened
+
+**All nine tasks done. ADR-0061 through ADR-0069 — nine decisions in one milestone. All four exit
+criteria met. The golden file did not move once, and no task in this milestone touched a number.**
+
+M6 made the pipeline driveable: preprocess a scan and look at any stage of it, detect with what the
+capability matrix allows, see the particles where they were found, segment when a model is
+registered, read the measurements beside the scan they came from, describe them as a distribution,
+export them, walk a project's scans with two shortcuts, and find all of it again tomorrow.
+
+### What the milestone kept saying
+
+**The UI introduces no defaults, and a test says so.** Every parameter a panel offers has its value
+named in `application` — the compliance test for M6-T01 is deliberately dull, comparing an untouched
+panel against a bare function call **array for array**. The same rule made M6-T02 ask the matrix
+what to offer rather than listing detectors, and M6-T06 take its bin count from a named rule instead
+of a number somebody liked.
+
+**A guard written for one task catches the next one's draft.** M6-T02 added a test that no model
+name appears under `gui/`; it caught this task's own docstring first, and then M6-T09's
+`run.mode == "segment"` two tasks later. M5-T06's import guard refused
+`core.science.DEFAULT_OPENING_SCALE` on its first real chance. The basename guard added in M6-T07
+exists because the same collision broke collection twice.
+
+**A scheduled panel that already exists is closed with an argument.** M6-T04 was scheduled to build
+a segmentation panel; the detection panel already offered the matrix's modes, and a second one would
+have duplicated the choice ADR-0062 had just centralised. Fifth time this project has closed a task
+by checking whether it needed to exist.
+
+### What it found while building
+
+- **`run_analysis` preprocessed with its own defaults** (M6-T02), so a scan previewed at one opening
+  scale would have been analysed at another with nothing saying so.
+- **`particle_id` means two different things** depending on the producer (M6-T05) — the defect class
+  ADR-0031 removed from `radius_nm`, filed as **B-069**.
+- **An unscaled scan keeps its heights** (M6-T06): a height is calibrated by the z axis, a radius by
+  the pixel size, and the panel's first wording was wrong about half the table.
+- **A search-and-replace that matches nothing is a change that did not happen** (M6-T04) — only the
+  test noticed.
+- **`runs_for` had no reader** until M6-T03, so a scan analysed yesterday showed nothing today.
+- Two clipped labels and one empty progress box, all found by **looking at the window**.
+
+### Numbers
+
+| | Start of M6 | End |
+|---|---|---|
+| Tests | 1034 | **1151** |
+| GUI tests | 141 | **243** |
+| ADRs | 60 | **69** |
+| mypy | 6 | **6** |
+| Golden | byte-identical | **byte-identical** |
+
+### Exit criteria
+
+| | |
+|---|---|
+| Load → detect → segment → measure → export CSV, entirely through the UI | ✅ M6-T01…T07 |
+| Selecting a table row highlights the particle, and vice versa | ✅ M6-T05 |
+| Invalid combinations are disabled *because the capability matrix says so* | ✅ M6-T02 |
+| Results persist across application restart | ✅ M6-T09, proven through a new container **and** a new window |
+
+### Left open on purpose
+
+**Masks are still not persisted** (ADR-0042, restated in ADR-0064): a format decision with a
+migration behind it, and the weights that produce them are still outside the gate. **A run does not
+store the configuration it ran with** (ADR-0069), so a parameter sweep lists as rows differing by an
+id. **B-069** needs an operator's view of which meaning of `particle_id` is the right one. **W10**
+is still made-closable rather than closed: `PipelineConfig` keeps its path, because the detector that
+would use it cannot be selected without a registered model.
+
+### Next
+
+**M7-T01** — the annotation layer. M4-T07 made an annotation a row *because it cannot be
+recomputed*, M4-T08 built undo around it, and nothing in a window has ever drawn one.
+
+---
+
+## 2026-08-13 — M6-T09 · **what is still there tomorrow, and what is honestly not**
+
+**Task:** `M6-T09`, the last of M6. **ADR:** **ADR-0069**. **M6's fourth exit criterion is met.**
+Most of it was already true by construction, which made this a task about **proving it and finding
+what does not** — the shape M4-T09 had.
+
+### The decisions
+
+**The proof ends the process's grip on the project:** the container is closed and the repository
+connection with it, then a **new** container and a **new** window open the same directory and find
+the run, its detections, its table, its overlay and its statistics. Anything less proves a cache.
+
+**Older runs are reachable**, which is the gap this found: three analyses of one scan leave three
+rows and the window could reach exactly one. A run selector now lists them, through the same
+`session.select_run` the rest of the selection lives in.
+
+**A fresh selection still shows the newest**, because remembering which run an operator was looking
+at, per image, across restarts is a project-scope preference nobody asked for.
+
+**What does not survive says so:** a restored segmentation run has its detections and **no masks**,
+and an empty overlay reads as *"segmentation found nothing"* — the panel says *"its masks were not
+stored and cannot be redrawn"* instead.
+
+### What it turned up
+
+**The first draft asked `run.mode == "segment"`, and M6-T02's guard caught it** — which modes make
+masks is the matrix's answer, not a literal in a widget. A guard written two tasks earlier, catching
+the exact thing it was written for.
+
+**A run does not store the configuration it ran with**, so the selector lists three opening-scale
+sweeps as three rows differing by an id. Recorded as a negative consequence: storing a
+`PipelineConfig` with a run is a schema change with a migration behind it.
+
+### Numbers
+
+6 tests, **1151** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** M6's task list is complete and all four exit criteria are met. Closing the milestone is the
+operator's call.
+
+---
+
 ## 2026-08-13 — M6-T08 · **moving through a project's scans without going back to the list**
 
 **Task:** `M6-T08`. **ADR:** **ADR-0068**.

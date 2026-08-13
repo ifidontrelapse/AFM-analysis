@@ -9,24 +9,28 @@
 
 ## Current milestone
 
-**M6 — Analysis workflow in the GUI** (opened 2026-08-13)
+**M7 — Annotation & metrology tools** (opened 2026-08-13)
 
-The full existing pipeline, driveable from the application: preprocessing, detection, segmentation,
-measurement, statistics and export, with results that survive a restart. **The rule that governs the
-whole milestone is the roadmap's own:** *the UI must not introduce its own defaults* — every
-parameter a panel offers already has one in `core.science` or `application`, and a disabled
-combination is disabled **because the capability matrix says so**, never because a widget repeated
-the rule.
+The operator corrects the machine and measures by hand. M4-T07 made an annotation a row **because it
+cannot be recomputed**, M4-T08 built undo around it, and nothing in a window has ever drawn one. The
+roadmap's own warning governs the milestone: **manual measurements are a new output**, and they get
+their own tests — the automatic paths keep the golden, and a distance an operator drags has nothing
+protecting it but a test somebody wrote.
 
-**M5 closed 2026-08-13 — all nine tasks, ADR-0052…ADR-0060, and four of five exit criteria.** The
-fifth, *"GUI smoke tests pass headless in CI"*, is **unverified rather than unmet**: CI installs
-PySide6 and runs the 141 headless GUI tests inside `make test`, but the branch is unpushed and no
-run has been read, and claiming it from a developer machine would be claiming a feature because a
-document mentions it. W2 — *"no UI at all"* — is closed. Tests 828 → **1034**, mypy unchanged at 6,
-**the golden did not move once**. The milestone's own lesson, written down because it cost four
-findings: **rendering it and looking at it found what a green suite could not** — a postage-stamp
-scan, an empty progress box, an import that logged nothing, and a settings dialog showing one
-project's value in a control that writes everyone's. Milestone summary in `docs/Progress.md`.
+**M6 closed 2026-08-13 — all nine tasks, ADR-0061…ADR-0069, and all four exit criteria.** The
+pipeline is driveable: preprocess and look at any stage, detect with what the matrix allows, see the
+particles where they were found, segment when a model is registered, read the measurements beside
+their scan, describe them as a distribution, export them, walk the project with two shortcuts, and
+find all of it again tomorrow. Tests 1034 → **1151** (243 GUI), mypy unchanged at 6, **the golden did
+not move once**. Three refrains: **the UI introduces no defaults and a test says so**; **a guard
+written for one task catches the next one's draft** (M6-T02's name guard caught M6-T09's
+`run.mode == "segment"`); and **a scheduled panel that already exists is closed with an argument**
+(M6-T04). Left open on purpose: masks are still unpersisted, a run does not store the configuration
+it ran with, and **B-069** needs an operator's view. Milestone summary in `docs/Progress.md`.
+
+### The milestone this one stands on
+
+**M6 — Analysis workflow in the GUI** ✅
 
 ### The milestone this one stands on
 
@@ -61,8 +65,22 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T08` done 2026-08-13 (ADR-0068); `M6-T09` — results surviving a restart — is
-next, and it closes M6's fourth exit criterion.**
+**None selected. `M6-T09` done 2026-08-13 (ADR-0069), and M6's task list is complete** — nine tasks,
+ADR-0061…ADR-0069, **all four exit criteria met**: the full chain runs through the UI, a table row
+highlights its particle and vice versa, invalid combinations are disabled *because the matrix says
+so*, and results survive a restart. **Closing the milestone is the operator's call**, as it was for
+M3, M4 and M5.
+
+**`M6-T09` done 2026-08-13 (ADR-0069) — what is still there tomorrow, and what is honestly not.**
+Most of persistence was already true by construction, so the task was **proving it and finding what
+does not** (M4-T09's shape). **The proof ends the process's grip on the project**: a new container
+*and* a new window open the same directory and find the run, its detections, its table, its overlay
+and its statistics. **Older runs are reachable** — three analyses left three rows and the window
+could reach exactly one, which is the criterion satisfied on a technicality. **What does not survive
+says so:** a restored segmentation run has no masks, and an empty overlay would read as
+*"segmentation found nothing"*. **Found:** the first draft asked `run.mode == "segment"` and
+**M6-T02's guard caught it**; and a run does not store the configuration it ran with, so a sweep of
+three opening scales lists as three rows differing by an id. 6 tests, **1151** in the suite.
 
 **`M6-T08` done 2026-08-13 (ADR-0068) — moving through a project's scans.** Navigation is
 `select_image` with a different id, taken from the project's own order; **it does not wrap**, because
