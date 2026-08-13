@@ -65,8 +65,19 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T06` done 2026-08-14 (ADR-0075); `M7-T07` — manual add/edit/delete of
-detections — is next.**
+**None selected. `M7-T07` done 2026-08-14 (ADR-0076); `M7-T08` — undo through every tool — is next,
+and it is now mostly an audit: every tool since M7-T02 already goes through the stack.**
+
+**`M7-T07` done 2026-08-14 (ADR-0076) — correcting the machine without rewriting what it did.**
+**A detection is not edited**: it is what a detector produced in a run, and deleting one makes the
+run describe an analysis that never ran. **Correcting the machine is adopting its answer, and the
+adoption is marked** — ADR-0044 built `source` for this and this task is **`FROM_DETECTION`'s first
+writer**, four milestones on. Adoption is one click and adopting everything is one more; deleting one
+box asks nothing, because M5-T04's dialog is about destroying hand work and this is one box with
+`Ctrl+Z` beside it. `UpdateAnnotation` and `RemoveAnnotation` get their first callers outside their
+own tests. **Found:** the task's own title named an operation this project deliberately cannot
+perform, and ADR-0044 had written the alternative four milestones earlier. 14 tests, **1264** in the
+suite.
 
 **`M7-T06` done 2026-08-14 (ADR-0075) — the heights under a line. M7's third exit criterion is
 met**, and the first job was to read the reference it names: the notebook's "height profile" is

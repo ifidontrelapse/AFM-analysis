@@ -34,7 +34,12 @@ from PySide6.QtCore import QObject, Signal
 
 from nanoscope.application import capabilities, use_cases
 from nanoscope.application.capabilities import DetectorOption
-from nanoscope.application.commands import AddAnnotation, AddRuler
+from nanoscope.application.commands import (
+    AddAnnotation,
+    AddRuler,
+    RemoveAnnotation,
+    UpdateAnnotation,
+)
 from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.settings import Scope
 from nanoscope.application.use_cases.display import (
@@ -46,6 +51,7 @@ from nanoscope.application.use_cases.display import (
 from nanoscope.application.use_cases.preprocessing import PreprocessingParams
 from nanoscope.core.entities import (
     AnalysisRun,
+    Detection,
     PipelineConfig,
     PreprocessingResult,
     Ruler,
@@ -55,6 +61,7 @@ from nanoscope.core.entities.device import Device
 from nanoscope.core.entities.model import ModelTask
 from nanoscope.core.entities.project import (
     Annotation,
+    AnnotationSource,
     ImageRecord,
     ImportReport,
     OpenedProject,
@@ -123,6 +130,10 @@ class SessionViewModel(QObject):
     #: The selected image's rulers — the lines an operator measured by hand.
     rulers_changed = Signal(object)
 
+    #: Which annotation is selected — an id, or `None`. The edit tools act on
+    #: it, and the canvas draws it thicker (M7-T07).
+    annotation_selected = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -144,6 +155,7 @@ class SessionViewModel(QObject):
         self._run: AnalysisRun | None = None
         self._annotations: tuple[Annotation, ...] = ()
         self._rulers: tuple[Ruler, ...] = ()
+        self._selected_annotation: int | None = None
         self._particle: int | None = None
         self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
@@ -427,6 +439,107 @@ class SessionViewModel(QObject):
             self._refuse(str(refusal))
             return None
 
+    # ── Correcting the machine (M7-T07) ──────────────────────────────────────
+
+    @property
+    def selected_annotation(self) -> int | None:
+        return self._selected_annotation
+
+    def select_annotation(self, annotation_id: int | None) -> None:
+        """Choose the box the edit tools act on."""
+        if annotation_id is not None and all(one.id != annotation_id for one in self._annotations):
+            annotation_id = None
+        if annotation_id == self._selected_annotation:
+            return
+        self._selected_annotation = annotation_id
+        self.annotation_selected.emit(annotation_id)
+
+    def adopt_detection(self, index: int, *, label: str) -> bool:
+        """Turn one of the run's detections into an annotation.
+
+        **The detection is not touched.** A stored detection is what a detector
+        produced in a run (ADR-0042); editing it would make the run describe an
+        analysis that never happened. Correcting the machine means adopting its
+        answer and marking where the box came from — which is what
+        `AnnotationSource.FROM_DETECTION` was built for, and this is its first
+        writer (ADR-0044, ADR-0076).
+        """
+        repository = self._app.repository
+        run = self._run
+        if repository is None or run is None or self._image_id is None:
+            return False
+        if not 0 <= index < len(run.detections):
+            return False
+        if not label.strip():
+            self._refuse("an annotation needs a label: a box with no label is a rectangle")
+            return False
+
+        detection = run.detections[index]
+        command = AddAnnotation(
+            repository,
+            self._image_id,
+            _detection_box(detection),
+            label_text=label.strip(),
+            source=AnnotationSource.FROM_DETECTION,
+        )
+        try:
+            self._app.commands.run(command)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        self.reload_annotations()
+        return True
+
+    def adopt_all_detections(self, *, label: str) -> int:
+        """Adopt every detection of the current run. Returns how many.
+
+        Reviewing forty detections means keeping thirty-eight and fixing two, so
+        the common case is one click rather than forty.
+        """
+        run = self._run
+        if run is None:
+            return 0
+        return sum(
+            1 for index in range(len(run.detections)) if self.adopt_detection(index, label=label)
+        )
+
+    def rename_annotation(self, annotation_id: int, label: str) -> bool:
+        """Relabel a box, reversibly. `UpdateAnnotation`'s first caller."""
+        repository = self._app.repository
+        if repository is None:
+            return False
+        if not label.strip():
+            self._refuse("an annotation needs a label: a box with no label is a rectangle")
+            return False
+
+        try:
+            self._app.commands.run(
+                UpdateAnnotation(repository, annotation_id, label_text=label.strip())
+            )
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        self.reload_annotations()
+        return True
+
+    def remove_annotation(self, annotation_id: int) -> bool:
+        """Delete a box. No dialog: `Ctrl+Z` is in the same menu (ADR-0076 §4)."""
+        repository = self._app.repository
+        if repository is None:
+            return False
+        try:
+            self._app.commands.run(RemoveAnnotation(repository, annotation_id))
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        if annotation_id == self._selected_annotation:
+            self.select_annotation(None)
+        self.reload_annotations()
+        return True
+
     def undo(self) -> bool:
         """Take back the last edit, and redraw what is now true."""
         return self._history(self._app.commands.undo)
@@ -557,6 +670,13 @@ class SessionViewModel(QObject):
             if repository is None or self._image_id is None
             else tuple(repository.annotations_for(self._image_id))
         )
+        #: A selection the project no longer contains is not a selection — the
+        #: same rule the image selection follows (M5-T06).
+        if self._selected_annotation is not None and all(
+            one.id != self._selected_annotation for one in self._annotations
+        ):
+            self._selected_annotation = None
+            self.annotation_selected.emit(None)
         self.annotations_changed.emit(self._annotations)
 
     def runs(self) -> list[AnalysisRun]:
@@ -1103,3 +1223,23 @@ def _bounds(points: Sequence[tuple[float, float]]) -> tuple[float, float, float,
     xs = [x for x, _ in points]
     ys = [y for _, y in points]
     return min(xs), min(ys), max(xs), max(ys)
+
+
+def _detection_box(detection: Detection) -> tuple[float, float, float, float]:
+    """A detection's box, or the square its radius describes.
+
+    `bbox` is `None` on the blob path (ADR-0031), and an adopted annotation needs
+    four numbers — so the circle becomes the square that bounds it, which is a
+    stated conversion rather than an invention: ADR-0044 said in its own text
+    that *"a circle converts to a box losslessly for training"*.
+    """
+    if detection.bbox is not None:
+        x1, y1, x2, y2 = detection.bbox
+        return float(x1), float(y1), float(x2), float(y2)
+    radius = max(detection.radius_px, 0.5)
+    return (
+        detection.x_px - radius,
+        detection.y_px - radius,
+        detection.x_px + radius,
+        detection.y_px + radius,
+    )

@@ -90,6 +90,16 @@ class AnnotatePanel(QWidget):
         self.lengths.setWordWrap(True)
         self.lengths.setStyleSheet(f"color: {tokens.TEXT_MUTED};")
 
+        self.adopt = QPushButton("Adopt selected detection", self)
+        self.adopt.clicked.connect(self._adopt)
+        self.adopt_all = QPushButton("Adopt every detection", self)
+        self.adopt_all.clicked.connect(self._adopt_all)
+
+        self.rename = QPushButton("Rename selected box", self)
+        self.rename.clicked.connect(self._rename)
+        self.delete = QPushButton("Delete selected box", self)
+        self.delete.clicked.connect(self._delete)
+
         self.report = QLabel("", self)
         self.report.setWordWrap(True)
         self.report.setStyleSheet(f"color: {tokens.TEXT_MUTED};")
@@ -104,11 +114,18 @@ class AnnotatePanel(QWidget):
         layout.addWidget(self.measure)
         layout.addWidget(self.as_profile)
         layout.addWidget(self.lengths)
+        layout.addWidget(self.adopt)
+        layout.addWidget(self.adopt_all)
+        layout.addWidget(self.rename)
+        layout.addWidget(self.delete)
         layout.addWidget(self.report)
         layout.addStretch(1)
 
         session.annotations_changed.connect(self._annotations_changed)
         session.rulers_changed.connect(self._rulers_changed)
+        session.annotation_selected.connect(lambda _id: self._update())
+        session.particle_selected.connect(lambda _index: self._update())
+        session.run_changed.connect(lambda _run: self._update())
         session.image_changed.connect(lambda _image: self._update())
         self._annotations_changed(session.annotations)
         self._rulers_changed(session.rulers)
@@ -154,6 +171,31 @@ class AnnotatePanel(QWidget):
             for other in (self.draw, self.outline, self.brush):
                 other.setChecked(False)
 
+    def _adopt(self) -> None:
+        """Adopt the selected detection. **The detection is not touched** — a
+        run is a record of what happened (ADR-0076)."""
+        index = self._session.particle
+        if index is not None:
+            self._session.adopt_detection(index, label=self.label.text())
+
+    def _adopt_all(self) -> None:
+        adopted = self._session.adopt_all_detections(label=self.label.text())
+        if adopted:
+            self.report.setText(f"Adopted {adopted} detection(s) as annotations.")
+
+    def _rename(self) -> None:
+        selected = self._session.selected_annotation
+        if selected is not None:
+            self._session.rename_annotation(selected, self.label.text())
+
+    def _delete(self) -> None:
+        """No confirmation: this is one box, and Ctrl+Z is in the same menu.
+        M5-T04's dialog exists because removing an *image* destroys hand work
+        that cannot be recomputed (ADR-0076 §4)."""
+        selected = self._session.selected_annotation
+        if selected is not None:
+            self._session.remove_annotation(selected)
+
     def _toggled(self, on: bool) -> None:
         self.draw.setText("Drawing boxes" if on else "Draw boxes")
         #: One tool at a time: two drawing modes on one canvas is a gesture that
@@ -191,3 +233,10 @@ class AnnotatePanel(QWidget):
             tool.setEnabled(can_draw)
             if not can_draw:
                 tool.setChecked(False)
+
+        run = self._session.run
+        self.adopt.setEnabled(self._session.particle is not None)
+        self.adopt_all.setEnabled(bool(run is not None and run.detections))
+        selected = self._session.selected_annotation is not None
+        self.rename.setEnabled(selected)
+        self.delete.setEnabled(selected)

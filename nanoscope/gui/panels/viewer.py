@@ -107,6 +107,11 @@ class ImageView(QGraphicsView):
     #: An outline the operator closed: `((x, y), …)`, at least three vertices.
     polygon_drawn = Signal(tuple)
 
+    #: The annotation whose box was clicked, by position in the layer, or
+    #: `None`. Annotations are drawn above the detections precisely so that a
+    #: click reaches them first (ADR-0070 §1, ADR-0076 §5).
+    annotation_picked = Signal(object)
+
     #: A line the operator dragged: `((x1, y1), (x2, y2))` in scene pixels.
     line_drawn = Signal(tuple)
 
@@ -373,6 +378,13 @@ class ImageView(QGraphicsView):
         )
         self.setCursor(Qt.CursorShape.CrossCursor if on else Qt.CursorShape.ArrowCursor)
 
+    def highlight_annotation(self, index: int | None) -> None:
+        """Thicken the selected box, and only that one."""
+        for position, item in enumerate(self._annotations):
+            pen = item.pen()  # type: ignore[attr-defined]  # every shape here has one
+            pen.setWidthF(OVERLAY_WIDTH_PX * (3 if position == index else 1))
+            item.setPen(pen)  # type: ignore[attr-defined]
+
     def highlight(self, index: int | None) -> None:
         """Thicken the selected outline, and only that one."""
         for position, item in enumerate(self._overlay):
@@ -508,6 +520,12 @@ class ImageView(QGraphicsView):
             return
 
         point = self.mapToScene(event.position().toPoint())
+        for index, item in enumerate(self._annotations):
+            if item.sceneBoundingRect().contains(point):
+                self.annotation_picked.emit(index)
+                return
+        self.annotation_picked.emit(None)
+
         for index, item in enumerate(self._overlay):
             if item.sceneBoundingRect().contains(point):
                 self.picked.emit(index)
@@ -552,6 +570,8 @@ class ImageViewer(QWidget):
         #: session answers everyone (ADR-0065).
         self.view.picked.connect(session.select_particle)
         session.particle_selected.connect(self.view.highlight)
+        self.view.annotation_picked.connect(self._annotation_picked)
+        session.annotation_selected.connect(lambda _id: self._draw_overlay())
 
         self.colormap = QComboBox(self)
         self.colormap.addItems(COLORMAPS)
@@ -622,6 +642,12 @@ class ImageViewer(QWidget):
         self.show_image(session.image)
         self._draw_overlay()
 
+    def _annotation_picked(self, index: int | None) -> None:
+        """A position in the layer becomes the id the session speaks in."""
+        annotations = self._session.annotations
+        chosen = annotations[index].id if index is not None and index < len(annotations) else None
+        self._session.select_annotation(chosen)
+
     def _run_changed(self, _run: AnalysisRun | None) -> None:
         self._draw_overlay()
 
@@ -644,6 +670,13 @@ class ImageViewer(QWidget):
             ]
         )
         self.show_annotations.setText(_annotation_count(self._session.annotations))
+        selected = self._session.selected_annotation
+        self.view.highlight_annotation(
+            next(
+                (position for position, one in enumerate(annotations) if one.id == selected),
+                None,
+            )
+        )
         self.view.draw_rulers(
             [(ruler.start, ruler.end) for ruler in self._session.rulers]
             if self.show_annotations.isChecked()

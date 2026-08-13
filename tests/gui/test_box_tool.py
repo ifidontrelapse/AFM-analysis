@@ -206,7 +206,13 @@ class TestThereIsNoPointTool:
         #: The ruler is on this list and is **not** an annotation tool: a line
         #: has no area either, which is why it got a table of its own rather
         #: than a shape (ADR-0074).
-        assert [button.text() for button in panel.findChildren(QPushButton)] == [
+        drawing = [
+            button.text() for button in panel.findChildren(QPushButton) if button.isCheckable()
+        ]
+
+        #: Only the **checkable** ones are tools: M7-T07 added adopt, rename and
+        #: delete, which act on what a tool already made.
+        assert drawing == [
             "Draw boxes",
             "Draw outlines",
             "Paint masks",

@@ -7,6 +7,47 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-14 — M7-T07 · **correcting the machine without rewriting what it did**
+
+**Task:** `M7-T07`. **ADR:** **ADR-0076**.
+
+### The decisions
+
+**A detection is not edited.** A stored detection is what a detector produced in a run (ADR-0042),
+and deleting one makes the run describe an analysis that never ran — the project would lose its only
+honest answer to *"what did the detector actually find?"*, which is M3-T15's question and M8's
+training signal.
+
+**Correcting the machine is adopting its answer, and the adoption is marked.** ADR-0044 built
+`source` for this and said why — *a model trained on its own output is confirming itself* — and this
+task is `FROM_DETECTION`'s **first writer**, four milestones after it was defined.
+
+**Adoption is one click and adopting everything is one more**; **deleting one box asks nothing**,
+because M5-T04's confirmation is about destroying hand work and this is one box with `Ctrl+Z` in the
+same menu (ADR-0055's rule that a rare confirmation is the readable one).
+
+`UpdateAnnotation` and `RemoveAnnotation` get their first callers outside their own tests, and the
+selection is the one the canvas already had — a click reaches the annotation layer first because
+M7-T01 drew it on top for exactly this.
+
+### What it turned up
+
+**The task's own title was the decision.** It names an operation this project deliberately cannot
+perform, and ADR-0044 had written the alternative four milestones earlier — in the ADR that created
+the field this task finally writes.
+
+**A blob detection has no box to adopt**, so the adopted annotation takes the square bounding the
+circle: not an invention, but ADR-0044's own sentence, written before the code that needed it.
+
+### Numbers
+
+14 tests, **1264** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M7-T08` — undo through every tool, which is now mostly an audit: every tool since M7-T02
+already goes through the stack.
+
+---
+
 ## 2026-08-14 — M7-T06 · **the heights under a line, and what the notebook actually did**
 
 **Task:** `M7-T06`. **ADR:** **ADR-0075**. **M7's third exit criterion is met.**
