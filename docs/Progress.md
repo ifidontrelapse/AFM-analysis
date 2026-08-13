@@ -7,6 +7,96 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — **M5 closed**, and M6 opened
+
+**All nine tasks done. ADR-0052 through ADR-0060 — nine decisions in one milestone. Four of five
+exit criteria met; the fifth is unverified rather than unmet. The golden file did not move once,
+and no task in this milestone touched a number.**
+
+M5 built what W2 said did not exist: *"no UI at all"*. `nanoscope --gui` now opens a window with a
+project explorer, a scan on screen with a scale bar and a readout in nm and px, a properties panel,
+a background import with progress and a cancel button that tells the truth, a log panel, and a
+settings dialog. Between them sits one viewmodel, and beneath it the layer M4 finished — M5
+constructed objects rather than inventing them, which is what the milestone was scheduled *after*
+M4 to be able to do.
+
+### What the milestone kept saying
+
+**Rendering it and looking at it found what the tests could not — four times.**
+
+- the scan drew as a **postage stamp**, because `fitInView` ran before the widget had its final
+  size (M5-T05);
+- the progress bar with its text off was an **empty box** at 0 of 6 (M5-T07);
+- an import wrote **nothing into the project log** ADR-0051 built to answer *what happened to this
+  work* (M5-T08);
+- the settings dialog showed the **project's** value in a control that writes the **operator's**,
+  which would have promoted one project's choice to every project (M5-T09).
+
+Every one of those had a green suite around it. The tests were not wrong; they were about the
+things a test is good at, and *"is this the picture an operator would understand?"* is not one of
+them. **A GUI milestone owes two minutes of looking per task**, and this one paid it every time.
+
+The second refrain is older: **the rule and its enforcement ship together, or only the rule does.**
+M5-T03's stylesheet has no colour of its own because a test says so; contrast is a floor because a
+test recomputes it; `gui/` reaches no further than `application` because a test parses the imports;
+no panel holds the composition root for the same reason.
+
+### What it found while building
+
+- **`load_afm`'s npy path leaked numpy's own `FileNotFoundError`** (M5-T05) — forbidden as a public
+  contract by PROJECT_RULES §3, and invisible to every caller catching `NanoscopeError`.
+- **A queued signal carries the handle, not a snapshot** (M5-T07), so every "on finish" handler
+  fires once per update the job ever emitted — an import refreshed and announced itself five times.
+- **A cancelled import is a job that SUCCEEDED** (M5-T07): `import_images` stops by *returning* its
+  partial report, so `cancellation_requested` is the only record of the button.
+- **`logging.Handler.emit` collides with `QObject.emit`** (M5-T08) — the multiple-inheritance
+  version silently overrode a method of its own base; mypy caught it.
+- **A handler left attached to a deleted widget prints logging errors into stderr** (M5-T08), found
+  from an *unrelated test file* asserting that a refusal carries no traceback.
+- **Two test files with the same basename break collection** (M5-T07) — every targeted run passed;
+  `make check` failed to collect.
+- **A guard's own `startswith("nanoscope.app")` rejected `nanoscope.application`** (M5-T06), the
+  layer panels are supposed to import.
+- **A test hung instead of failing** when `--gui` stopped being a stub (M5-T02) — a hang is the
+  worse of the two.
+
+### Numbers
+
+| | Start of M5 | End |
+|---|---|---|
+| Tests | 828 | **1034** |
+| GUI tests | 0 | **141**, headless |
+| ADRs | 51 | **60** |
+| mypy | 6 | **6** |
+| Golden | byte-identical | **byte-identical** |
+
+### Exit criteria
+
+| | |
+|---|---|
+| `nanoscope` launches and opens a project made in M4 | ✅ M5-T01 headless, M5-T02 with a window |
+| A scan renders with correct nm axes and a scale bar | ✅ M5-T05, on a characterization phantom |
+| A long job shows progress and can be cancelled without freezing the UI | ✅ M5-T07, an import of six phantoms |
+| GUI smoke tests pass headless in CI | ⏳ **unverified, not unmet** — CI installs PySide6 and runs `make test`; the branch is unpushed and no run has been read |
+| A check proves no `gui/` module imports `core.science` or `infrastructure` | ✅ M5-T06, a test rather than a lint rule |
+
+### Left open on purpose
+
+**The CI criterion needs a push and a run**, and claiming it from this machine would be claiming a
+feature because a document mentions it (PROJECT_RULES §8). **W10 is still made-closable rather than
+closed**: `PipelineConfig` keeps its path, and M6 is the milestone whose panels finally call the
+registry. **B-068** and M3's remainder (**M3-T16** on **B6**, **B-062**, **B-065**, **B-066**,
+**B-067**) are untouched.
+
+### Next
+
+**M6-T01** — the preprocessing panel. M6's exit criterion is *load → detect → segment → measure →
+export, entirely through the UI*, and preprocessing is the step every later one stands on:
+`run_preprocessing` exists, has an ADR behind each of its stages, and has never been reachable from
+a window.
+
+---
+
 ## 2026-08-13 — M5-T09 · **a settings dialog that says whose setting it is**
 
 **Task:** `M5-T09`, the last in M5's list. **ADR:** **ADR-0060**. It collects an obligation M4-T10

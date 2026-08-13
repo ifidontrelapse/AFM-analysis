@@ -9,7 +9,28 @@
 
 ## Current milestone
 
-**M5 — GUI shell**
+**M6 — Analysis workflow in the GUI** (opened 2026-08-13)
+
+The full existing pipeline, driveable from the application: preprocessing, detection, segmentation,
+measurement, statistics and export, with results that survive a restart. **The rule that governs the
+whole milestone is the roadmap's own:** *the UI must not introduce its own defaults* — every
+parameter a panel offers already has one in `core.science` or `application`, and a disabled
+combination is disabled **because the capability matrix says so**, never because a widget repeated
+the rule.
+
+**M5 closed 2026-08-13 — all nine tasks, ADR-0052…ADR-0060, and four of five exit criteria.** The
+fifth, *"GUI smoke tests pass headless in CI"*, is **unverified rather than unmet**: CI installs
+PySide6 and runs the 141 headless GUI tests inside `make test`, but the branch is unpushed and no
+run has been read, and claiming it from a developer machine would be claiming a feature because a
+document mentions it. W2 — *"no UI at all"* — is closed. Tests 828 → **1034**, mypy unchanged at 6,
+**the golden did not move once**. The milestone's own lesson, written down because it cost four
+findings: **rendering it and looking at it found what a green suite could not** — a postage-stamp
+scan, an empty progress box, an import that logged nothing, and a settings dialog showing one
+project's value in a control that writes everyone's. Milestone summary in `docs/Progress.md`.
+
+### The milestone this one stands on
+
+**M5 — GUI shell** ✅
 
 A Qt6 application that starts, opens a project made in M4, and shows a scan — with dockable
 panels, a dark theme, and no business logic in a single widget. **The layer underneath it is
@@ -40,7 +61,9 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T09` done 2026-08-13 (ADR-0060), and M5's task list is complete** — nine
+**`M6-T01` — the preprocessing panel.** The plan is in `docs/CURRENT_TASK.md`.
+
+**`M5-T09` done 2026-08-13 (ADR-0060), and M5's task list is complete** — nine
 tasks, ADR-0052…ADR-0060. **Three of five exit criteria are ticked.** The fourth, *"GUI smoke tests
 pass headless in CI"*, **cannot be verified from this machine**: CI installs PySide6 and runs
 `make test` (141 GUI tests, offscreen), but the branch is unpushed and no run has been read. The

@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-12 · **Active:** **M5 — GUI shell.** **M4 closed 2026-08-12** with all fifteen tasks done, all six exit criteria met and ADR-0038…ADR-0051; the golden did not move once in fifteen tasks. M3 closed 2026-08-09 with 25 of 26 tasks done and all five exit criteria met (`M3-T19` last, 2026-08-09); `M3-T16` stays open and blocked on **B6**, and **B-062**, **B-065**, **B-066**, **B-067** stay in M3 as algorithm choices needing an operator's view. Every defect the July audit reproduced is closed except **D-24** (the stale README, M9). `M4-T09` is the current task
+**Updated:** 2026-08-13 · **Active:** **M6 — Analysis workflow in the GUI**, with `M6-T01` current. **M5 closed 2026-08-13** with all nine tasks done, ADR-0052…ADR-0060, and four of five exit criteria met — the fifth, *GUI smoke tests in CI*, is unverified rather than unmet. **M4 closed 2026-08-12** with all fifteen tasks done, all six exit criteria met and ADR-0038…ADR-0051; the golden did not move once in fifteen tasks. M3 closed 2026-08-09 with 25 of 26 tasks done and all five exit criteria met (`M3-T19` last, 2026-08-09); `M3-T16` stays open and blocked on **B6**, and **B-062**, **B-065**, **B-066**, **B-067** stay in M3 as algorithm choices needing an operator's view. Every defect the July audit reproduced is closed except **D-24** (the stale README, M9). M5 left **W10 closable rather than closed** and **B-068** open
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -127,7 +127,12 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 ---
 
-## M5 — GUI shell
+## M5 — GUI shell ✅ (closed 2026-08-13)
+
+**All nine tasks done, ADR-0052…ADR-0060, four of five exit criteria met and the fifth unverified
+rather than unmet** — *"GUI smoke tests pass headless in CI"* needs a push and a run to read. Tests
+828 → **1034**, of which **141 are headless GUI tests**; the golden did not move once. Milestone
+summary in `docs/Progress.md`.
 
 | ID | Task | Status |
 |---|---|---|
@@ -145,7 +150,13 @@ Task IDs are permanent. A dropped task keeps its ID; IDs are never reused.
 
 ---
 
-## M6 — Analysis workflow in the GUI
+## M6 — Analysis workflow in the GUI (in progress)
+
+**Opened 2026-08-13.** The exit criterion is *load → detect → segment → measure → export, entirely
+through the UI*, and the rule that governs the whole milestone is in the roadmap: **the UI must not
+introduce its own defaults.** Every parameter a panel offers has a default that already exists in
+`core.science` or `application`, and where a panel disables a combination it does so **because the
+capability matrix says so**, not because a widget repeated the rule.
 
 | ID | Task | Status |
 |---|---|---|

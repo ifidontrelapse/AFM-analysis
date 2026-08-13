@@ -182,7 +182,13 @@ the model registry and `ModelDescriptor`.
 
 ---
 
-## M5 — GUI shell
+## M5 — GUI shell ✅
+
+**Closed 2026-08-13.** All nine tasks, ADR-0052…ADR-0060, **four of five exit criteria met and the
+fifth unverified rather than unmet**: CI installs PySide6 and runs the 141 headless GUI tests inside
+`make test`, but the branch is unpushed and no run has been read — and claiming it from a developer
+machine would be claiming a feature because a document mentions it (PROJECT_RULES §8). Tests 828 →
+**1034**; the golden did not move once. Milestone summary in `docs/Progress.md`.
 
 **Goal.** A Qt6 application that starts, opens a project, and shows a scan — with
 dockable panels, a dark theme, and no business logic in a single widget.
@@ -210,7 +216,7 @@ runner with progress and cancellation; log panel; settings dialog; headless GUI 
 
 ---
 
-## M6 — Analysis workflow in the GUI
+## M6 — Analysis workflow in the GUI (active)
 
 **Goal.** The full existing pipeline is driveable from the application.
 
