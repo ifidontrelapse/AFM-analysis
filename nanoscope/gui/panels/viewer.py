@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
+    QGraphicsSimpleTextItem,
     QGraphicsView,
     QHBoxLayout,
     QLabel,
@@ -57,9 +58,19 @@ from nanoscope.application.use_cases.display import (
     stage_image,
     value_range,
 )
-from nanoscope.core.entities import AnalysisRun, Detection
+from nanoscope.core.entities import AnalysisRun, Annotation, AnnotationSource, Detection
 from nanoscope.gui.theme import tokens
 from nanoscope.gui.viewmodels import SessionViewModel
+
+#: How the two kinds of hand work are told apart. `MANUAL` is a box somebody
+#: drew; `FROM_DETECTION` is one they accepted from the machine — and ADR-0044
+#: made that distinction load-bearing for training, because *a model trained on
+#: its own output is confirming itself*. A screen that draws them alike undoes it
+#: in the one place an operator would have noticed.
+ANNOTATION_STYLES: dict[AnnotationSource, tuple[str, Qt.PenStyle]] = {
+    AnnotationSource.MANUAL: (tokens.SUCCESS, Qt.PenStyle.SolidLine),
+    AnnotationSource.FROM_DETECTION: (tokens.WARNING, Qt.PenStyle.DashLine),
+}
 
 #: How wide the overlay's outline is, in screen pixels. Cosmetic on purpose: a
 #: pen measured in scene units turns a circle into a filled blob at 32x.
@@ -106,6 +117,7 @@ class ImageView(QGraphicsView):
         self._fitted = True
         self._overlay: list[QGraphicsItem] = []
         self._masks: list[QGraphicsItem] = []
+        self._annotations: list[QGraphicsItem] = []
         self._pressed_at: QPoint | None = None
 
     def show_pixmap(self, pixmap: QPixmap) -> None:
@@ -118,6 +130,24 @@ class ImageView(QGraphicsView):
         self.setSceneRect(QRectF())
         self.draw_detections(())
         self.draw_masks(())
+        self.draw_annotations(())
+
+    def draw_annotations(self, annotations: Iterable[Annotation]) -> None:
+        """The hand work, **above** everything else in the scene.
+
+        Above because it is what the operator is working on, and what a click
+        should reach first when M7-T02's tools arrive.
+        """
+        for item in self._annotations:
+            self.scene().removeItem(item)
+        self._annotations = [_annotation_item(one) for one in annotations]
+        for item in self._annotations:
+            item.setZValue(1.0)
+            self.scene().addItem(item)
+
+    @property
+    def annotation_overlay(self) -> list[QGraphicsItem]:
+        return list(self._annotations)
 
     def draw_masks(self, masks: Iterable[np.ndarray]) -> None:
         """Outline each mask, in scene coordinates like everything else.
@@ -248,6 +278,7 @@ class ImageViewer(QWidget):
         session.image_changed.connect(self.show_image)
         session.preview_changed.connect(lambda _preview: self.show_image(session.image))
         session.run_changed.connect(self._run_changed)
+        session.annotations_changed.connect(lambda _annotations: self._draw_overlay())
 
         self.view = ImageView(self)
         self.view.hovered.connect(self._describe)
@@ -289,6 +320,14 @@ class ImageViewer(QWidget):
         )
         self.show_masks.toggled.connect(lambda _: self._draw_overlay())
 
+        self.show_annotations = QCheckBox("Annotations", self)
+        self.show_annotations.setChecked(True)
+        self.show_annotations.setToolTip(
+            "Boxes a person drew or accepted. The one thing in a project that "
+            "cannot be recomputed (ADR-0044)."
+        )
+        self.show_annotations.toggled.connect(lambda _: self._draw_overlay())
+
         #: Which array is on screen. ADR-0056's rule was never "show the file
         #: and nothing else" — it was *never show something the file does not
         #: contain without saying so*, and this label is how that promise
@@ -302,6 +341,7 @@ class ImageViewer(QWidget):
         controls.addWidget(self.full_range)
         controls.addWidget(self.show_detections)
         controls.addWidget(self.show_masks)
+        controls.addWidget(self.show_annotations)
         #: Beside the controls rather than at the far right: it was clipped to
         #: "result (flatte…" when it competed with the scale bar for the end of
         #: the row, and a label nobody can finish reading is not a statement.
@@ -326,6 +366,10 @@ class ImageViewer(QWidget):
         detections = run.detections if run is not None and self.show_detections.isChecked() else ()
         self.view.draw_detections(detections)
         self.view.highlight(self._session.particle)
+        annotations = self._session.annotations if self.show_annotations.isChecked() else ()
+        self.view.draw_annotations(annotations)
+        self.show_annotations.setText(_annotation_count(self._session.annotations))
+
         masks = _mask_arrays(run) if run is not None and self.show_masks.isChecked() else ()
         self.view.draw_masks(masks)
         #: Hidden entirely when there are none: a control for something that
@@ -510,3 +554,33 @@ def _outline(mask: np.ndarray) -> QGraphicsItem:
     item.setPen(pen)
     item.setBrush(QBrush())
     return item
+
+
+def _annotation_item(annotation: Annotation) -> QGraphicsItem:
+    """One box a person drew, with the label that is the reason it exists.
+
+    The label does **not** scale with the zoom: one that grows to fill the
+    screen at 32x is a label nobody can read at 32x.
+    """
+    colour, style = ANNOTATION_STYLES[annotation.source]
+    x1, y1, x2, y2 = annotation.box
+    item = QGraphicsRectItem(QRectF(x1, y1, x2 - x1, y2 - y1))
+
+    pen = QPen(tokens.qcolor(colour))
+    pen.setWidthF(OVERLAY_WIDTH_PX)
+    pen.setCosmetic(True)
+    pen.setStyle(style)
+    item.setPen(pen)
+    item.setBrush(QBrush())
+    item.setToolTip(f"{annotation.label} ({annotation.source})")
+
+    label = QGraphicsSimpleTextItem(annotation.label, item)
+    label.setBrush(QBrush(tokens.qcolor(colour)))
+    label.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations)
+    label.setPos(x1, y1)
+    return item
+
+
+def _annotation_count(annotations: tuple[Annotation, ...]) -> str:
+    """The toggle's label: how much hand work this scan carries."""
+    return "Annotations" if not annotations else f"Annotations ({len(annotations)})"

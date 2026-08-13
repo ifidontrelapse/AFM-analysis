@@ -105,7 +105,7 @@ AFM-analysis/
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…M6-T09) — 243 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M7-T01) — 254 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

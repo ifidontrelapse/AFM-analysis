@@ -121,8 +121,8 @@ class MeasurementsPanel(QWidget):
         #: **The matrix says which modes make masks**, not a literal in a
         #: widget — the panel asking "was this the segmenting one?" by name is
         #: what ADR-0062 removed, and M6-T02's guard caught the attempt.
-        row = find(run.modality.value, run.detector, run.mode)
-        if row is not None and row.requires_predictor and not run.masks:
+        capability = find(run.modality.value, run.detector, run.mode)
+        if capability is not None and capability.requires_predictor and not run.masks:
             #: A restored segmentation run has detections and no masks, and an
             #: empty overlay reads as *"segmentation found nothing"*. It is not
             #: nothing — it is not stored (ADR-0042, ADR-0064, ADR-0069).

@@ -65,7 +65,19 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T09` done 2026-08-13 (ADR-0069), and M6's task list is complete** — nine tasks,
+**`M7-T02` — the point and box tools — is next.**
+
+**`M7-T01` done 2026-08-13 (ADR-0070) — the hand work, on screen.** M4-T07 made an annotation a row
+because it cannot be recomputed, M4-T08 built undo around it, and **nothing in a window had ever
+drawn one**. Its own colour, toggle and count, **above** the detections; **the two sources are
+visibly different** (manual solid, adopted dashed), because ADR-0044 made that distinction
+load-bearing for training; the label is the operator's text and ignores the zoom. **This task mutates
+nothing.** **Found: M6-T09 shipped two mypy errors and its commit said otherwise** — a `find(...)`
+result bound to `row`, the name the loop below reuses; mypy went 6 → 8, the check ran before the edit
+and not after, and the claim "unchanged at 6" was wrong. Fixed; mypy is back at 6. 11 tests, **1162**
+in the suite.
+
+**`M6-T09` done 2026-08-13 (ADR-0069), and M6's task list is complete** — nine tasks,
 ADR-0061…ADR-0069, **all four exit criteria met**: the full chain runs through the UI, a table row
 highlights its particle and vice versa, invalid combinations are disabled *because the matrix says
 so*, and results survive a restart. **Closing the milestone is the operator's call**, as it was for

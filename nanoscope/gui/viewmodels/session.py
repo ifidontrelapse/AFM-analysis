@@ -40,7 +40,12 @@ from nanoscope.application.use_cases.preprocessing import PreprocessingParams
 from nanoscope.core.entities import AnalysisRun, PipelineConfig, PreprocessingResult
 from nanoscope.core.entities.device import Device
 from nanoscope.core.entities.model import ModelTask
-from nanoscope.core.entities.project import ImageRecord, ImportReport, OpenedProject
+from nanoscope.core.entities.project import (
+    Annotation,
+    ImageRecord,
+    ImportReport,
+    OpenedProject,
+)
 from nanoscope.core.errors import NanoscopeError
 from nanoscope.core.values import Modality
 
@@ -97,6 +102,11 @@ class SessionViewModel(QObject):
     #: and both listen for the answer (ADR-0065).
     particle_selected = Signal(object)
 
+    #: The selected image's annotations, or an empty tuple. Hand work is the
+    #: one thing in a project that cannot be recomputed (ADR-0044), and until
+    #: M7-T01 it was also the only data with no representation on screen.
+    annotations_changed = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -116,6 +126,7 @@ class SessionViewModel(QObject):
         #: single value prevents (M6-T02).
         self._preprocessing = PreprocessingParams()
         self._run: AnalysisRun | None = None
+        self._annotations: tuple[Annotation, ...] = ()
         self._particle: int | None = None
         self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
@@ -263,6 +274,25 @@ class SessionViewModel(QObject):
     def run(self) -> AnalysisRun | None:
         """The analysis whose detections are being shown, if there is one."""
         return self._run
+
+    @property
+    def annotations(self) -> tuple[Annotation, ...]:
+        """What a person judged about the selected image."""
+        return self._annotations
+
+    def reload_annotations(self) -> None:
+        """Re-read them from the project — on selection, and after an edit.
+
+        `annotations_for` has had one caller since M4-T07: M5-T04's confirmation
+        dialog, which *counts* them without ever showing one.
+        """
+        repository = self._app.repository
+        self._annotations = (
+            ()
+            if repository is None or self._image_id is None
+            else tuple(repository.annotations_for(self._image_id))
+        )
+        self.annotations_changed.emit(self._annotations)
 
     def runs(self) -> list[AnalysisRun]:
         """Every stored analysis of the selected image, oldest first.
@@ -580,6 +610,7 @@ class SessionViewModel(QObject):
         self._image_id = image_id
         self._clear_preview()
         self._show_newest_run()
+        self.reload_annotations()
         try:
             self._image = load_for_display(repository, image_id)
         except NanoscopeError as refusal:
@@ -763,8 +794,10 @@ class SessionViewModel(QObject):
         self._clear_preview()
         self._run = None
         self._particle = None
+        self._annotations = ()
         self.particle_selected.emit(None)
         self.run_changed.emit(None)
+        self.annotations_changed.emit(())
         self.image_changed.emit(None)
 
     def _refuse(self, message: str) -> None:

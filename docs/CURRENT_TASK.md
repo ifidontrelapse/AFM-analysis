@@ -3,9 +3,9 @@
 **ID:** `M7-T01`
 **Title:** The hand work, on screen and told apart from the machine's
 **Milestone:** M7 — Annotation & metrology tools, first task
-**Defect:** — · **ADR:** **ADR-0070** (to be written)
+**Defect:** — · **ADR:** **ADR-0070**
 **Branch:** `feat/m7-annotation-tools`
-**Status:** planning 2026-08-13.
+**Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -74,10 +74,20 @@ at 32× is a label nobody can read at 32×.
 
 ## Definition of done
 
-- [ ] Annotations of the selected image are drawn, labelled, above the detections
-- [ ] A manual annotation and one adopted from a detection are distinguishable
-- [ ] The layer has its own toggle and its own count
-- [ ] ADR-0070 + the ADR index
-- [ ] `make check` green, golden byte-identical
-- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M7-T01: the hand work, on screen and told apart from the machine's`
+- [x] Annotations of the selected image are drawn, labelled, above the detections
+- [x] A manual annotation and one adopted from a detection are distinguishable
+- [x] The layer has its own toggle and its own count
+- [x] ADR-0070 + the ADR index
+- [x] `make check` green — 1162 tests, golden byte-identical
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M7-T01: the hand work, on screen and told apart from the machine's`
+
+---
+
+## What it turned up
+
+**M6-T09 shipped two mypy errors and its commit said otherwise.** The `find(...)` call added to the
+measurements panel bound its result to `row`, which the loop below it reuses for the table's rows —
+harmless at run time, and mypy went **6 → 8** for it. The check was run before that edit and not
+after, and the commit message claims "mypy unchanged at 6". It is wrong; the name is `capability`
+now and mypy is back at 6.

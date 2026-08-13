@@ -77,6 +77,7 @@ Use `TEMPLATE.md` for new records.
 | [0067](ADR-0067-an-export-names-its-scope-and-lands-in-the-project.md) | An export names its scope, and lands in the project | Accepted | 2026-08-13 |
 | [0068](ADR-0068-navigation-is-the-same-selection-and-it-does-not-wrap.md) | Navigation is the same selection, and it does not wrap | Accepted | 2026-08-13 |
 | [0069](ADR-0069-what-persists-is-the-run-not-the-session.md) | What persists is the run, not the session | Accepted | 2026-08-13 |
+| [0070](ADR-0070-hand-work-is-drawn-as-hand-work.md) | Hand work is drawn as hand work | Accepted | 2026-08-13 |
 
 ## When to write one
 

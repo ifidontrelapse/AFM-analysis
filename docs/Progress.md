@@ -7,6 +7,46 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M7-T01 · **the hand work, on screen and told apart from the machine's**
+
+**Task:** `M7-T01`, the first of M7. **ADR:** **ADR-0070**.
+
+M4-T07 made an annotation a row *because it cannot be recomputed*, M4-T08 built undo around it,
+M5-T04 counts them before a deletion — and **nothing in a window had ever drawn one**. The most
+expensive data in a project was the only data with no representation on screen.
+
+### The decisions
+
+**An annotation is not a detection and does not look like one:** its own colour, toggle and count,
+drawn **above** the detections, because it is what the operator is working on and what a click should
+reach first when M7-T02's tools arrive.
+
+**The two sources are visibly different** — `manual` solid, `from_detection` dashed. ADR-0044 made
+that distinction load-bearing for training (*a model trained on its own output is confirming
+itself*), and a screen that draws them alike undoes it where an operator would have noticed. A test
+asserts every source has a style, because one without raises while drawing.
+
+**The label is the operator's own text and does not scale with the zoom.** A box with no label is a
+rectangle; a label that fills the screen at 32x is one nobody can read.
+
+**This task mutates nothing** — no command reaches the stack, so M7-T02's drawing and M7-T07's
+editing stay testable.
+
+### What it turned up
+
+**M6-T09 shipped two mypy errors, and its commit message said otherwise.** The `find(...)` call added
+to the measurements panel bound its result to `row`, the same name the loop below reuses for table
+rows: harmless at run time, and mypy went **6 → 8**. The check ran before that edit and not after,
+so the commit claims "mypy unchanged at 6" and is wrong. Renamed to `capability`; mypy is back at 6.
+
+### Numbers
+
+11 tests, **1162** in the suite; golden byte-identical; mypy **8 → 6** (the two above).
+
+**Next:** `M7-T02` — the point and box tools, which put annotations into this layer.
+
+---
+
 ## 2026-08-13 — **M6 closed**, and M7 opened
 
 **All nine tasks done. ADR-0061 through ADR-0069 — nine decisions in one milestone. All four exit
