@@ -264,6 +264,32 @@ class SessionViewModel(QObject):
         """The analysis whose detections are being shown, if there is one."""
         return self._run
 
+    def runs(self) -> list[AnalysisRun]:
+        """Every stored analysis of the selected image, oldest first.
+
+        Three analyses of one scan leave three rows, and until M6-T09 the window
+        could reach exactly one of them.
+        """
+        repository = self._app.repository
+        if repository is None or self._image_id is None:
+            return []
+        return repository.runs_for(self._image_id)
+
+    def select_run(self, run_id: int) -> bool:
+        """Show a stored run of the selected image.
+
+        Its **masks are not there** and cannot be: nothing persists them
+        (ADR-0042, ADR-0064). Its detections and its measurement table are.
+        """
+        chosen = next((run for run in self.runs() if run.id == run_id), None)
+        if chosen is None:
+            return False
+        self._run = chosen
+        self._particle = None
+        self.particle_selected.emit(None)
+        self.run_changed.emit(chosen)
+        return True
+
     def _show_newest_run(self) -> None:
         """The newest stored run for the selected image, or none.
 

@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QTableWidget,
@@ -25,6 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nanoscope.application.capabilities import find
 from nanoscope.core.entities import AnalysisRun
 from nanoscope.gui.theme import tokens
 from nanoscope.gui.viewmodels import SessionViewModel
@@ -44,6 +47,12 @@ class MeasurementsPanel(QWidget):
         #: click does not search the run again.
         self._particles: list[int | None] = []
 
+        #: Which stored run is on screen. Three analyses of one scan leave three
+        #: rows, and reaching only the newest is "results persist" satisfied on
+        #: a technicality (M6-T09).
+        self.run = QComboBox(self)
+        self.run.currentIndexChanged.connect(self._run_chosen)
+
         self.note = QLabel("", self)
         self.note.setWordWrap(True)
         self.note.setStyleSheet(f"color: {tokens.TEXT_MUTED};")
@@ -56,8 +65,14 @@ class MeasurementsPanel(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.itemSelectionChanged.connect(self._row_chosen)
 
+        chooser = QHBoxLayout()
+        chooser.addWidget(QLabel("Run:", self))
+        chooser.addWidget(self.run)
+        chooser.addStretch(1)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(chooser)
         layout.addWidget(self.note)
         layout.addWidget(self.table)
 
@@ -67,7 +82,23 @@ class MeasurementsPanel(QWidget):
 
     # ── What it shows ─────────────────────────────────────────────────────────
 
+    def _run_chosen(self, index: int) -> None:
+        run_id = self.run.itemData(index)
+        if run_id is not None:
+            self._session.select_run(int(run_id))
+
+    def _fill_runs(self, run: AnalysisRun | None) -> None:
+        """Every stored run of this image, newest last, with the current one shown."""
+        self.run.blockSignals(True)
+        self.run.clear()
+        for stored in self._session.runs():
+            self.run.addItem(f"{stored.id}: {stored.mode}, {stored.detector}", stored.id)
+        if run is not None:
+            self.run.setCurrentIndex(self.run.findData(run.id))
+        self.run.blockSignals(False)
+
     def _run_changed(self, run: AnalysisRun | None) -> None:
+        self._fill_runs(run)
         table = self._session.measurements()
         self.table.clearContents()
         self._particles = []
@@ -86,7 +117,17 @@ class MeasurementsPanel(QWidget):
             self.note.setText(f"{run.mode} measured nothing; run a mode that does.")
             return
 
-        self.note.setText(f"Run {run.id}: {len(table)} measurement(s), {run.detector}")
+        note = f"Run {run.id}: {len(table)} measurement(s), {run.detector}"
+        #: **The matrix says which modes make masks**, not a literal in a
+        #: widget — the panel asking "was this the segmenting one?" by name is
+        #: what ADR-0062 removed, and M6-T02's guard caught the attempt.
+        row = find(run.modality.value, run.detector, run.mode)
+        if row is not None and row.requires_predictor and not run.masks:
+            #: A restored segmentation run has detections and no masks, and an
+            #: empty overlay reads as *"segmentation found nothing"*. It is not
+            #: nothing — it is not stored (ADR-0042, ADR-0064, ADR-0069).
+            note += ". Its masks were not stored and cannot be redrawn."
+        self.note.setText(note)
         self.table.setColumnCount(len(table.columns))
         self.table.setHorizontalHeaderLabels([str(name) for name in table.columns])
         self.table.setRowCount(len(table))
