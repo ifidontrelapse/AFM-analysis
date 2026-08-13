@@ -14,10 +14,12 @@ operator comparing it against a measurement compares two different arrays.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from enum import StrEnum
 
 import numpy as np
 
+from nanoscope.core.entities import PreprocessingResult
 from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import Modality
@@ -159,3 +161,55 @@ def render(
     #: `afm_to_rgb` percentile-clips on its own, and this window is already the
     #: decision — so it is handed an array that is exactly its own range.
     return afm_to_rgb(clipped.astype(np.float64), colormap=colormap, clip_percentile=100.0)
+
+
+class Stage(StrEnum):
+    """Which array of the pipeline a viewer is showing (M6-T01, ADR-0061).
+
+    `RAW` is the file, which is what ADR-0056 made the default and the only
+    thing available before a preview exists. The other three are what
+    `PreprocessingResult` carries; the plane-only intermediate is deliberately
+    not here, because the result object does not keep it and adding a field to
+    an entity for a preview is a change to what a *run* records.
+    """
+
+    RAW = "raw"
+    FLATTENED = "flattened"
+    SUBSTRATE = "substrate"
+    RESULT = "result"
+
+
+#: What each stage is called on screen, and what it means. The viewer shows the
+#: name beside the scan: ADR-0056's rule was never "show the file and nothing
+#: else", it was **never show something the file does not contain without saying
+#: so**, and this is how that promise is kept once there is something else to
+#: show.
+STAGE_LABELS: dict[Stage, str] = {
+    Stage.RAW: "raw (the file)",
+    Stage.FLATTENED: "flattened (plane + lines)",
+    Stage.SUBSTRATE: "substrate (estimated)",
+    Stage.RESULT: "result (flattened minus substrate)",
+}
+
+
+def stage_image(
+    stage: Stage,
+    image: DisplayImage,
+    preview: PreprocessingResult | None,
+) -> DisplayImage:
+    """The array for a stage, wrapped so the viewer draws it the way it draws
+    everything else — same colormap, same value window, same scale bar.
+
+    Falls back to the file when there is no preview, rather than raising: the
+    panels only offer a stage while a preview exists, and the honest answer to
+    "show me the substrate of a scan nobody has preprocessed" is the scan.
+    """
+    if stage is Stage.RAW or preview is None:
+        return image
+
+    arrays = {
+        Stage.FLATTENED: preview.z_flat,
+        Stage.SUBSTRATE: preview.substrate,
+        Stage.RESULT: preview.z_result,
+    }
+    return replace(image, name=f"{image.name} — {stage}", data=arrays[stage])

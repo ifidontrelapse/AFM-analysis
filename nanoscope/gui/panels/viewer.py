@@ -35,8 +35,10 @@ from PySide6.QtWidgets import (
 from nanoscope.application.settings import COLORMAP_SETTING
 from nanoscope.application.use_cases.display import (
     COLORMAPS,
+    STAGE_LABELS,
     DisplayImage,
     render,
+    stage_image,
     value_range,
 )
 from nanoscope.gui.viewmodels import SessionViewModel
@@ -142,6 +144,7 @@ class ImageViewer(QWidget):
         super().__init__(parent)
         self._image: DisplayImage | None = None
         session.image_changed.connect(self.show_image)
+        session.preview_changed.connect(lambda _preview: self.show_image(session.image))
 
         self.view = ImageView(self)
         self.view.hovered.connect(self._describe)
@@ -162,12 +165,21 @@ class ImageViewer(QWidget):
         )
         self.full_range.toggled.connect(lambda _: self._redraw())
 
+        #: Which array is on screen. ADR-0056's rule was never "show the file
+        #: and nothing else" — it was *never show something the file does not
+        #: contain without saying so*, and this label is how that promise
+        #: survives M6-T01 having something else to show.
+        self.stage_label = QLabel("", self)
         self.scale_label = QLabel("", self)
 
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Colormap", self))
         controls.addWidget(self.colormap)
         controls.addWidget(self.full_range)
+        #: Beside the controls rather than at the far right: it was clipped to
+        #: "result (flatte…" when it competed with the scale bar for the end of
+        #: the row, and a label nobody can finish reading is not a statement.
+        controls.addWidget(self.stage_label)
         controls.addStretch(1)
         controls.addWidget(self.scale_label)
 
@@ -195,12 +207,16 @@ class ImageViewer(QWidget):
         is left here is the part that is genuinely presentation: an array, a
         colormap, and a pixmap.
         """
-        self._image = image
-        if image is None:
+        stage = self._session.stage
+        self._image = None if image is None else stage_image(stage, image, self._session.preview)
+        if self._image is None:
             self.view.clear()
             self.scale_label.setText("")
+            self.stage_label.setText("")
             return
 
+        self.stage_label.setText(f"showing: {stage}")
+        self.stage_label.setToolTip(STAGE_LABELS[stage])
         self._redraw()
         self.readout.emit(self._summary())
 

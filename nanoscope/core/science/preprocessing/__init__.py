@@ -10,6 +10,7 @@ algorithms, same constants, zero golden drift.
 
 from nanoscope.core.science.preprocessing.flatten import flatten_lines, flatten_plane
 from nanoscope.core.science.preprocessing.substrate import (
+    DEFAULT_OPENING_SCALE,
     build_substrate_map,
     estimate_radius_otsu,
     estimate_rough_radius,
@@ -17,6 +18,9 @@ from nanoscope.core.science.preprocessing.substrate import (
 )
 
 __all__ = [
+    #: Exported in M6-T01 so a caller offering the parameter names the same
+    #: default rather than repeating the number (ADR-0037 measured it).
+    "DEFAULT_OPENING_SCALE",
     "build_substrate_map",
     "estimate_radius_otsu",
     "estimate_rough_radius",

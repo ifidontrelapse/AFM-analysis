@@ -61,7 +61,23 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M6-T01` — the preprocessing panel.** The plan is in `docs/CURRENT_TASK.md`.
+**None selected. `M6-T01` done 2026-08-13 (ADR-0061); `M6-T02` — the detection panel — is next**,
+and its own rule is already written: the invalid combinations are disabled **because the capability
+matrix says so**, not because a widget repeated them.
+
+**`M6-T01` done 2026-08-13 (ADR-0061) — preprocessing an operator can see the stages of, and asked
+for.** The first analysis step reachable from a window, and the one every later step stands on. It
+collects the toggle **ADR-0056 deferred by name**, and the name turned out bigger than the promise:
+not *flatten for display* but **which stage am I looking at** — raw, flattened, substrate, result,
+each named on screen, which is what ADR-0056 actually asked for. **The parameters are pass-through
+and the defaults are named once** in `application`, so a spin box shows the value it will actually
+get; **M6's rule is that the UI introduces no defaults**, and the test for it compares an untouched
+panel against a bare call **array for array**. **The preview is asked for, not live**, runs as a job
+(M5-T07's second consumer), **is not a result and is not stored**, and **belongs to the scan it was
+computed from**. **Found:** the entity carries four stages where the plan said five; the AFM format
+helper was about to be copied a third time; the stage label was **clipped in the window**, seen by
+looking; and the `gui/` import guard refused `core.science.DEFAULT_OPENING_SCALE` on its first real
+chance. 26 tests, **1056** in the suite, **golden byte-identical**.
 
 **`M5-T09` done 2026-08-13 (ADR-0060), and M5's task list is complete** — nine
 tasks, ADR-0052…ADR-0060. **Three of five exit criteria are ticked.** The fourth, *"GUI smoke tests

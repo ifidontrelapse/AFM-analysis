@@ -64,7 +64,8 @@ AFM-analysis/
 │   │   │                               #   keys more than one layer names (M5-T09)
 │   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04),
 │   │                                   #   analysis.py (M4-T05), export.py (M4-T11),
-│   │                                   #   display.py (M5-T05)
+│   │                                   #   display.py (M5-T05), preprocessing.py gained
+│   │                                   #   preprocess_image + the named defaults (M6-T01)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
@@ -90,7 +91,8 @@ AFM-analysis/
 │   │   ├── dialogs/                    # import_options.py (M5-T07), settings.py (M5-T09)
 │   │   └── panels/                     # project_explorer.py (M5-T04), viewer.py (M5-T05),
 │   │                                   #   properties.py (M5-T06), job_status.py (M5-T07),
-│   │                                   #   log_panel.py (M5-T08) — each takes the viewmodel
+│   │                                   #   log_panel.py (M5-T08), preprocessing.py (M6-T01) —
+│   │                                   #   each takes the viewmodel
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
@@ -100,7 +102,7 @@ AFM-analysis/
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…T09) — 141 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M6-T01) — 160 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

@@ -7,6 +7,65 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T01 · **preprocessing an operator can see the stages of, and asked for**
+
+**Task:** `M6-T01`, the first of M6. **ADR:** **ADR-0061**. The first analysis step reachable from a
+window, and the one every later step stands on — `run_analysis` levels a scan and builds its
+substrate before it detects anything. It also collects the toggle **ADR-0056 deferred by name**:
+*"a 'flatten for display' toggle is a later task with a checkbox and a name"*. The name turned out
+to be bigger than the promise: not *flatten for display* but **which stage am I looking at**.
+
+### The decisions
+
+**The parameters are pass-through and the defaults are named once.** `min_size_nm` (ADR-0024),
+`manual_radius_px` (ADR-0014 — when given it *is* the radius) and `opening_scale` (measured in
+ADR-0037) reach `run_preprocessing` with the values it already used, and `DEFAULT_MIN_SIZE_NM` /
+`DEFAULT_OPENING_SCALE` are named in `application` so a spin box shows the value it will actually
+get. **M6's rule is that the UI introduces no defaults**, and the compliance test is dull on
+purpose: an untouched panel and a bare call are compared **array for array**.
+
+**`preprocess_image(repository, image_id, …)` resolves the row the way `run_analysis` does** — the
+record, the path through the repository, and the scale the project recorded. A panel assembling a
+path, a format and a scale of its own is where M4-T05 found the D-07 family reintroduced one layer
+up.
+
+**The preview is asked for, not live**, and runs as a job: seconds of NumPy per press, and a
+pipeline that re-runs on every keystroke is a UI that fights the operator. M5-T07's runner meets its
+second consumer.
+
+**The viewer draws any stage and says which one** — raw, flattened, substrate, result, named beside
+the colormap. This is not a weakening of ADR-0056; it is what ADR-0056 said: *never show something
+the file does not contain **without saying so***.
+
+**A preview is not a result and is not stored** (M6-T09 owns persistence), and it **belongs to the
+scan it was computed from** — selecting another image drops it.
+
+### What it turned up
+
+**The plan said five stages and the result object carries four:** `PreprocessingResult` has no
+plane-only intermediate, and adding a field to an entity so a preview could show one more picture
+would change what a *run* records.
+
+**The format helper was about to be copied a third time** — moved from `analysis.py` to
+`preprocessing.py`, the module that loads AFM files.
+
+**The stage label was clipped to "result (flatte…"**, found in the window rather than by a test: it
+was competing with the scale bar for the end of the toolbar row.
+
+**The `gui/` import guard did its job** on its first real chance: the draft imported
+`DEFAULT_OPENING_SCALE` from `core.science`, the M5-T06 test refused it, and the constant is now
+re-exported by `application` — which is also what makes "no UI defaults" checkable.
+
+### Numbers
+
+26 tests, **1056** in the suite; **golden byte-identical** — parameters were added and no number
+moved; mypy unchanged at 6.
+
+**Next:** `M6-T02` — the detection panel, driven by the capability matrix rather than by a widget
+repeating its rules.
+
+---
+
 ## 2026-08-13 — **M5 closed**, and M6 opened
 
 **All nine tasks done. ADR-0052 through ADR-0060 — nine decisions in one milestone. Four of five

@@ -3,9 +3,9 @@
 **ID:** `M6-T01`
 **Title:** Preprocessing an operator can see the stages of, and asked for
 **Milestone:** M6 — Analysis workflow in the GUI, first task
-**Defect:** — · **ADR:** **ADR-0061** (to be written)
+**Defect:** — · **ADR:** **ADR-0061**
 **Branch:** `feat/m6-analysis-workflow` (from `feat/m5-gui-shell`)
-**Status:** planning 2026-08-13.
+**Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
@@ -95,16 +95,33 @@ recomputes them.
 
 ## Definition of done
 
-- [ ] The panel's blank state produces exactly what `run_preprocessing` produced before this task
-- [ ] Every parameter reaches the science, and the panel reports what was *used*
-- [ ] The viewer names the stage it is showing
-- [ ] ADR-0061 + the ADR index
-- [ ] `make check` green, **golden byte-identical**
-- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M6-T01: preprocessing an operator can see the stages of, and asked for`
+- [x] The panel's blank state produces exactly what `run_preprocessing` produced before this task
+- [x] Every parameter reaches the science, and the panel reports what was *used*
+- [x] The viewer names the stage it is showing
+- [x] ADR-0061 + the ADR index
+- [x] `make check` green — 1056 tests, **golden byte-identical**
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M6-T01: preprocessing an operator can see the stages of, and asked for`
 
 ---
 
 ## What it turned up
 
-_(filled at the end of the task)_
+**The plan said five stages and the result object carries four.** `PreprocessingResult` keeps
+`z_raw`, `z_flat`, `substrate` and `z_result` — the plane-only intermediate is not in it, and adding
+a field to an entity so a preview could show one more picture would change what a **run** records.
+Written down rather than quietly dropped.
+
+**The format helper was about to be copied a third time.** `analysis.py` had `_afm_format`,
+`display.py` has its own `_AFM_FORMATS` for its own message, and this task needed one too — so the
+helper moved to `preprocessing.py`, the module that actually loads AFM files, and `analysis.py`
+imports it.
+
+**The stage label was clipped to "result (flatte…"** — found in the window, not in a test: it was
+competing with the scale bar for the right-hand end of the toolbar row. The short name sits beside
+the controls now, with the long description as its tooltip. Fifth time this pattern has paid in two
+milestones.
+
+**The `gui/` import guard did its job.** The first draft imported `DEFAULT_OPENING_SCALE` straight
+from `core.science.preprocessing`; the M5-T06 test refused it, and the constant is now re-exported
+by the application layer — which is also what makes "the UI introduces no defaults" checkable.

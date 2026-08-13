@@ -34,7 +34,12 @@ from PySide6.QtCore import QObject, Signal
 from nanoscope.application import use_cases
 from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.settings import Scope
-from nanoscope.application.use_cases.display import DisplayImage, load_for_display
+from nanoscope.application.use_cases.display import DisplayImage, Stage, load_for_display
+from nanoscope.application.use_cases.preprocessing import (
+    DEFAULT_MIN_SIZE_NM,
+    DEFAULT_OPENING_SCALE,
+)
+from nanoscope.core.entities import PreprocessingResult
 from nanoscope.core.entities.device import Device
 from nanoscope.core.entities.project import ImageRecord, ImportReport, OpenedProject
 from nanoscope.core.errors import NanoscopeError
@@ -73,6 +78,11 @@ class SessionViewModel(QObject):
     #: from `failed`, because "38 imported, 2 refused" is not a refusal.
     reported = Signal(str)
 
+    #: The preprocessing preview, or `None` when there is none. Not a run: a
+    #: preview is a look at intermediate arrays, and what a *run* is belongs to
+    #: `run_analysis` and the rows it stores (ADR-0042, ADR-0061).
+    preview_changed = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -85,6 +95,8 @@ class SessionViewModel(QObject):
         self._image_id: int | None = None
         self._image: DisplayImage | None = None
         self._job: Job | None = None
+        self._preview: PreprocessingResult | None = None
+        self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
         #: carries the handle, not a snapshot**, so every update emitted during
         #: the job is delivered *after* it — each one reading a finished job.
@@ -129,6 +141,80 @@ class SessionViewModel(QObject):
         """How much hand work removing this image would destroy (ADR-0044)."""
         repository = self._app.repository
         return 0 if repository is None else len(repository.annotations_for(image_id))
+
+    # ── The preprocessing preview (M6-T01) ───────────────────────────────────
+
+    @property
+    def preview(self) -> PreprocessingResult | None:
+        return self._preview
+
+    @property
+    def stage(self) -> Stage:
+        """Which array the viewer is showing. `RAW` is the file itself."""
+        return self._stage
+
+    def show_stage(self, stage: Stage) -> None:
+        """Choose the array to look at, and announce it.
+
+        Refused silently for a stage there is no preview for: the panels offer
+        one only while a preview exists, and a viewer switched to an array that
+        was never computed would draw the last one under a new name — which is
+        the one thing ADR-0056 forbids.
+        """
+        if stage is not Stage.RAW and self._preview is None:
+            return
+        self._stage = stage
+        self.preview_changed.emit(self._preview)
+
+    def preprocess(
+        self,
+        *,
+        min_size_nm: float = DEFAULT_MIN_SIZE_NM,
+        manual_radius_px: float | None = None,
+        opening_scale: float = DEFAULT_OPENING_SCALE,
+    ) -> Job | None:
+        """Level the selected scan and estimate its substrate, in the background.
+
+        A job because preprocessing a 4096² scan is seconds of NumPy
+        (Architecture §4.5), and **asked for** rather than live, because a
+        pipeline that re-runs on every keystroke is a UI that fights the
+        operator (ADR-0061).
+
+        Returns:
+            The handle, or `None` when nothing is selected or something is
+            already running.
+        """
+        repository = self._app.repository
+        image_id = self._image_id
+        if repository is None or image_id is None or self.is_busy:
+            return None
+
+        def work(context: JobContext) -> PreprocessingResult:
+            context.report(0, 0, "levelling and estimating the substrate")
+            return use_cases.preprocess_image(
+                repository,
+                image_id,
+                min_size_nm=min_size_nm,
+                manual_radius_px=manual_radius_px,
+                opening_scale=opening_scale,
+            )
+
+        name = f"Preprocessing {self.image_record(image_id).display_name}"  # type: ignore[union-attr]
+        self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
+        return self._job
+
+    def _clear_preview(self) -> None:
+        """A preview belongs to the scan it was computed from.
+
+        Dropped when the selection changes, because a substrate map from another
+        scan drawn over this one would be the worst possible version of this
+        feature.
+        """
+        if self._preview is None and self._stage is Stage.RAW:
+            return
+        self._preview = None
+        self._stage = Stage.RAW
+        self.preview_changed.emit(None)
 
     # ── Preferences, for the panels that may not reach the container ──────────
 
@@ -244,6 +330,7 @@ class SessionViewModel(QObject):
             return False
 
         self._image_id = image_id
+        self._clear_preview()
         try:
             self._image = load_for_display(repository, image_id)
         except NanoscopeError as refusal:
@@ -344,6 +431,18 @@ class SessionViewModel(QObject):
             return
         self._settled = job
 
+        if job.state is JobState.SUCCEEDED and isinstance(job.result, PreprocessingResult):
+            self._preview = job.result
+            self._stage = Stage.RESULT
+            logger.info(
+                "%s finished: opening radius %d px",
+                job.name,
+                job.result.opening_radius,
+                extra={"image_id": self._image_id},
+            )
+            self.preview_changed.emit(self._preview)
+            return
+
         if job.state is JobState.FAILED:
             logger.error("job %r failed: %s", job.name, job.error)
             self.failed.emit(str(job.error))
@@ -385,6 +484,7 @@ class SessionViewModel(QObject):
             return
         self._image_id = None
         self._image = None
+        self._clear_preview()
         self.image_changed.emit(None)
 
     def _refuse(self, message: str) -> None:

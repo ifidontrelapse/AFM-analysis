@@ -21,26 +21,17 @@ down (ADR-0042 §5).
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from nanoscope.application.use_cases.pipeline import run_pipeline
-from nanoscope.application.use_cases.preprocessing import run_preprocessing
+from nanoscope.application.use_cases.preprocessing import afm_format, run_preprocessing
 from nanoscope.core.entities import (
     AnalysisRun,
     MicroscopyData,
     PipelineConfig,
     PreprocessingResult,
 )
-from nanoscope.core.errors import UnsupportedRequestError
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage import load_microscopy_image
-
-#: What each modality's file needs before the pipeline can see it. AFM arrives
-#: as a height map that must be levelled and given a substrate; SEM and TEM
-#: arrive as images and are analysed as they are (ADR-0031's `blocks_for` says
-#: the same thing about what they can produce).
-_AFM_FORMATS = {".spm": "spm", ".npy": "npy"}
 
 
 def run_analysis(
@@ -91,7 +82,7 @@ def run_analysis(
         # D-07 family of defect M3 spent a milestone removing, reintroduced one
         # layer up. An SPM's header wins, because `load_afm` ignores the
         # argument there.
-        data = run_preprocessing(path, fmt=_afm_format(path), pixel_size_nm=record.pixel_size_nm)
+        data = run_preprocessing(path, fmt=afm_format(path), pixel_size_nm=record.pixel_size_nm)
     else:
         # `Literal["sem", "tem"]` where the record carries a `Modality`. The
         # value is the same string — `Modality` is a `StrEnum` — and adopting
@@ -105,19 +96,3 @@ def run_analysis(
 
     result = run_pipeline(data, config, predictor=predictor)
     return repository.save_analysis(image_id, result)
-
-
-def _afm_format(path: Path) -> str:
-    """The `fmt` string `load_afm` expects, from the file's own extension.
-
-    Raises:
-        UnsupportedRequestError: an extension with no AFM reader. Nothing about
-            the request is malformed — this version has no path for that file.
-    """
-    fmt = _AFM_FORMATS.get(path.suffix.lower())
-    if fmt is None:
-        raise UnsupportedRequestError(
-            f"no AFM reader for {path.name}; supported extensions are "
-            f"{', '.join(sorted(_AFM_FORMATS))}"
-        )
-    return fmt
