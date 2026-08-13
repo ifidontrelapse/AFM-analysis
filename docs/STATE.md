@@ -65,8 +65,19 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T02` done 2026-08-13 (ADR-0071); `M7-T03` — the polygon tool — is next, and it
-needs a shape the database does not have.**
+**None selected. `M7-T03` done 2026-08-14 (ADR-0072); `M7-T04` — the brush — is next, and it needs a
+mask rather than an outline.**
+
+**`M7-T03` done 2026-08-14 (ADR-0072) — a polygon is a box that kept its outline. Schema v6**, the
+first schema change in three milestones. **The outline is stored beside the box, not instead of
+it:** one nullable `points` column, a **derived** bounding box, and therefore no reader that
+consumes boxes had to change and **nothing migrates** — `points IS NULL` is exactly what the
+existing rows already mean. Fewer than three vertices is refused, JSON beats a second table for
+something read and written whole, and **the undo stack carries the outline** because a redo that
+restored the box would silently redraw the work as a rectangle. **Found:** v6 is the first migration
+that **alters** a table rather than adding one, and the schema-history helper — *drop the tables a
+later step created* — left the column behind, failing a test about project settings with `duplicate
+column name`. It undoes columns now. 13 tests, **1192** in the suite.
 
 **`M7-T02` done 2026-08-13 (ADR-0071) — a box an operator drew, and the point they did not.** The
 first surface where an operator **makes** data. **The point tool is not built**: ADR-0044 stores one

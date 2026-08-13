@@ -191,16 +191,22 @@ class TestTheToolSuspendsPanning:
 
 
 class TestThereIsNoPointTool:
-    def test_the_panel_offers_one_tool_and_it_draws_boxes(self, session: SessionViewModel) -> None:
-        """ADR-0044 stores a box and refuses a zero-area one twice. A point has
-        no extent, so a point tool must invent one — and a "point size" control
-        is that invention wearing a label. The condition for revisiting it is
-        ADR-0044's own: a shape that has a reader."""
+    def test_every_tool_the_panel_offers_draws_a_shape_with_an_extent(
+        self, session: SessionViewModel
+    ) -> None:
+        """ADR-0044 stores shapes with area and refuses a zero-area one twice. A
+        point has no extent, so a point tool must invent one — and a "point
+        size" control is that invention wearing a label. The condition for
+        revisiting it is ADR-0044's own: a shape that has a reader. M7-T03 added
+        outlines, which are such a shape; a point is still not."""
         from PySide6.QtWidgets import QPushButton
 
         panel = AnnotatePanel(session)
 
-        assert [button.text() for button in panel.findChildren(QPushButton)] == ["Draw boxes"]
+        assert [button.text() for button in panel.findChildren(QPushButton)] == [
+            "Draw boxes",
+            "Draw outlines",
+        ]
 
     def test_a_zero_extent_annotation_cannot_be_stored_at_all(
         self, session: SessionViewModel

@@ -25,7 +25,7 @@ view's decision (ADR-0055's confirmation stays in the panel that asks it).
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -319,6 +319,43 @@ class SessionViewModel(QObject):
             return False
 
         logger.info("annotated %r", label.strip(), extra={"image_id": self._image_id})
+        self.reload_annotations()
+        return True
+
+    def add_polygon(self, points: Sequence[tuple[float, float]], *, label: str) -> bool:
+        """Record an outline a person drew, through the command stack.
+
+        The box is **not** passed: the repository derives it from the vertices,
+        so a polygon and its bounding box cannot disagree (ADR-0072).
+        """
+        repository = self._app.repository
+        if repository is None or self._image_id is None:
+            return False
+        if len(points) < 3:
+            return False
+        if not label.strip():
+            self._refuse("an annotation needs a label: an outline with no label is a shape")
+            return False
+
+        command = AddAnnotation(
+            repository,
+            self._image_id,
+            _bounds(points),
+            label_text=label.strip(),
+            points=tuple(points),
+        )
+        try:
+            self._app.commands.run(command)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        logger.info(
+            "outlined %r with %d vertices",
+            label.strip(),
+            len(points),
+            extra={"image_id": self._image_id},
+        )
         self.reload_annotations()
         return True
 
@@ -896,3 +933,11 @@ def _not_none(run: AnalysisRun | None) -> AnalysisRun:
     """The run the caller's own guard already proved is there."""
     assert run is not None
     return run
+
+
+def _bounds(points: Sequence[tuple[float, float]]) -> tuple[float, float, float, float]:
+    """The outline's box, for the command's constructor. The repository derives
+    it again from the vertices, which is the one that counts (ADR-0072)."""
+    xs = [x for x, _ in points]
+    ys = [y for _, y in points]
+    return min(xs), min(ys), max(xs), max(ys)

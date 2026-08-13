@@ -180,6 +180,8 @@ class MainWindow(QMainWindow):
         #: (ADR-0057).
         self.annotate.draw.toggled.connect(self.viewer.view.set_drawing)
         self.viewer.view.box_drawn.connect(self.annotate.box_drawn)
+        self.annotate.outline.toggled.connect(self.viewer.view.set_outlining)
+        self.viewer.view.polygon_drawn.connect(self.annotate.polygon_drawn)
 
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)

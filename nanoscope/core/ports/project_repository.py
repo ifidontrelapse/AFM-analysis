@@ -16,6 +16,7 @@ a base class in the middle, and mypy checks the shape structurally.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -124,8 +125,13 @@ class ProjectRepository(Protocol):
         label: str,
         source: AnnotationSource = AnnotationSource.MANUAL,
         note: str | None = None,
+        points: Sequence[tuple[float, float]] | None = None,
     ) -> Annotation:
-        """Record a box the operator drew, and return it with its id."""
+        """Record a box the operator drew, and return it with its id.
+
+        `points` is the outline when they drew one; `box` is then derived from
+        it, so a polygon and its bounding box cannot disagree (ADR-0072).
+        """
         ...
 
     def restore_annotation(self, annotation: Annotation) -> Annotation:

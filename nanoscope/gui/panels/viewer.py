@@ -29,16 +29,19 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
     QPixmap,
+    QPolygonF,
     QResizeEvent,
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
+    QAbstractGraphicsShapeItem,
     QCheckBox,
     QComboBox,
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsPathItem,
     QGraphicsPixmapItem,
+    QGraphicsPolygonItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsSimpleTextItem,
@@ -100,6 +103,9 @@ class ImageView(QGraphicsView):
     #: drawing tool is on — the same gesture pans when it is off (ADR-0071).
     box_drawn = Signal(tuple)
 
+    #: An outline the operator closed: `((x, y), …)`, at least three vertices.
+    polygon_drawn = Signal(tuple)
+
     #: The index of the overlay item that was clicked, or `None` for a click on
     #: bare image. A **click**, not a press: this view drags to pan (M5-T05), so
     #: a selection is a release that did not move (ADR-0065).
@@ -124,6 +130,9 @@ class ImageView(QGraphicsView):
         self._annotations: list[QGraphicsItem] = []
         self._pressed_at: QPoint | None = None
         self._drawing = False
+        self._outlining = False
+        self._vertices: list[QPointF] = []
+        self._sketch: QGraphicsPathItem | None = None
         self._rubber: QGraphicsRectItem | None = None
         self._origin: QPointF | None = None
 
@@ -175,6 +184,53 @@ class ImageView(QGraphicsView):
     @property
     def drawing(self) -> bool:
         return self._drawing
+
+    @property
+    def outlining(self) -> bool:
+        return self._outlining
+
+    def set_outlining(self, on: bool) -> None:
+        """Turn the polygon tool on, and panning off with it (ADR-0071 §2)."""
+        self._outlining = on
+        self._discard_sketch()
+        self.setDragMode(
+            QGraphicsView.DragMode.NoDrag if on else QGraphicsView.DragMode.ScrollHandDrag
+        )
+        self.setCursor(Qt.CursorShape.CrossCursor if on else Qt.CursorShape.ArrowCursor)
+
+    def add_vertex(self, point: QPointF) -> None:
+        """One click of an outline, drawn as it grows.
+
+        Visible while it is being made, because an outline the operator cannot
+        see until it is finished is one they draw twice.
+        """
+        self._vertices.append(point)
+        path = QPainterPath(self._vertices[0])
+        for vertex in self._vertices[1:]:
+            path.lineTo(vertex)
+
+        if self._sketch is None:
+            self._sketch = QGraphicsPathItem()
+            pen = QPen(tokens.qcolor(tokens.SUCCESS))
+            pen.setWidthF(OVERLAY_WIDTH_PX)
+            pen.setCosmetic(True)
+            self._sketch.setPen(pen)
+            self._sketch.setZValue(2.0)
+            self.scene().addItem(self._sketch)
+        self._sketch.setPath(path)
+
+    def close_outline(self) -> None:
+        """Finish it, if it is one. Fewer than three vertices is not an outline."""
+        vertices = [(vertex.x(), vertex.y()) for vertex in self._vertices]
+        self._discard_sketch()
+        if len(vertices) >= 3:
+            self.polygon_drawn.emit(tuple(vertices))
+
+    def _discard_sketch(self) -> None:
+        if self._sketch is not None:
+            self.scene().removeItem(self._sketch)
+        self._sketch = None
+        self._vertices = []
 
     def set_drawing(self, on: bool) -> None:
         """Turn the box tool on, and panning off with it.
@@ -255,7 +311,17 @@ class ImageView(QGraphicsView):
         self._fitted = False
         self.scale(factor, factor)
 
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
+        """Double-click closes an outline — the gesture every annotation tool uses."""
+        if self._outlining:
+            self.close_outline()
+            return
+        super().mouseDoubleClickEvent(event)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
+        if self._outlining and not self._item.pixmap().isNull():
+            self.add_vertex(self.mapToScene(event.position().toPoint()))
+            return
         self._pressed_at = event.position().toPoint()
         if self._drawing and not self._item.pixmap().isNull():
             self._origin = self.mapToScene(self._pressed_at)
@@ -608,7 +674,13 @@ def _annotation_item(annotation: Annotation) -> QGraphicsItem:
     """
     colour, style = ANNOTATION_STYLES[annotation.source]
     x1, y1, x2, y2 = annotation.box
-    item = QGraphicsRectItem(QRectF(x1, y1, x2 - x1, y2 - y1))
+    item: QAbstractGraphicsShapeItem
+    if annotation.points is None:
+        item = QGraphicsRectItem(QRectF(x1, y1, x2 - x1, y2 - y1))
+    else:
+        #: The outline, not its bounding box: a polygon drawn as a rectangle is
+        #: a shape nobody made (ADR-0072).
+        item = QGraphicsPolygonItem(QPolygonF([QPointF(x, y) for x, y in annotation.points]))
 
     pen = QPen(tokens.qcolor(colour))
     pen.setWidthF(OVERLAY_WIDTH_PX)

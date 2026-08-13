@@ -71,7 +71,7 @@ AFM-analysis/
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
-│   │   ├── storage/database.py         # schema version + migrations (M4-T02)
+│   │   ├── storage/database.py         # schema version + migrations (M4-T02), v6 (M7-T03)
 │   │   ├── storage/project_repository.py # images, results, annotations, settings, exports
 │   │   ├── storage/app_settings.py     # ~/.config/nanoscope/settings.json (M4-T10)
 │   │   ├── device/manager.py           # the only place that asks torch about hardware (M4-T12)
@@ -106,7 +106,7 @@ AFM-analysis/
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…M7-T02) — 268 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M7-T03) — 281 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

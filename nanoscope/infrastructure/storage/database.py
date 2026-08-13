@@ -179,12 +179,22 @@ _V5 = (
 #: Adding a step is the only way the schema changes. Never edit a step that has
 #: shipped — a project on disk has already run it, and rewriting it makes two
 #: databases that both claim the same version.
+# An annotation may keep an outline (M7-T03, ADR-0072). One nullable column,
+# beside the box rather than instead of it: `points IS NULL` is a box drawn as a
+# box — every row written before this migration — and a polygon's `x1…y2` are its
+# bounding box, so every reader that consumes boxes keeps working unchanged.
+#
+# Added empty. Nothing migrates, because "no outline" is exactly what the
+# existing rows mean.
+_V6: tuple[str, ...] = ("ALTER TABLE annotations ADD COLUMN points TEXT",)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1),
     (2, _V2),
     (3, _V3),
     (4, _V4),
     (5, _V5),
+    (6, _V6),
 )
 
 #: What this application writes and can read. Derived from the list rather than

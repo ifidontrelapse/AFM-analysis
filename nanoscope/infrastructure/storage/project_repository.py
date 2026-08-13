@@ -31,7 +31,7 @@ import re
 import shutil
 import sqlite3
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -461,8 +461,9 @@ class SqliteProjectRepository:
         label: str,
         source: AnnotationSource = AnnotationSource.MANUAL,
         note: str | None = None,
+        points: Sequence[tuple[float, float]] | None = None,
     ) -> Annotation:
-        """Record a box the operator drew (M4-T07).
+        """Record a box the operator drew (M4-T07), with its outline if it has one.
 
         Args:
             image_id: which image it is on.
@@ -472,16 +473,29 @@ class SqliteProjectRepository:
             source: hand-drawn, or adopted from a detector. The distinction M8
                 must be able to make (ADR-0044).
             note: anything else they wanted to say.
+            points: the outline, when the operator drew one — at least three
+                vertices, in pixels. **`box` is then ignored and derived from
+                them**, so a polygon and its bounding box cannot disagree
+                (M7-T03, ADR-0072).
 
         Returns:
             The stored annotation, with its id.
 
         Raises:
-            InvalidParameterError: no image has that id, or the box has no area
-                — a zero-area box is a mis-drag, and as a training example it is
-                a picture of nothing.
+            InvalidParameterError: no image has that id, the box has no area — a
+                zero-area box is a mis-drag, and as a training example it is a
+                picture of nothing — or an outline has fewer than three
+                vertices, which is a line or the point ADR-0071 declined.
         """
         self.get_image(image_id)
+        outline = None if points is None else tuple((float(x), float(y)) for x, y in points)
+        if outline is not None:
+            if len(outline) < 3:
+                raise InvalidParameterError(
+                    f"an outline needs at least three vertices; got {len(outline)}"
+                )
+            box = _bounds(outline)
+
         x1, y1, x2, y2 = box
         if x2 <= x1 or y2 <= y1:
             raise InvalidParameterError(
@@ -491,9 +505,9 @@ class SqliteProjectRepository:
         now = datetime.now(UTC).isoformat(timespec="seconds")
         cursor = self._conn.execute(
             "INSERT INTO annotations "
-            "(image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (image_id, label, x1, y1, x2, y2, str(source), note, now, now),
+            "(image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc, points) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (image_id, label, x1, y1, x2, y2, str(source), note, now, now, _points_json(outline)),
         )
         self._conn.commit()
         return self.get_annotation(int(cursor.lastrowid or 0))
@@ -521,8 +535,9 @@ class SqliteProjectRepository:
         try:
             self._conn.execute(
                 "INSERT INTO annotations "
-                "(id, image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(id, image_id, label, x1, y1, x2, y2, source, note, created_utc, updated_utc, "
+                "points) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     annotation.id,
                     annotation.image_id,
@@ -532,6 +547,10 @@ class SqliteProjectRepository:
                     annotation.note,
                     annotation.created_utc,
                     annotation.updated_utc,
+                    #: The outline comes back with it: an undo that restored the
+                    #: box and dropped the polygon would silently redraw the
+                    #: operator's work as a rectangle (M7-T03).
+                    _points_json(annotation.points),
                 ),
             )
         except sqlite3.IntegrityError as exc:
@@ -885,6 +904,22 @@ def _model(row: sqlite3.Row) -> ModelDescriptor:
     )
 
 
+def _bounds(points: tuple[tuple[float, float], ...]) -> tuple[float, float, float, float]:
+    """The outline's bounding box — derived, never typed in (ADR-0072)."""
+    xs = [x for x, _ in points]
+    ys = [y for _, y in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _points_json(points: tuple[tuple[float, float], ...] | None) -> str | None:
+    """The outline as text, or `None` for a box drawn as a box.
+
+    JSON rather than a second table: an outline is read and written whole,
+    always, and never queried by vertex.
+    """
+    return None if points is None else json.dumps([[x, y] for x, y in points])
+
+
 def _annotation(row: sqlite3.Row) -> Annotation:
     return Annotation(
         id=row["id"],
@@ -895,6 +930,11 @@ def _annotation(row: sqlite3.Row) -> Annotation:
         note=row["note"],
         created_utc=row["created_utc"],
         updated_utc=row["updated_utc"],
+        points=(
+            None
+            if row["points"] is None
+            else tuple((float(x), float(y)) for x, y in json.loads(row["points"]))
+        ),
     )
 
 

@@ -123,7 +123,7 @@ would be written back to disk.
 | What does an image contain? | the file. The database stores its relative path, a checksum and metadata — never the pixels |
 | Which analyses ran, and what they found? | the database — `analysis_runs` and `detections` (M4-T05) |
 | What are the measurements? | the file the run points at, under `results/` — the table is variable by construction (ADR-0031), so the database indexes it rather than holding it (ADR-0042) |
-| What did the operator draw? | the database — `annotations`. Hand-made, fixed in shape, edited one at a time, and the one thing here that cannot be recomputed (ADR-0044). `annotations/` holds painted masks, which are files |
+| What did the operator draw? | the database — `annotations`. Hand-made, edited one at a time, and the one thing here that cannot be recomputed (ADR-0044). A row carries a **box**, and since schema v6 an optional **outline** beside it: `points IS NULL` is a box drawn as a box, and a polygon's `x1…y2` are its derived bounding box, so every reader that consumes boxes keeps working (ADR-0072). `annotations/` holds painted masks, which are files |
 | Anything under `cache/` | nothing. It is derived, and it is disposable |
 
 The filesystem and the index are two sources of truth, and ADR-0003 names the cost: a file

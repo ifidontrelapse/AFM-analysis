@@ -48,6 +48,14 @@ class AnnotatePanel(QWidget):
         self.draw.setToolTip("While this is on, dragging draws a box instead of panning the scan.")
         self.draw.toggled.connect(self._toggled)
 
+        self.outline = QPushButton("Draw outlines", self)
+        self.outline.setCheckable(True)
+        self.outline.setToolTip(
+            "Click to add a vertex, double-click to close. A particle that is "
+            "not a rectangle is the ordinary case in this science."
+        )
+        self.outline.toggled.connect(self._outline_toggled)
+
         self.report = QLabel("", self)
         self.report.setWordWrap(True)
         self.report.setStyleSheet(f"color: {tokens.TEXT_MUTED};")
@@ -56,6 +64,7 @@ class AnnotatePanel(QWidget):
         layout.addWidget(QLabel("Label:", self))
         layout.addWidget(self.label)
         layout.addWidget(self.draw)
+        layout.addWidget(self.outline)
         layout.addWidget(self.report)
         layout.addStretch(1)
 
@@ -67,8 +76,21 @@ class AnnotatePanel(QWidget):
         """Store what was dragged, with the label the field is showing."""
         self._session.add_annotation(box, label=self.label.text())
 
+    def polygon_drawn(self, points: tuple[tuple[float, float], ...]) -> None:
+        """Store the outline that was just closed, with the field's label."""
+        self._session.add_polygon(points, label=self.label.text())
+
     def _toggled(self, on: bool) -> None:
         self.draw.setText("Drawing boxes" if on else "Draw boxes")
+        #: One tool at a time: two drawing modes on one canvas is a gesture that
+        #: means two things.
+        if on:
+            self.outline.setChecked(False)
+
+    def _outline_toggled(self, on: bool) -> None:
+        self.outline.setText("Drawing outlines" if on else "Draw outlines")
+        if on:
+            self.draw.setChecked(False)
 
     def _annotations_changed(self, annotations: tuple[Annotation, ...]) -> None:
         self.report.setText(
@@ -80,6 +102,7 @@ class AnnotatePanel(QWidget):
 
     def _update(self) -> None:
         can_draw = self._session.image_id is not None
-        self.draw.setEnabled(can_draw)
-        if not can_draw:
-            self.draw.setChecked(False)
+        for tool in (self.draw, self.outline):
+            tool.setEnabled(can_draw)
+            if not can_draw:
+                tool.setChecked(False)

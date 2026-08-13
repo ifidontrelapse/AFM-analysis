@@ -28,6 +28,7 @@ may choose an id (ADR-0045).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from nanoscope.core.entities import Annotation, AnnotationSource
@@ -150,10 +151,15 @@ class AddAnnotation:
         label_text: str,
         source: AnnotationSource = AnnotationSource.MANUAL,
         note: str | None = None,
+        points: Sequence[tuple[float, float]] | None = None,
     ) -> None:
         self._repository = repository
         self._image_id = image_id
         self._box = box
+        #: The outline, when there is one. It travels with the command so a
+        #: **redo** puts the polygon back rather than its bounding box, which
+        #: would quietly redraw the operator's work as a rectangle (M7-T03).
+        self._points = points
         self._label_text = label_text
         self._source = source
         self._note = note
@@ -176,6 +182,7 @@ class AddAnnotation:
             label=self._label_text,
             source=self._source,
             note=self._note,
+            points=self._points,
         )
 
     def undo(self) -> None:

@@ -7,6 +7,45 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-14 — M7-T03 · **a polygon is a box that kept its outline**
+
+**Task:** `M7-T03`. **ADR:** **ADR-0072**. **Schema v6** — the first change to the schema in three
+milestones.
+
+### The decisions
+
+M7-T02 refused the point tool for having no extent and **no reader**; the polygon is the other side
+of that argument, and ADR-0044 wrote the condition for revisiting the shape decision itself.
+
+**The outline is stored beside the box, not instead of it:** one nullable `points` column, and a
+polygon's `x1…y2` are its **derived** bounding box. Every reader that consumes boxes keeps working
+unchanged, `points IS NULL` still means *a box drawn as a box*, and **nothing migrates** — that is
+exactly what the existing rows already mean.
+
+**The box is derived, never typed in**; **fewer than three vertices is not an outline**; **JSON in a
+column rather than a second table**, because an outline is read and written whole and never queried
+by vertex; and **the undo stack carries it**, because a redo that restored the box and dropped the
+outline would silently redraw the operator's work as a rectangle.
+
+**The canvas draws the outline and the sketch while it is made** — one nobody can see until it is
+finished is one they draw twice.
+
+### What it turned up
+
+**v6 is the first migration that alters a table rather than adding one**, and the schema-history
+helper was built on the assumption that none ever would. Reverting to v3 left `annotations` carrying
+a v6 column, and re-running the step answered `duplicate column name: points` — in a test about
+project settings, which is precisely the confusing failure that helper exists to prevent. It undoes
+columns now, from a second map under the same guard.
+
+### Numbers
+
+13 tests, **1192** in the suite; golden byte-identical; mypy unchanged at 6. Schema **5 → 6**.
+
+**Next:** `M7-T04` — the brush, which needs a mask and not an outline.
+
+---
+
 ## 2026-08-13 — M7-T02 · **a box an operator drew, and the point they did not**
 
 **Task:** `M7-T02`. **ADR:** **ADR-0071**. The first surface in this project where an operator

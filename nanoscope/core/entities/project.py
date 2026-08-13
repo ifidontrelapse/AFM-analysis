@@ -151,6 +151,14 @@ class Annotation:
     note: str | None
     created_utc: str
     updated_utc: str
+    #: The outline, when the operator drew one — `((x, y), …)` in pixels, at
+    #: least three vertices. `None` means *a box, drawn as a box*, which is what
+    #: every row written before M7-T03 is.
+    #:
+    #: `box` stays authoritative for everything that wants a box and is the
+    #: **bounding box** of these points, derived by the repository so the two
+    #: cannot disagree (ADR-0072).
+    points: tuple[tuple[float, float], ...] | None = None
 
 
 @dataclass(frozen=True)
