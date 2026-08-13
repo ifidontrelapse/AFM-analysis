@@ -7,6 +7,65 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T07 · **a job that reports from another thread, and a cancel button that says what it means**
+
+**Task:** `M5-T07`. **ADR:** **ADR-0058**. **M5's third exit criterion is met** — verified by
+importing six phantoms into a real window: the strip counts files, Open/Close/Import go dead while
+it runs, and the explorer refills itself when it ends. **ADR-0043's marshalling obligation, stated
+three times and owed since M4-T06, is discharged.**
+
+### The decisions
+
+**The marshalling is `listener=self.job_changed.emit`, and nothing else.** Qt queues a signal whose
+receiver lives on another thread, so the listener does exactly one thing and the thread crossing is
+the *connection*. No `QThread` subclass, no `moveToThread` — the thread policy lives in
+`application/jobs.py`, and a second one in `gui/` would be the one that drifts.
+
+**Progress lives in the status bar, not in a modal dialog** — a modal progress dialog *is* the
+frozen window the criterion forbids. The bar shows `%v of %m`, the counts ADR-0043 §4 chose over a
+percentage, and `total == 0` puts it in Qt's busy mode.
+
+**Cancel asks, and the button says so:** once pressed it reads *"Stopping…"*. A button that says
+"Cancelled" is one an operator watches do nothing for twenty seconds before concluding the
+application has frozen.
+
+**One job at a time in this window**, though the runner takes two: a status bar has one strip. And
+**the import asks two questions and invents neither** — modality, and a pixel scale whose minimum
+reads "unknown" and comes back as `None`. This is the first surface that *creates* rows, so it is
+where a fabricated scale would enter (ADR-0025).
+
+**There was nothing long to run**, so the import action ships with the runner that makes it long:
+`import_images` is the one operation that already loops, already counts, and already stops cleanly
+between files, and nothing in the window could call it.
+
+### What it turned up
+
+**A queued signal carries the handle, not a snapshot — so every "on finish" handler fires once per
+update the job ever emitted.** The deliveries arrive after the work is over and each reads a
+*finished* job: the import refreshed the project and announced its outcome five times. The fix is
+one attribute recording the job whose ending has been dealt with. Reading the handle late is right
+for the bar — a backlog collapses to the latest state, which is what a progress bar wants.
+
+**A cancelled import is a job that SUCCEEDED.** `import_images` stops by *returning* its partial
+report, so `cancellation_requested` is the only record that somebody pressed the button, and the
+summary reads the request rather than the state. Left as it is: the state describes the job, which
+did complete and did produce a result; making the use case raise would throw the partial report
+away.
+
+**Two test files with the same basename collide at collection** — `tests/unit/test_jobs.py` and a
+new `tests/gui/test_jobs.py`. Every targeted run passed and `make check` failed to *collect*. Same
+class of ambiguity M5-T02 found with two `conftest.py`.
+
+**A progress bar with its text off is an empty box** — seen in the window, not in a test.
+
+### Numbers
+
+26 tests, **998** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M5-T08` — the log panel, the last placeholder dock.
+
+---
+
 ## 2026-08-13 — M5-T06 · **the viewmodel holds the session, and a widget emits intent**
 
 **Task:** `M5-T06`. **ADR:** **ADR-0057**. ADR-0055 §4 declined a viewmodel *with a condition

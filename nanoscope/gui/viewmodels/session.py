@@ -25,15 +25,18 @@ view's decision (ADR-0055's confirmation stays in the panel that asks it).
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Signal
 
 from nanoscope.application import use_cases
+from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.use_cases.display import DisplayImage, load_for_display
-from nanoscope.core.entities.project import ImageRecord, OpenedProject
+from nanoscope.core.entities.project import ImageRecord, ImportReport, OpenedProject
 from nanoscope.core.errors import NanoscopeError
+from nanoscope.core.values import Modality
 
 if TYPE_CHECKING:
     from nanoscope.app.container import Nanoscope
@@ -56,12 +59,34 @@ class SessionViewModel(QObject):
     #: whether one deserves a dialog or a status line.
     failed = Signal(str)
 
+    #: The running job, every time it changes state or progress — **and this
+    #: signal is the whole of the marshalling ADR-0043 asked M5 for.** The
+    #: listener handed to the runner is `job_changed.emit`, called on the worker
+    #: thread; Qt queues it onto the thread this object lives on, which is where
+    #: every widget connected to it also lives. Anything more elaborate would be
+    #: a second thread policy in the layer that must not have one (M5-T07).
+    job_changed = Signal(object)
+
+    #: An outcome worth a line in the status bar — what an import did. Separate
+    #: from `failed`, because "38 imported, 2 refused" is not a refusal.
+    reported = Signal(str)
+
     def __init__(self, app: Nanoscope, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._app = app
         self._project: OpenedProject | None = None
         self._image_id: int | None = None
         self._image: DisplayImage | None = None
+        self._job: Job | None = None
+        #: The job whose ending has already been dealt with. **A queued signal
+        #: carries the handle, not a snapshot**, so every update emitted during
+        #: the job is delivered *after* it — each one reading a finished job.
+        #: Without this, an import refreshes the project and reports its outcome
+        #: once per progress report it ever made.
+        self._settled: Job | None = None
+        #: Its own listener, on the main thread: the queued signal above is
+        #: what makes reading the repository here safe.
+        self.job_changed.connect(self._job_changed)
 
     # ── What is true right now ────────────────────────────────────────────────
 
@@ -97,6 +122,20 @@ class SessionViewModel(QObject):
         """How much hand work removing this image would destroy (ADR-0044)."""
         repository = self._app.repository
         return 0 if repository is None else len(repository.annotations_for(image_id))
+
+    @property
+    def job(self) -> Job | None:
+        """The job this window is running, finished or not."""
+        return self._job
+
+    @property
+    def is_busy(self) -> bool:
+        """Whether something is running that owns the project's connection.
+
+        The window disables what would pull the project out from under it —
+        `close_project` closes the SQLite connection the worker thread is using.
+        """
+        return self._job is not None and not self._job.is_finished
 
     # ── What a widget can ask for ─────────────────────────────────────────────
 
@@ -188,6 +227,82 @@ class SessionViewModel(QObject):
         self.refresh()
         return True
 
+    # ── Work that takes long enough to watch (M5-T07) ─────────────────────────
+
+    def import_images(
+        self,
+        sources: Iterable[Path | str],
+        *,
+        modality: Modality,
+        pixel_size_nm: float | None = None,
+    ) -> Job | None:
+        """Copy files into the project, in the background.
+
+        The listener is `job_changed.emit` and nothing else: it is called on the
+        worker thread, and Qt queues it onto this object's thread — which is the
+        adapter ADR-0043 said M5 owed it.
+
+        Returns:
+            The handle, or `None` when there is no project or something is
+            already running. One job at a time: a status bar has one strip, and
+            two would either need two or silently describe the newer.
+        """
+        repository = self._app.repository
+        if repository is None or self.is_busy:
+            return None
+
+        files = [Path(source) for source in sources]
+
+        def work(context: JobContext) -> ImportReport:
+            return use_cases.import_images(
+                repository,
+                files,
+                modality=modality,
+                pixel_size_nm=pixel_size_nm,
+                progress=context,
+            )
+
+        name = f"Importing {len(files)} file(s)"
+        self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
+        return self._job
+
+    def cancel_job(self) -> None:
+        """Ask the running job to stop. **Ask** — ADR-0043 §3.
+
+        A queued job is dropped; a running one stops at its next checkpoint;
+        one with no checkpoint finishes anyway. The button that hides this is
+        the one an operator presses twice before deciding the application has
+        frozen, so the widget says *stopping* rather than *stopped*.
+        """
+        if self._job is not None:
+            self._job.cancel()
+
+    def _job_changed(self, job: Job) -> None:
+        """On the **main** thread, because the signal above is queued.
+
+        Which is what makes this safe: it reads the repository, and a repository
+        read from two threads at once is what ADR-0043 §7 had to fix once
+        already.
+        """
+        if not job.is_finished or job is not self._job or job is self._settled:
+            return
+        self._settled = job
+
+        if job.state is JobState.FAILED:
+            logger.error("job %r failed: %s", job.name, job.error)
+            self.failed.emit(str(job.error))
+            return
+
+        #: Even a stopped import copied files and wrote rows; the panels are
+        #: describing a project that has changed either way (ADR-0043 §8).
+        self.refresh()
+        report = job.result if isinstance(job.result, ImportReport) else None
+        #: **`cancellation_requested`, not `state is CANCELLED`.** `import_images`
+        #: stops by *returning* its partial report, so a cancelled import is a
+        #: job that succeeded — the state machine describes the job, and the
+        #: request is the only record that an operator pressed the button.
+        self.reported.emit(_summarise(report, cancelled=job.cancellation_requested))
+
     # ── Saying so ─────────────────────────────────────────────────────────────
 
     def _set_project(self, opened: OpenedProject | None) -> None:
@@ -210,3 +325,21 @@ class SessionViewModel(QObject):
     def _refuse(self, message: str) -> None:
         logger.error("%s", message)
         self.failed.emit(message)
+
+
+def _summarise(report: ImportReport | None, *, cancelled: bool) -> str:
+    """What an import did, in one line — including what it refused.
+
+    The refusals are counted rather than swallowed: `import_images` collects
+    them instead of aborting the batch (ADR-0041), and a batch that quietly
+    imports 38 of 40 is a batch an operator finds out about in M6.
+    """
+    if report is None:  # pragma: no cover — every import returns one
+        return "cancelled" if cancelled else "done"
+
+    line = f"Imported {len(report.imported)} file(s)"
+    if report.failed:
+        line += f", {len(report.failed)} refused: {report.failed[0].reason}"
+    if cancelled:
+        line += " — cancelled; what was copied is in the project"
+    return line

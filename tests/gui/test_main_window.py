@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QDockWidget, QMenu, QMessageBox, QToolBar
+from PySide6.QtWidgets import QApplication, QDockWidget, QMenu, QMessageBox, QToolBar
 
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
@@ -257,3 +257,63 @@ class TestTheWindowIsWiredThroughTheSession:
         assert window.explorer.tree.topLevelItemCount() == 0
         assert window.properties.values["Name"].text() == "—"
         assert not window.remove_action.isEnabled()
+
+
+class TestWhileAJobRuns:
+    """M5-T07: what may be pressed while something is running in the background.
+
+    `close_project()` closes the SQLite connection the worker thread is using,
+    and opening another replaces it — so those actions are off until it ends.
+    Cancelling is not, because that is the button the task exists to make honest.
+    """
+
+    def test_the_actions_that_would_pull_the_project_away_are_disabled(
+        self, app: Nanoscope, project: Path, tmp_path: Path
+    ) -> None:
+        import threading
+
+        import numpy as np
+
+        window = MainWindow(app)
+        window.open_project(project)
+        source = tmp_path / "extra.npy"
+        np.save(source, np.zeros((8, 8), dtype=np.float32))
+
+        repository = app.repository
+        assert repository is not None
+        original = repository.import_image
+        in_flight, release = threading.Event(), threading.Event()
+
+        def slow(*args: object, **kwargs: object) -> object:
+            in_flight.set()
+            release.wait(5.0)
+            return original(*args, **kwargs)  # type: ignore[arg-type]
+
+        repository.import_image = slow  # type: ignore[method-assign]
+        job = window.session.import_images([source], modality=Modality.AFM)
+        assert job is not None
+        assert in_flight.wait(5.0)
+        QApplication.processEvents()
+
+        assert not window.open_action.isEnabled()
+        assert not window.close_action.isEnabled()
+        assert not window.import_action.isEnabled()
+        #: `isHidden`, not `isVisible`: a child of a window that was never
+        #: shown is not visible whatever the strip decided about itself.
+        assert not window.jobs.isHidden()
+
+        release.set()
+        assert job.wait(5.0)
+        QApplication.processEvents()
+
+        assert window.open_action.isEnabled()
+        assert window.import_action.isEnabled()
+        assert window.jobs.isHidden()
+
+    def test_importing_needs_a_project(self, app: Nanoscope, project: Path) -> None:
+        window = MainWindow(app)
+        assert not window.import_action.isEnabled()
+
+        window.open_project(project)
+
+        assert window.import_action.isEnabled()

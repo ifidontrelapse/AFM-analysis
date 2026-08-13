@@ -197,7 +197,9 @@ runner with progress and cancellation; log panel; settings dialog; headless GUI 
       (M5-T01 headless, M5-T02 with a window — ADR-0052, ADR-0053)
 - [x] A scan renders with correct nm axes and a scale bar
       (M5-T05, ADR-0056 — verified on a characterization phantom in a real window)
-- [ ] A long-running job shows progress and can be cancelled without freezing the UI
+- [x] A long-running job shows progress and can be cancelled without freezing the UI
+      (M5-T07, ADR-0058 — an import of six phantoms run in a real window: the strip
+      counts files, Open/Close/Import go dead, Cancel stops between files)
 - [ ] GUI smoke tests pass headless in CI
 - [x] Lint rule proves no `gui/` module imports `core.science` or `infrastructure`
       (M5-T06 — a test rather than a lint rule, in `tests/unit/test_import_graph.py`,

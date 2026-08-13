@@ -33,7 +33,8 @@ from PySide6.QtWidgets import (
 )
 
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.gui.panels import ImageViewer, ProjectExplorer, PropertiesPanel
+from nanoscope.gui.dialogs import ImportOptions
+from nanoscope.gui.panels import ImageViewer, JobStatus, ProjectExplorer, PropertiesPanel
 from nanoscope.gui.viewmodels import SessionViewModel
 
 if TYPE_CHECKING:
@@ -73,6 +74,8 @@ class MainWindow(QMainWindow):
         self.session.project_changed.connect(self._project_changed)
         self.session.image_changed.connect(self._image_changed)
         self.session.failed.connect(self._failed)
+        self.session.reported.connect(self.statusBar().showMessage)
+        self.session.job_changed.connect(self._job_changed)
 
         self.setWindowTitle("nanoscope")
         self.viewer = ImageViewer(self.session, self)
@@ -80,6 +83,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.viewer)
         self._build_docks()
         self._build_menus()
+        #: Permanent, so a job's progress is not wiped by the next status
+        #: message — and on the right, where it does not fight the readout.
+        self.jobs = JobStatus(self.session, self)
+        self.statusBar().addPermanentWidget(self.jobs)
         self.statusBar().showMessage("No project open")
 
         self._restore_layout()
@@ -116,6 +123,11 @@ class MainWindow(QMainWindow):
         self.open_action.setShortcut("Ctrl+O")
         self.open_action.triggered.connect(self.choose_project)
 
+        self.import_action = QAction("&Import Images…", self)
+        self.import_action.setShortcut("Ctrl+I")
+        self.import_action.triggered.connect(self.choose_images)
+        self.import_action.setEnabled(False)
+
         self.remove_action = QAction("&Remove Image from Project", self)
         self.remove_action.triggered.connect(self.explorer.remove_selected)
         self.remove_action.setEnabled(False)
@@ -128,7 +140,7 @@ class MainWindow(QMainWindow):
         quit_action.setShortcut("Ctrl+Q")
         quit_action.triggered.connect(self.close)
 
-        for action in (self.open_action, self.close_action):
+        for action in (self.open_action, self.import_action, self.close_action):
             file_menu.addAction(action)
             toolbar.addAction(action)
         file_menu.addSeparator()
@@ -147,6 +159,28 @@ class MainWindow(QMainWindow):
         directory = QFileDialog.getExistingDirectory(self, "Open Project")
         if directory:
             self.open_project(directory)
+
+    def choose_images(self) -> None:
+        """Ask which files, then how to read them, then run it as a job.
+
+        Two dialogs because they are two questions, and the second one is worth
+        asking once for the batch: a folder of scans comes off one instrument
+        (ADR-0041's argument for one `modality` per call).
+        """
+        files, _ = QFileDialog.getOpenFileNames(self, "Import Images")
+        if not files:
+            return
+
+        options = ImportOptions(self)
+        if options.exec() != ImportOptions.DialogCode.Accepted:
+            return
+
+        choice = options.choice()
+        self.session.import_images(
+            files,
+            modality=choice.modality,
+            pixel_size_nm=choice.pixel_size_nm,
+        )
 
     def open_project(self, project_dir: Path | str) -> OpenedProject | None:
         """Open a project through the session, and say what happened.
@@ -172,17 +206,34 @@ class MainWindow(QMainWindow):
 
     def _project_changed(self, opened: OpenedProject | None) -> None:
         """The window's own chrome. The panels heard the same signal."""
-        self.close_action.setEnabled(opened is not None)
         self.setWindowTitle("nanoscope" if opened is None else f"{opened.name} — nanoscope")
         self.statusBar().showMessage("No project open" if opened is None else _summarise(opened))
+        self._update_actions()
 
     def _image_changed(self, _image: object) -> None:
-        """Removal follows the *selection*, not the load.
+        self._update_actions()
 
-        A scan whose file is missing loads as `None` and is still selected —
-        and forgetting it is the likeliest thing an operator wants to do next.
+    def _job_changed(self, _job: object) -> None:
+        self._update_actions()
+
+    def _update_actions(self) -> None:
+        """One place decides what can be pressed, because three signals change it.
+
+        **While a job runs, the project may not be taken out from under it:**
+        `close_project()` closes the SQLite connection the worker thread is
+        using, and opening another replaces it. Cancelling stays available — it
+        is the button this task exists to make honest.
+
+        **Removal follows the selection, not the load.** A scan whose file is
+        missing loads as `None` and is still selected, and forgetting it is the
+        likeliest thing an operator wants to do next.
         """
-        self.remove_action.setEnabled(self.session.image_id is not None)
+        busy = self.session.is_busy
+        has_project = self.session.project is not None
+        self.open_action.setEnabled(not busy)
+        self.close_action.setEnabled(not busy and has_project)
+        self.import_action.setEnabled(not busy and has_project)
+        self.remove_action.setEnabled(not busy and self.session.image_id is not None)
 
     def _failed(self, message: str) -> None:
         """Our errors are messages (ADR-0030, ADR-0052 §3). A traceback in a

@@ -40,9 +40,26 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T06` done 2026-08-13 (ADR-0057); `M5-T07` — the background job runner — is
-next**, and ADR-0057 §7 exists for it: there is now a main-thread `QObject` to marshal ADR-0043's
-worker-thread listener onto.
+**None selected. `M5-T07` done 2026-08-13 (ADR-0058); `M5-T08` — the log panel — is next**, and it
+is the last placeholder dock in the window.
+
+**`M5-T07` done 2026-08-13 (ADR-0058) — a job that reports from another thread, and a cancel button
+that says what it means. M5's third exit criterion is met**, verified by importing six phantoms into
+a real window, and **ADR-0043's marshalling obligation — stated three times and owed since M4-T06 —
+is discharged**. **The marshalling is `listener=self.job_changed.emit` and nothing else:** Qt queues
+a signal whose receiver lives on another thread, so the thread crossing is the *connection* rather
+than code, and the thread policy stays in `application/jobs.py`. **Progress lives in the status
+bar**, because a modal progress dialog *is* the frozen window the criterion forbids; the bar shows
+counts (`%v of %m`) and `total == 0` becomes Qt's busy mode. **Cancel asks and says so** —
+*"Stopping…"*, since ADR-0043 §3's honest promise is *stop at the next checkpoint*. **One job at a
+time**, and Open/Close/Import are disabled while it runs, because `close_project()` closes the
+connection the worker is using. **The import asks modality and scale and invents neither**, with
+"unknown" as a value the operator can choose. **Found:** a queued signal carries the **handle, not a
+snapshot**, so every "on finish" handler fires once per update ever emitted (the import refreshed
+and announced itself five times); **a cancelled import is a job that SUCCEEDED**, since
+`import_images` stops by returning its partial report; **two test files with the same basename
+collide at collection**, which targeted runs cannot show; and a progress bar with its text off is an
+empty box. 26 tests, **998** in the suite.
 
 **`M5-T06` done 2026-08-13 (ADR-0057) — the viewmodel holds the session, and a widget emits intent.
 ADR-0055 §4's condition was met and paid** rather than deferred a fourth time: it declined a
@@ -126,9 +143,9 @@ guard — it is now lazy through a PEP 562 `__getattr__`. `print` got one scoped
 `pyproject.toml` and in M2-T11's test, because a CLI that logs instead of printing has no output.
 16 tests, **golden byte-identical**.
 
-One obligation from M4 is still outstanding: **marshal a job's listener onto the main thread**
-(ADR-0043), which M5-T07 pays onto the `QObject` M5-T06 created for it. The other — **count
-annotations before `remove_image`** (ADR-0044) — was discharged by M5-T04.
+**Both obligations M4 left for a widget are now discharged:** **counting annotations before
+`remove_image`** (ADR-0044) by M5-T04, and **marshalling a job's listener onto the main thread**
+(ADR-0043) by M5-T07, onto the `QObject` M5-T06 created for it.
 
 ## Completed
 

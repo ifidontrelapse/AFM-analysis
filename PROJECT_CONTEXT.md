@@ -83,19 +83,22 @@ AFM-analysis/
 │   │   ├── launcher.py                 # QApplication + the event loop (M5-T02)
 │   │   ├── main_window.py              # menus, docks, status bar, layout (M5-T02)
 │   │   ├── theme/                      # tokens.py + style.qss, one colour table (M5-T03)
-│   │   ├── viewmodels/session.py       # the session every panel subscribes to (M5-T06)
+│   │   ├── viewmodels/session.py       # the session every panel subscribes to (M5-T06),
+│   │   │                               #   and where a job's worker thread is marshalled (M5-T07)
+│   │   ├── dialogs/import_options.py   # modality and scale, "unknown" included (M5-T07)
 │   │   └── panels/                     # project_explorer.py (M5-T04), viewer.py (M5-T05),
-│   │                                   #   properties.py (M5-T06) — each takes the viewmodel
+│   │                                   #   properties.py (M5-T06), job_status.py (M5-T07) —
+│   │                                   #   each takes the viewmodel
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings, device, log sinks — 724 tests
+│   │                                   #   commands, settings, device, log sinks — 731 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01) — 153 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…T06) — 96 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…T07) — 115 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
