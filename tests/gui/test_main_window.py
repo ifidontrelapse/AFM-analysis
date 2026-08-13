@@ -25,8 +25,8 @@ from PySide6.QtWidgets import QApplication, QDockWidget, QMenu, QMessageBox, QTo
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
 from nanoscope.gui.main_window import (
-    DOCKS,
     GEOMETRY_SETTING,
+    LOG_DOCK,
     PROJECT_DOCK,
     PROPERTIES_DOCK,
     STATE_SETTING,
@@ -72,19 +72,22 @@ class TestTheWindowIsBuilt:
 
         docks = {dock.windowTitle() for dock in window.findChildren(QDockWidget)}
 
-        assert docks == {PROJECT_DOCK, PROPERTIES_DOCK, *(title for title, _, _ in DOCKS)}
+        assert docks == {PROJECT_DOCK, PROPERTIES_DOCK, LOG_DOCK}
 
-    def test_the_docks_without_a_panel_yet_say_which_task_fills_them(self, app: Nanoscope) -> None:
-        """An empty panel is a promise when it names its task, and a bug when it
-        does not. Project (M5-T04) and Properties (M5-T06) are no longer on this
-        list — they were filled, which is what the promise was for."""
+    def test_every_dock_has_a_panel_in_it(self, app: Nanoscope) -> None:
+        """M5-T02 filled each dock with a label naming the task that would
+        replace it. **M5-T08 replaced the last one**, so the assertion changes
+        from "every placeholder names its task" to "there are no placeholders" —
+        a promise is only worth making while it is outstanding."""
         window = MainWindow(app)
 
-        docks = {dock.windowTitle(): dock for dock in window.findChildren(QDockWidget)}
+        widgets = [dock.widget() for dock in window.findChildren(QDockWidget)]
 
-        for title, message, _ in DOCKS:
-            assert "M5-T" in message
-            assert message in docks[title].widget().text()
+        assert {type(widget).__name__ for widget in widgets} == {
+            "ProjectExplorer",
+            "PropertiesPanel",
+            "LogPanel",
+        }
 
     def test_docks_are_named_so_a_saved_layout_can_find_them(self, app: Nanoscope) -> None:
         """A dock without an object name is one the restored layout silently
@@ -189,8 +192,7 @@ class TestTheLayoutIsRemembered:
         window = MainWindow(app)
 
         assert window.statusBar().currentMessage() == "No project open"
-        # + the Project and Properties docks, which are panels rather than promises
-        assert len(window.findChildren(QDockWidget)) == len(DOCKS) + 2
+        assert len(window.findChildren(QDockWidget)) == 3
 
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)

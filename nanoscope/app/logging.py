@@ -90,6 +90,33 @@ def detach_project_log() -> None:
     _remove_tagged(logging.getLogger(), f"{_TAG}:project")
 
 
+def attach_view_log(handler: logging.Handler) -> None:
+    """Also send records to something on screen — M5-T08's panel.
+
+    Here rather than in `gui/`, because this module is the only one that attaches
+    a handler (ADR-0051) and that rule is what stops two windows installing two.
+    The handler itself is Qt's business and stays there; this takes a
+    `logging.Handler` and knows nothing about widgets.
+
+    The level is left alone: the root logger already decides what is worth
+    recording, and a second threshold here is a second place to be surprised by.
+    """
+    root = logging.getLogger()
+    _remove_tagged(root, f"{_TAG}:view")
+    handler.set_name(f"{_TAG}:view")
+    root.addHandler(handler)
+
+
+def detach_view_log() -> None:
+    """Stop feeding the screen. What closing the window does — and it must.
+
+    A handler left attached to a deleted widget turns the next log line into a
+    crash, in a process that is already shutting down and has nowhere useful to
+    report it.
+    """
+    _remove_tagged(logging.getLogger(), f"{_TAG}:view")
+
+
 def _remove_tagged(logger: logging.Logger, name: str) -> None:
     for handler in [h for h in logger.handlers if h.name == name]:
         logger.removeHandler(handler)

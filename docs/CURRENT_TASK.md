@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M5-T07`
-**Title:** A job that reports from another thread, and a cancel button that says what it means
-**Milestone:** M5 — GUI shell, seventh task
-**Defect:** — · **ADR:** **ADR-0058**
+**ID:** `M5-T08`
+**Title:** The log an operator can see, and a warning that does not need them watching
+**Milestone:** M5 — GUI shell, eighth task
+**Defect:** — · **ADR:** **ADR-0059**
 **Branch:** `feat/m5-gui-shell`
 **Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,62 +11,56 @@
 
 ## Why this task is next
 
-M5's third exit criterion: *"a long-running job shows progress and can be cancelled without freezing
-the UI"*. It is the last piece of the shell that is not there, and it is the one M4 left an explicit
-obligation for — ADR-0043 states **three times**, in the module docstring, in `submit`, and in the
-ADR itself, that a job's listener fires **on the worker thread**:
+The Log dock is the **last placeholder in the window** — M5-T02 put a label in it saying "the log
+panel arrives in M5-T08", and an empty panel is a promise only until the task it names comes round.
 
-> *Qt widgets may be touched only from the main thread, so M5's adapter marshals; forgetting is a
-> crash rather than a warning.*
+It is also the half of ADR-0051 nobody can reach. That ADR sent the log to two rotating JSONL files
+and argued the case well; what it left is an operator who has to find
+`$XDG_STATE_HOME/nanoscope/nanoscope.log` in a file manager to learn why an import refused a scan.
+The lines exist and nothing shows them.
 
-M5-T06 built the object that marshalling needs (ADR-0057 §7). This task uses it.
-
-**There is no long-running job reachable from this GUI today.** `import_images` is the one operation
-that already loops, already reports "12 of 40", and already stops cleanly between files (ADR-0043
-§8) — and nothing in the window can call it. Demonstrating the criterion with a sleep loop would be
-a progress bar for a thing nobody does, so the import action ships with the runner that makes it
-long.
+And M5-T07 built a mechanism whose second consumer is exactly this: **a log record can be written
+from a worker thread** — a job logs — so a panel that appends to a widget from `emit()` is the same
+crash ADR-0043 warned about, in a place nobody thinks to look for it.
 
 ---
 
 ## The decisions this task has to make
 
-**1. How does a worker-thread callback become a main-thread update?** A signal, and nothing else.
+**1. How do records reach the panel?** A `logging.Handler` that emits a Qt signal, and nothing else.
 
-`runner.submit(name, work, listener=self.job_changed.emit)`. Qt queues a signal whose receiver lives
-on another thread; the listener therefore does exactly one thing, and the marshalling is the
-connection rather than code. No `QThread` subclass, no `moveToThread`, no worker object — the thread
-policy lives in `application/jobs.py` and this layer does not get a second one.
+The second application of ADR-0058 §1, which is the point: if the answer to "another thread touched a
+widget" is a different mechanism each time, there is no answer. `emit()` does one thing.
 
-**2. Where does progress appear?** In the status bar, not in a modal dialog.
+**2. What travels on the signal — the record, or a rendering of it?** A rendering, and this is
+*opposite* to M5-T07's choice.
 
-A modal progress dialog *is* the frozen UI the criterion forbids — it blocks the window it is
-reporting about. A status-bar strip with a label, a bar and a Cancel button leaves the operator able
-to look at their data while the import runs, which is the whole point of a background job.
+ADR-0058 §3 sends the job **handle** because a bar wants the latest state. A log line is the
+opposite kind of thing: a **fact at a moment**, which must not change between being written and
+being read. Formatting also has to happen on the thread that logged, because `%`-style arguments are
+lazy by ADR-0013's rule and the values may be gone by delivery. So the handler builds a frozen
+`LogLine` in `emit()` and the panel only paints it.
 
-**3. What does the cancel button promise?** *Stop at the next checkpoint* — and it says so.
+**3. Who attaches the handler?** `app/`, as ADR-0051 requires.
 
-ADR-0043 §3: a queued job is dropped, a running one stops at its next `raise_if_cancelled()`, and
-one with no checkpoint runs to completion. The button that hides that is the button an operator
-presses twice and then concludes the application is frozen. After it is pressed it says
-**"stopping…"** and stays disabled, because the honest report is *asked, not done*.
+*"Only `app/` attaches handlers, and they are named, so configuring twice replaces rather than
+duplicates."* So `attach_view_log(handler)` joins `configure_logging` and `attach_project_log` in
+`app/logging.py`, tagged `nanoscope:view`; the window asks for it and detaches on close. A handler
+left attached to a dead widget is a crash on the next log line, in a process that is shutting down.
 
-**4. Indeterminate is a state, not a zero.** `total == 0` means *cannot say* (ADR-0043 §4), and the
-bar goes into Qt's busy mode rather than sitting at 0 % — a bar at 0 % that never moves is a lie
-about the same fact.
+**4. What is the panel made of?** A read-only `QPlainTextEdit` with `setMaximumBlockCount`.
 
-**5. One job at a time in this window.** The runner takes more (`max_workers=2`); this GUI shows
-one, and a second submission is refused while one is running.
+Qt's own bounded buffer, which is the ring buffer this needs and none of the code. Colour comes from
+the tokens (ADR-0054), because a warning that looks like every other line is a warning nobody sees.
 
-A status bar has one strip. Two jobs mean either two strips or one that silently describes the
-newer — and while a job is running the actions that would pull the project out from under it
-(Open, Close, Import, Remove) are disabled, because `close_project()` closes the SQLite connection
-the worker thread is using.
+**5. What is a "notification"?** The dock counts what an operator has not looked at.
 
-**6. The import needs to be asked two things**, and neither may be invented: the modality, and the
-pixel scale. The scale field's zero reads **"unknown"** (Qt's `setSpecialValueText`), so absent is a
-value the operator can choose rather than a blank they have to trust — ADR-0025 again, at the
-surface that *creates* rows rather than reads them.
+A `WARNING` or `ERROR` logged while the Log dock is hidden makes its title read **"Log (3)"**, and
+showing the dock resets it. Not a toast, not an auto-raised panel that steals the focus of somebody
+mid-drag: the two failure modes of desktop notifications are being missed and being resented, and a
+count in a title is the version of this that is neither.
+
+`INFO` does not notify. A notification for every ordinary line is the same as none.
 
 ---
 
@@ -74,56 +68,59 @@ surface that *creates* rows rather than reads them.
 
 **In scope**
 
-1. `gui/viewmodels/session.py` — `job_changed`, `reported`, `import_images`, `cancel_job`, and the
-   completion handling (refresh the project, say what the report said)
-2. `gui/panels/job_status.py` — the status-bar strip: name, message, bar, Cancel
-3. `gui/dialogs/import_images.py` — modality and scale, with "unknown" as a choosable value
-4. `MainWindow` — File → *Import Images…*, the strip in the status bar, actions disabled while a
-   job runs
-5. **ADR-0058** — marshalling by signal, progress in the status bar, what cancel promises
-6. Tests: the listener arriving on the **main thread**, determinate and indeterminate progress,
-   cancellation between files with the copied files kept, a failed job as a message, one job at a
-   time, and the explorer refreshing when an import finishes
+1. `gui/viewmodels/log_stream.py` — `LogLine`, and the handler that turns a record into a signal
+2. `gui/panels/log_panel.py` — the bounded, coloured view
+3. `app/logging.py` — `attach_view_log` / `detach_view_log`, tagged like the other two
+4. `MainWindow` — the Log dock gets its panel, the title counts unseen warnings, the handler is
+   detached on close
+5. **ADR-0059** — a rendering not a record, who attaches, and what a notification is allowed to do
+6. Tests: a record logged **from a worker thread** arriving on the main one, the bound on the
+   buffer, levels coloured, the unseen counter and its reset, and the handler detaching
 
 **Out of scope**
 
-- **A job history / log panel** — M5-T08 owns it; jobs are live objects with no history (ADR-0043)
-- **Progress inside a single scientific pass** — ADR-0043's named negative consequence: it needs
-  checkpoints in `core.science`, which is a callback in the domain layer
-- **Running an analysis** — M6
+- **A level filter and a search box** — the buffer is bounded and the file is authoritative; a
+  filter that hides lines needs an answer to "hides them from what?" that this panel does not have
+  yet
+- **Showing the log file's path** — a support affordance, and M9's packaging task is where "how do I
+  send you my log" belongs
+- **Reading the JSONL back after a restart** — the panel shows this session; the file is the history
+  (ADR-0051 already says which is which)
 
 ---
 
 ## Definition of done
 
-- [x] A worker-thread listener reaches a widget on the main thread, proven by a test that asserts
-      the thread
-- [x] Import runs as a job, with progress, and is cancellable; what was copied before the stop stays
-- [x] The cancel button says *stop at the next checkpoint* rather than implying more
-- [x] ADR-0058 + the ADR index
-- [x] `make check` green — 998 tests, golden byte-identical
-- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `Roadmap.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M5-T07: a job that reports from another thread, and a cancel button that says what it means`
+- [x] A record logged on a worker thread reaches the panel on the main thread, asserted by thread
+- [x] The Log dock has a panel, and the placeholder list is empty
+- [x] Warnings logged while the dock is hidden are counted in its title, and reset when shown
+- [x] The handler is detached when the window closes
+- [x] ADR-0059 + the ADR index
+- [x] `make check` green — 1016 tests, golden byte-identical
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M5-T08: the log an operator can see, and a warning that does not need them watching`
 
 ---
 
 ## What it turned up
 
-**A queued signal carries the handle, not a snapshot — so every "on finish" handler fires once per
-update the job ever emitted.** The deliveries all arrive after the work is over and every one of
-them reads a *finished* job: an import refreshed the project and announced its outcome five times.
-Recording the job whose ending has been dealt with is the fix, and reading the handle late is the
-right behaviour for the bar itself — a backlog collapses to the latest state, which is what a
-progress bar wants. Found by a test that asserted a progress value and got the final one instead.
+**`logging.Handler.emit` collides with `QObject.emit`.** `class LogStream(QObject,
+logging.Handler)` was written first and runs correctly — and silently overrides a method of its own
+base with an incompatible signature, because Qt has an `emit` too (the old-style emit-a-signal-by-
+name). mypy found it. A `type: ignore` there would never have expired, so the handler and the signal
+became two objects.
 
-**A cancelled import is a job that SUCCEEDED.** `import_images` stops by *returning* its partial
-report, so the state machine never sees a cancellation and `cancellation_requested` is the only
-record that somebody pressed the button. The summary reads the request. Left as it is rather than
-"fixed": the state describes the job, which did complete and did produce a result.
+**A window that is never closed leaves a handler pointing at a deleted widget** — and the next log
+line prints `--- Logging error ---` with a traceback into stderr. Found from *another test file
+entirely*: `test_entry_point.py`'s assertion that a refusal carries **no traceback** went red, in a
+combined run only, for a handler installed by a GUI test twenty files earlier. The handler now goes
+quiet on `RuntimeError` — with a flag rather than by removing itself, since `callHandlers` iterates
+the list it would be mutating.
 
-**Two test files with the same basename collide at collection.** `tests/unit/test_jobs.py` and a new
-`tests/gui/test_jobs.py` — every targeted run passed and `make check` failed to *collect*. Renamed
-to `test_background_jobs.py`; the same class of ambiguity M5-T02 hit with two `conftest.py`.
+**An import wrote nothing into the project log.** Seen by reading the finished panel: ADR-0051
+created that log to answer *what happened to this work*, and the first thing an operator does left
+it empty. One line at the point the outcome is already known.
 
-**A progress bar with its text off is an empty box.** Seen in the window, not in a test: at 0 of 6 it
-renders as a blank rectangle. `%v of %m` shows the counts ADR-0043 §4 chose over a percentage.
+**`isVisible()` is `False` for every widget in a window that was never shown** — the second time this
+milestone. It is the right check for the notification (a dock behind a tab is not visible either),
+so the test shows the window rather than the code weakening to `isHidden()`.

@@ -7,6 +7,63 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T08 · **the log an operator can see, and a warning that does not need them watching**
+
+**Task:** `M5-T08`. **ADR:** **ADR-0059**. The Log dock was the **last placeholder** M5-T02 left,
+and this is the half of ADR-0051 nobody could reach: the log went to two rotating JSONL files, and
+an operator who wanted to know why an import refused a scan had to find `$XDG_STATE_HOME` in a file
+manager.
+
+### The decisions
+
+**Records reach the panel as a Qt signal** — ADR-0058 §1 for the third time, and the repetition is
+the point: a job logs, so `Handler.emit` can fire on a worker thread, which is ADR-0043's crash in
+the one place nobody looks for a threading bug.
+
+**What travels is a rendering, not the record — the opposite of `job_changed`.** A job handle is
+sent because a bar wants the *latest state*; a log line is a **fact at a moment**. Formatting has to
+happen on the logging thread anyway, since `%`-style arguments are lazy (ADR-0013) and the objects
+they name may be gone by the time the main thread paints.
+
+**`app/` attaches the handler** (ADR-0051's rule), tagged `nanoscope:view` so a second window
+replaces rather than duplicates, and the window detaches on close.
+
+**The panel is bounded and the file is the history:** a `QPlainTextEdit` with
+`setMaximumBlockCount`, which is Qt's own ring buffer and none of the code, coloured by level from
+the tokens and HTML-escaped — the log line most worth reading is the one with a repr in it.
+
+**A notification is a count in the dock's title.** "Log (3)" while the dock is not visible, cleared
+by looking at it. Not a toast and not an auto-raised panel: the two ways notifications fail are
+being **missed** and being **resented**. `INFO` does not notify.
+
+### What it turned up
+
+**`logging.Handler.emit` collides with `QObject.emit`.** The multiple-inheritance version was
+written first and runs correctly — while silently overriding a method of its own base with an
+incompatible signature, because Qt has an `emit` too. mypy found it; a `type: ignore` would never
+have expired, so the handler and the signal became two objects.
+
+**A window that is never closed leaves a handler pointing at a deleted widget**, and the next log
+line prints `--- Logging error ---` with a traceback into stderr. Found **from another test file
+entirely**: `test_entry_point.py`'s assertion that a refusal carries *no traceback* went red in a
+combined run, because of a handler a GUI test had installed. It now goes quiet on `RuntimeError` —
+with a flag, not by removing itself, since `callHandlers` iterates the list it would be mutating.
+
+**An import wrote nothing into the project log.** Read off the finished panel: ADR-0051 built that
+log to answer *what happened to this work*, and the first thing an operator does left it empty.
+
+**`isVisible()` is `False` for every widget in a window that was never shown** — the second time this
+milestone, and the code is right: a dock behind a tab is not visible either, so the *test* shows the
+window.
+
+### Numbers
+
+18 tests, **1016** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M5-T09` — the settings dialog, and the last of M5's task list.
+
+---
+
 ## 2026-08-13 — M5-T07 · **a job that reports from another thread, and a cancel button that says what it means**
 
 **Task:** `M5-T07`. **ADR:** **ADR-0058**. **M5's third exit criterion is met** — verified by

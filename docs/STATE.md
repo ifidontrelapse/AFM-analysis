@@ -40,8 +40,28 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T07` done 2026-08-13 (ADR-0058); `M5-T08` — the log panel — is next**, and it
-is the last placeholder dock in the window.
+**None selected. `M5-T08` done 2026-08-13 (ADR-0059); `M5-T09` — the settings dialog — is next**,
+and it is the last task in M5's list. **Two of M5's five exit criteria remain**: the settings dialog
+is not one of them, and *"GUI smoke tests pass headless in CI"* is unticked **because it cannot be
+verified from here** — CI installs PySide6 and runs `make test` (128 GUI tests, offscreen), but this
+branch has not been pushed and no CI run has been read.
+
+**`M5-T08` done 2026-08-13 (ADR-0059) — the log an operator can see, and a warning that does not
+need them watching. The last placeholder dock is gone**, and the half of ADR-0051 nobody could
+reach has a reader: the log went to two rotating JSONL files, and finding out why an import refused
+a scan meant opening `$XDG_STATE_HOME` in a file manager. **Records reach the panel as a Qt
+signal** — ADR-0058 §1 for the third time, because a job logs and `Handler.emit` can therefore fire
+on a worker thread. **What travels is a rendering, not the record**, deliberately the opposite of
+`job_changed`: a handle is sent because a bar wants the *latest state*, a log line is a **fact at a
+moment**, and lazy `%` arguments must be applied where the values still exist. **`app/` attaches the
+handler** (ADR-0051), tagged so a second window replaces rather than duplicates. **A notification is
+a count in the dock's title**, cleared by looking — not a toast, not an auto-raised panel, and never
+for `INFO`. **Found:** `logging.Handler.emit` **collides with `QObject.emit`** (mypy caught the
+silent override); **a window that is never closed leaves a handler pointing at a deleted widget**,
+printing `--- Logging error ---` into stderr — surfaced by a *different test file* asserting that a
+refusal carries no traceback; **an import wrote nothing into the project log**, read off the
+finished panel; and `isVisible()` is `False` in a window that was never shown, for the second time
+this milestone. 18 tests, **1016** in the suite.
 
 **`M5-T07` done 2026-08-13 (ADR-0058) — a job that reports from another thread, and a cancel button
 that says what it means. M5's third exit criterion is met**, verified by importing six phantoms into

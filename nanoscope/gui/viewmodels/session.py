@@ -297,6 +297,15 @@ class SessionViewModel(QObject):
         #: describing a project that has changed either way (ADR-0043 §8).
         self.refresh()
         report = job.result if isinstance(job.result, ImportReport) else None
+        #: Logged as well as shown. A status line lasts until the next one; the
+        #: project's log is what ADR-0051 set aside to answer *what happened to
+        #: this work*, and until M5-T08 put a panel on screen nothing noticed
+        #: that an import wrote nothing into it.
+        logger.info(
+            "%s finished: %s",
+            job.name,
+            _summarise(report, cancelled=job.cancellation_requested),
+        )
         #: **`cancellation_requested`, not `state is CANCELLED`.** `import_images`
         #: stops by *returning* its partial report, so a cancelled import is a
         #: job that succeeded — the state machine describes the job, and the

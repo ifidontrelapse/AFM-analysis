@@ -12,6 +12,7 @@ repository call makes the meeting deterministic, the way M4-T06's tests do it.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -376,3 +377,18 @@ class TestTheQuestionsAnImportAsks:
 
         assert offered == list(Modality)
         assert dialog.choice().modality in Modality
+
+
+class TestWhatTheLogKeeps:
+    def test_an_import_is_written_down_as_well_as_shown(
+        self, session: SessionViewModel, scans: list[Path], caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A status line lasts until the next one. ADR-0051 set the project's
+        log aside to answer *what happened to this work*, and until M5-T08 put a
+        panel on screen nothing noticed that an import wrote nothing into it."""
+        with caplog.at_level(logging.INFO, logger="nanoscope.gui.viewmodels.session"):
+            job = session.import_images(scans, modality=Modality.AFM)
+            assert job is not None
+            settle(job)
+
+        assert any("Imported 3 file(s)" in record.message for record in caplog.records)

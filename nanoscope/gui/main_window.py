@@ -9,9 +9,10 @@ So this class **holds the container and constructs nothing**. Opening a project
 is `Nanoscope.open`, which is the composition root's job (M5-T01); what this file
 adds is a menu item, a status message, and somewhere to put the answer.
 
-The docks are placeholders that name the task filling them. A dock with a label
-saying "M5-T04" is honest; a dock with half a project explorer in it is M5-T04
-started early and finished badly.
+M5-T02 filled the docks with labels naming the task that would replace each —
+*"a dock with a label saying M5-T04 is honest; a dock with half a project
+explorer in it is M5-T04 started early and finished badly"*. **M5-T08 replaced
+the last of them**, so what is left is four panels and the wiring between them.
 """
 
 from __future__ import annotations
@@ -23,19 +24,20 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QAction, QCloseEvent
-from PySide6.QtWidgets import (
-    QDockWidget,
-    QFileDialog,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QWidget,
-)
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox
 
+from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.gui.dialogs import ImportOptions
-from nanoscope.gui.panels import ImageViewer, JobStatus, ProjectExplorer, PropertiesPanel
+from nanoscope.gui.panels import (
+    ImageViewer,
+    JobStatus,
+    LogPanel,
+    ProjectExplorer,
+    PropertiesPanel,
+)
 from nanoscope.gui.viewmodels import SessionViewModel
+from nanoscope.gui.viewmodels.log_stream import LogLine, LogStream
 
 if TYPE_CHECKING:
     from nanoscope.app.container import Nanoscope
@@ -48,16 +50,12 @@ logger = logging.getLogger(__name__)
 GEOMETRY_SETTING = "window.geometry"
 STATE_SETTING = "window.state"
 
-#: Each dock, and the task that fills it. Written as data so the next task
-#: replaces one line instead of hunting for its placeholder.
-DOCKS: tuple[tuple[str, str, Qt.DockWidgetArea], ...] = (
-    ("Log", "The log panel arrives in M5-T08.", Qt.DockWidgetArea.BottomDockWidgetArea),
-)
-
-#: The docks with a panel in them (M5-T04, M5-T06). The rest are placeholders,
-#: and each names the task that replaces it.
-PROJECT_DOCK = "Project"
-PROPERTIES_DOCK = "Properties"
+#: The docks, and the task that filled each. M5-T02 wrote them as placeholders
+#: naming the task that would replace them; **M5-T08 was the last of those**, so
+#: there is no placeholder left and no list of promises to keep.
+PROJECT_DOCK = "Project"  # M5-T04
+PROPERTIES_DOCK = "Properties"  # M5-T06
+LOG_DOCK = "Log"  # M5-T08
 
 
 class MainWindow(QMainWindow):
@@ -76,6 +74,15 @@ class MainWindow(QMainWindow):
         self.session.failed.connect(self._failed)
         self.session.reported.connect(self.statusBar().showMessage)
         self.session.job_changed.connect(self._job_changed)
+
+        #: The log reaches the screen through one handler, attached by `app/`
+        #: because that is the only layer allowed to attach one (ADR-0051), and
+        #: detached in `closeEvent` because a handler pointing at a deleted
+        #: widget turns the next log line into a crash.
+        self.log_stream = LogStream(self)
+        self.log_stream.logged.connect(self._logged)
+        self._unseen = 0
+        attach_view_log(self.log_stream.handler)
 
         self.setWindowTitle("nanoscope")
         self.viewer = ImageViewer(self.session, self)
@@ -106,13 +113,14 @@ class MainWindow(QMainWindow):
         properties_dock.setWidget(self.properties)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, properties_dock)
 
-        for title, message, area in DOCKS:
-            dock = QDockWidget(title, self)
-            #: Named so `saveState()` can find it again — a dock without an
-            #: object name is one the restored layout silently drops.
-            dock.setObjectName(f"dock.{title.lower()}")
-            dock.setWidget(_placeholder(message))
-            self.addDockWidget(area, dock)
+        self.log = LogPanel(self.log_stream, self)
+        self.log_dock = QDockWidget(LOG_DOCK, self)
+        self.log_dock.setObjectName("dock.log")
+        self.log_dock.setWidget(self.log)
+        #: Looking at it is what marks it read, so the count resets on the
+        #: signal Qt already emits for that.
+        self.log_dock.visibilityChanged.connect(self._log_visibility_changed)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
 
     def _build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -235,6 +243,24 @@ class MainWindow(QMainWindow):
         self.import_action.setEnabled(not busy and has_project)
         self.remove_action.setEnabled(not busy and self.session.image_id is not None)
 
+    def _logged(self, line: LogLine) -> None:
+        """Count what an operator has not looked at, and say so in the title.
+
+        Not a toast and not an auto-raised panel: the two ways desktop
+        notifications fail are being missed and being resented, and a count in a
+        dock's title is the version that is neither. `INFO` does not notify —
+        a notification for every ordinary line is the same as none (ADR-0059).
+        """
+        if not line.is_notable or self.log_dock.isVisible():
+            return
+        self._unseen += 1
+        self.log_dock.setWindowTitle(f"{LOG_DOCK} ({self._unseen})")
+
+    def _log_visibility_changed(self, visible: bool) -> None:
+        if visible:
+            self._unseen = 0
+            self.log_dock.setWindowTitle(LOG_DOCK)
+
     def _failed(self, message: str) -> None:
         """Our errors are messages (ADR-0030, ADR-0052 §3). A traceback in a
         dialog is an application blaming its user for its diagnostics. The
@@ -271,6 +297,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 — Qt's name
         self.save_layout()
+        detach_view_log()
         super().closeEvent(event)
 
 
@@ -288,13 +315,6 @@ def _summarise(opened: OpenedProject) -> str:
         f"{line} — {len(report.missing_files)} missing file(s), "
         f"{len(report.untracked_files)} untracked"
     )
-
-
-def _placeholder(message: str) -> QWidget:
-    label = QLabel(message)
-    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    label.setWordWrap(True)
-    return label
 
 
 def _encode(data: QByteArray) -> str:
