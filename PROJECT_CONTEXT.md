@@ -95,7 +95,8 @@ AFM-analysis/
 │   │                                   #   properties.py (M5-T06), job_status.py (M5-T07),
 │   │                                   #   log_panel.py (M5-T08), preprocessing.py (M6-T01),
 │   │                                   #   detection.py (M6-T02), measurements.py (M6-T05),
-│   │                                   #   statistics.py (M6-T06) — each takes the viewmodel
+│   │                                   #   statistics.py (M6-T06), annotate.py (M7-T02) —
+│   │                                   #   each takes the viewmodel
 │   └── resources/                      # assets, a package so importlib.resources finds them
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
@@ -105,7 +106,7 @@ AFM-analysis/
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…M7-T01) — 254 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M7-T02) — 268 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

@@ -65,7 +65,19 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M7-T02` — the point and box tools — is next.**
+**None selected. `M7-T02` done 2026-08-13 (ADR-0071); `M7-T03` — the polygon tool — is next, and it
+needs a shape the database does not have.**
+
+**`M7-T02` done 2026-08-13 (ADR-0071) — a box an operator drew, and the point they did not.** The
+first surface where an operator **makes** data. **The point tool is not built**: ADR-0044 stores one
+shape and refuses a zero-area one twice, so a point tool must invent an extent — and ADR-0044 wrote
+the condition for revisiting it itself, *a shape that has a reader*, which a point does not have.
+**Drawing suspends panning**; the label comes from a field, an empty one is refused **with a
+sentence** and a drag under three pixels **silently**. **Every box goes through the command stack**,
+giving M4-T08's *redo restores the same row* its first caller outside its own tests. **Found:**
+nothing told the window the **history** had moved — the Undo item stayed dead after the first box,
+and `annotations_changed` now stands in, which works only because every command today mutates
+annotations. 17 tests, **1179** in the suite.
 
 **`M7-T01` done 2026-08-13 (ADR-0070) — the hand work, on screen.** M4-T07 made an annotation a row
 because it cannot be recomputed, M4-T08 built undo around it, and **nothing in a window had ever

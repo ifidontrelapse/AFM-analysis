@@ -30,6 +30,7 @@ from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.gui.dialogs import ImportOptions, SettingsDialog
 from nanoscope.gui.panels import (
+    AnnotatePanel,
     DetectionPanel,
     ImageViewer,
     JobStatus,
@@ -64,6 +65,7 @@ PREPROCESSING_DOCK = "Preprocessing"  # M6-T01
 DETECTION_DOCK = "Detection"  # M6-T02
 MEASUREMENTS_DOCK = "Measurements"  # M6-T05
 STATISTICS_DOCK = "Statistics"  # M6-T06
+ANNOTATE_DOCK = "Annotate"  # M7-T02
 
 
 class MainWindow(QMainWindow):
@@ -83,6 +85,11 @@ class MainWindow(QMainWindow):
         self.session.reported.connect(self.statusBar().showMessage)
         self.session.job_changed.connect(self._job_changed)
         self.session.run_changed.connect(self._run_changed)
+        #: Every command in the stack mutates annotations today, so this is the
+        #: signal that says "the history moved" — and the Undo menu is labelled
+        #: by what it would take back. When a command touches something else,
+        #: this needs a signal of its own (M7-T08).
+        self.session.annotations_changed.connect(lambda _annotations: self._update_actions())
 
         #: The log reaches the screen through one handler, attached by `app/`
         #: because that is the only layer allowed to attach one (ADR-0051), and
@@ -161,6 +168,19 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, statistics_dock)
         self.tabifyDockWidget(detection_dock, statistics_dock)
 
+        self.annotate = AnnotatePanel(self.session, self)
+        annotate_dock = QDockWidget(ANNOTATE_DOCK, self)
+        annotate_dock.setObjectName("dock.annotate")
+        annotate_dock.setWidget(self.annotate)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, annotate_dock)
+        self.tabifyDockWidget(statistics_dock, annotate_dock)
+        properties_dock.raise_()
+        #: The tool drives the canvas, and the canvas hands back what was drawn —
+        #: both through the window that owns them, never panel to panel
+        #: (ADR-0057).
+        self.annotate.draw.toggled.connect(self.viewer.view.set_drawing)
+        self.viewer.view.box_drawn.connect(self.annotate.box_drawn)
+
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)
         self.log_dock.setObjectName("dock.log")
@@ -210,6 +230,16 @@ class MainWindow(QMainWindow):
         self.export_all_action = QAction("Export &All Measurements…", self)
         self.export_all_action.triggered.connect(lambda: self.export(everything=True))
         self.export_all_action.setEnabled(False)
+
+        edit_menu = self.menuBar().addMenu("&Edit")
+        self.undo_action = QAction("&Undo", self)
+        self.undo_action.setShortcut("Ctrl+Z")
+        self.undo_action.triggered.connect(self._undo)
+        self.redo_action = QAction("&Redo", self)
+        self.redo_action.setShortcut("Ctrl+Shift+Z")
+        self.redo_action.triggered.connect(self._redo)
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
 
         self.settings_action = QAction("Se&ttings…", self)
         self.settings_action.triggered.connect(self.edit_settings)
@@ -275,6 +305,14 @@ class MainWindow(QMainWindow):
         """Open the preferences. The dialog stores and applies; this opens it."""
         SettingsDialog(self.session, self).exec()
 
+    def _undo(self) -> None:
+        self.session.undo()
+        self._update_actions()
+
+    def _redo(self) -> None:
+        self.session.redo()
+        self._update_actions()
+
     def export(self, *, everything: bool) -> None:
         """Ask for a CSV. The session writes it; the status bar says where."""
         self.session.export(everything=everything)
@@ -337,6 +375,14 @@ class MainWindow(QMainWindow):
         self.remove_action.setEnabled(not busy and self.session.image_id is not None)
         self.export_run_action.setEnabled(not busy and self.session.run is not None)
         self.export_all_action.setEnabled(not busy and has_project)
+
+        #: Labelled by *what they would take back*: "Undo" alone makes an
+        #: operator press it to find out (M4-T08 wrote the labels for this).
+        undo, redo = self.session.undo_label, self.session.redo_label
+        self.undo_action.setEnabled(not busy and undo is not None)
+        self.undo_action.setText("&Undo" if undo is None else f"&Undo {undo}")
+        self.redo_action.setEnabled(not busy and redo is not None)
+        self.redo_action.setText("&Redo" if redo is None else f"&Redo {redo}")
 
         position = self.session.position_text()
         self.position.setText(position)

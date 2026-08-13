@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import numpy as np
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QImage,
@@ -96,6 +96,10 @@ class ImageView(QGraphicsView):
     #: `(x_px, y_px)` under the cursor, or `None` when it leaves the image.
     hovered = Signal(object)
 
+    #: A box the operator dragged, in scene (pixel) coordinates. Only while the
+    #: drawing tool is on — the same gesture pans when it is off (ADR-0071).
+    box_drawn = Signal(tuple)
+
     #: The index of the overlay item that was clicked, or `None` for a click on
     #: bare image. A **click**, not a press: this view drags to pan (M5-T05), so
     #: a selection is a release that did not move (ADR-0065).
@@ -119,6 +123,9 @@ class ImageView(QGraphicsView):
         self._masks: list[QGraphicsItem] = []
         self._annotations: list[QGraphicsItem] = []
         self._pressed_at: QPoint | None = None
+        self._drawing = False
+        self._rubber: QGraphicsRectItem | None = None
+        self._origin: QPointF | None = None
 
     def show_pixmap(self, pixmap: QPixmap) -> None:
         self._item.setPixmap(pixmap)
@@ -164,6 +171,22 @@ class ImageView(QGraphicsView):
     @property
     def mask_overlay(self) -> list[QGraphicsItem]:
         return list(self._masks)
+
+    @property
+    def drawing(self) -> bool:
+        return self._drawing
+
+    def set_drawing(self, on: bool) -> None:
+        """Turn the box tool on, and panning off with it.
+
+        A tool that draws *and* pans on the same gesture does the wrong one half
+        the time, so the drag mode changes with the tool and the cursor says so.
+        """
+        self._drawing = on
+        self.setDragMode(
+            QGraphicsView.DragMode.NoDrag if on else QGraphicsView.DragMode.ScrollHandDrag
+        )
+        self.setCursor(Qt.CursorShape.CrossCursor if on else Qt.CursorShape.ArrowCursor)
 
     def highlight(self, index: int | None) -> None:
         """Thicken the selected outline, and only that one."""
@@ -234,6 +257,16 @@ class ImageView(QGraphicsView):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
         self._pressed_at = event.position().toPoint()
+        if self._drawing and not self._item.pixmap().isNull():
+            self._origin = self.mapToScene(self._pressed_at)
+            self._rubber = QGraphicsRectItem(QRectF(self._origin, self._origin))
+            pen = QPen(tokens.qcolor(tokens.SUCCESS))
+            pen.setWidthF(OVERLAY_WIDTH_PX)
+            pen.setCosmetic(True)
+            self._rubber.setPen(pen)
+            self._rubber.setZValue(2.0)
+            self.scene().addItem(self._rubber)
+            return
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
@@ -243,6 +276,13 @@ class ImageView(QGraphicsView):
         tolerance, half of an operator's clicks would be pans that selected
         nothing.
         """
+        if self._rubber is not None and self._origin is not None:
+            rect = self._rubber.rect()
+            self.scene().removeItem(self._rubber)
+            self._rubber, self._origin, self._pressed_at = None, None, None
+            self.box_drawn.emit((rect.left(), rect.top(), rect.right(), rect.bottom()))
+            return
+
         super().mouseReleaseEvent(event)
         start = self._pressed_at
         self._pressed_at = None
@@ -257,6 +297,10 @@ class ImageView(QGraphicsView):
         self.picked.emit(None)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
+        if self._rubber is not None and self._origin is not None:
+            self._rubber.setRect(
+                QRectF(self._origin, self.mapToScene(event.position().toPoint())).normalized()
+            )
         super().mouseMoveEvent(event)
         point = self.mapToScene(event.position().toPoint())
         if self._item.pixmap().isNull() or not self.sceneRect().contains(point):

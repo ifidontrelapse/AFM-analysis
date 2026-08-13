@@ -25,7 +25,7 @@ view's decision (ADR-0055's confirmation stays in the panel that asks it).
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -33,6 +33,7 @@ from PySide6.QtCore import QObject, Signal
 
 from nanoscope.application import capabilities, use_cases
 from nanoscope.application.capabilities import DetectorOption
+from nanoscope.application.commands import AddAnnotation
 from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.settings import Scope
 from nanoscope.application.use_cases.display import DisplayImage, Stage, load_for_display
@@ -279,6 +280,74 @@ class SessionViewModel(QObject):
     def annotations(self) -> tuple[Annotation, ...]:
         """What a person judged about the selected image."""
         return self._annotations
+
+    #: How small a drag is discarded rather than refused. An operator who clicks
+    #: by accident should get nothing at all, not an error dialog — and the
+    #: repository *does* refuse a zero-area box, twice (ADR-0044, ADR-0071).
+    MINIMUM_BOX_PX = 3.0
+
+    def add_annotation(self, box: tuple[float, float, float, float], *, label: str) -> bool:
+        """Record a box a person drew, **through the command stack**.
+
+        Returns:
+            Whether it was stored. An empty label is refused with a sentence — a
+            box with no label is a rectangle (ADR-0070) — and a drag smaller
+            than `MINIMUM_BOX_PX` is discarded silently, because it is a click
+            that slipped rather than a request.
+        """
+        repository = self._app.repository
+        if repository is None or self._image_id is None:
+            return False
+
+        x1, y1, x2, y2 = box
+        if abs(x2 - x1) < self.MINIMUM_BOX_PX or abs(y2 - y1) < self.MINIMUM_BOX_PX:
+            return False
+        if not label.strip():
+            self._refuse("an annotation needs a label: a box with no label is a rectangle")
+            return False
+
+        command = AddAnnotation(
+            repository,
+            self._image_id,
+            (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)),
+            label_text=label.strip(),
+        )
+        try:
+            self._app.commands.run(command)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+
+        logger.info("annotated %r", label.strip(), extra={"image_id": self._image_id})
+        self.reload_annotations()
+        return True
+
+    def undo(self) -> bool:
+        """Take back the last edit, and redraw what is now true."""
+        return self._history(self._app.commands.undo)
+
+    def redo(self) -> bool:
+        return self._history(self._app.commands.redo)
+
+    def _history(self, step: Callable[[], object]) -> bool:
+        """One step of the history, with the layer reloaded from the project.
+
+        Reloaded rather than adjusted in place: the stack knows what it did, and
+        the project knows what is there — and after a failed undo those are the
+        same only if somebody re-reads (ADR-0045).
+        """
+        if step() is None:
+            return False
+        self.reload_annotations()
+        return True
+
+    @property
+    def undo_label(self) -> str | None:
+        return self._app.commands.undo_label
+
+    @property
+    def redo_label(self) -> str | None:
+        return self._app.commands.redo_label
 
     def reload_annotations(self) -> None:
         """Re-read them from the project — on selection, and after an edit.

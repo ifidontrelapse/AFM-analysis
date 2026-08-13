@@ -7,6 +7,44 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M7-T02 · **a box an operator drew, and the point they did not**
+
+**Task:** `M7-T02`. **ADR:** **ADR-0071**. The first surface in this project where an operator
+**makes** data rather than asking for it to be computed.
+
+### The decisions
+
+**The point tool is not built, and the reason is the shape.** ADR-0044 stores one shape — the box —
+and refuses a zero-area one twice, in the repository and in a `CHECK`. A point has no extent, so a
+point tool must invent one, and a *"point size"* control is that invention wearing a label. ADR-0044
+wrote the condition for revisiting it itself (*a shape that has a reader*), and a point has none:
+M8's dataset builder consumes boxes. Closed with the argument, the way M4 closed three of its own.
+
+**Drawing suspends panning, visibly** — the same gesture cannot both draw and pan. **The label comes
+from a field**, because forty particles through forty dialogs is a feature nobody uses twice; **an
+empty one is refused with a sentence and a drag under three pixels is discarded silently** — a wrong
+label is worth telling somebody about, a slipped click is not.
+
+**Every box goes through the command stack**, so M4-T08's promise — *redo puts the same row back* —
+has its first caller outside its own tests, and the Edit menu is labelled by what Undo would take
+back.
+
+### What it turned up
+
+**Nothing told the window that the history had moved.** The Undo item stayed dead after the first
+box: the window refreshes its actions from the session's signals, and none of them meant "a command
+was run". `annotations_changed` now does — which works **only because every command today mutates
+annotations**, and the first one that does not will need a signal of its own (M7-T08). Recorded in
+the ADR rather than left as a coincidence that happens to hold.
+
+### Numbers
+
+17 tests, **1179** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M7-T03` — the polygon tool, which needs a shape the database does not have.
+
+---
+
 ## 2026-08-13 — M7-T01 · **the hand work, on screen and told apart from the machine's**
 
 **Task:** `M7-T01`, the first of M7. **ADR:** **ADR-0070**.
