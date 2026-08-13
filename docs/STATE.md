@@ -40,11 +40,26 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M5-T08` done 2026-08-13 (ADR-0059); `M5-T09` — the settings dialog — is next**,
-and it is the last task in M5's list. **Two of M5's five exit criteria remain**: the settings dialog
-is not one of them, and *"GUI smoke tests pass headless in CI"* is unticked **because it cannot be
-verified from here** — CI installs PySide6 and runs `make test` (128 GUI tests, offscreen), but this
-branch has not been pushed and no CI run has been read.
+**None selected. `M5-T09` done 2026-08-13 (ADR-0060), and M5's task list is complete** — nine
+tasks, ADR-0052…ADR-0060. **Three of five exit criteria are ticked.** The fourth, *"GUI smoke tests
+pass headless in CI"*, **cannot be verified from this machine**: CI installs PySide6 and runs
+`make test` (141 GUI tests, offscreen), but the branch is unpushed and no run has been read. The
+fifth was met in M5-T06. **Closing the milestone is the operator's call**, as it was for M3 and M4;
+what is left in M5's own list is nothing.
+
+**`M5-T09` done 2026-08-13 (ADR-0060) — a settings dialog that says whose setting it is.** It
+collects an obligation **M4-T10 wrote into a docstring** — `Settings.scope_of` exists *"to say this
+project overrides your default instead of showing a value with no explanation"* — and reaches a
+preference nothing could set: `DEVICE_SETTING` is read on every `select_device()`, and expressing it
+meant editing `settings.json` by hand. **Three rows, each with a reader that predates the dialog**
+(device, default colormap, log level), and the rule that keeps it honest is that **nothing is
+offered which nothing reads**, asserted per row. **It writes the operator's scope and says so**;
+project-scoped rows wait for M6. **The level applies now and survives a restart, with `--debug`
+winning.** **Found:** the dialog showed the *project's* value in a control that writes the
+*operator's* — OK would have promoted one project's choice to every project, **ADR-0047's first
+failure mode in one screen**, hidden until then by the override note that made the screen look
+right; and `main` configured logging **before** constructing the container, so a stored level could
+not be read at all. 19 tests, **1034** in the suite.
 
 **`M5-T08` done 2026-08-13 (ADR-0059) — the log an operator can see, and a warning that does not
 need them watching. The last placeholder dock is gone**, and the half of ADR-0051 nobody could

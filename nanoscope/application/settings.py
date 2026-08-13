@@ -22,6 +22,14 @@ from enum import StrEnum
 
 from nanoscope.core.ports.settings import SettingsStore
 
+#: The keys more than one layer names. A settings key is a string, and a string
+#: typed twice is a preference that silently does nothing on one side of the
+#: application — which is the same argument PROJECT_RULES §3 makes about magic
+#: constants, at the one place where a typo cannot fail loudly (M5-T09).
+DEVICE_SETTING = "device"
+COLORMAP_SETTING = "viewer.colormap"
+LOG_LEVEL_SETTING = "log.level"
+
 
 class Scope(StrEnum):
     """Which of the two stores a write is aimed at."""

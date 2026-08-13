@@ -24,9 +24,9 @@ import pytest
 
 from nanoscope.app.container import DEVICE_SETTING, Nanoscope
 from nanoscope.app.main import OK, REFUSED, main
-from nanoscope.application.settings import Scope
+from nanoscope.application.settings import LOG_LEVEL_SETTING, Scope
 from nanoscope.core.values import DeviceKind, Modality
-from nanoscope.infrastructure.storage import SqliteProjectRepository
+from nanoscope.infrastructure.storage import JsonSettings, SqliteProjectRepository
 
 
 @pytest.fixture(autouse=True)
@@ -237,3 +237,40 @@ class _Noop:
     def do(self) -> None: ...
 
     def undo(self) -> None: ...
+
+
+class TestTheStoredLogLevel:
+    """M5-T09: the level a settings dialog writes has to survive a restart, or
+    it is a control that works until the operator closes the window."""
+
+    def test_a_stored_level_is_used(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+        JsonSettings().set_setting(LOG_LEVEL_SETTING, logging.WARNING)
+
+        assert run([], tmp_path) == OK
+
+        assert logging.getLogger().level == logging.WARNING
+
+    def test_the_flag_beats_the_preference(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Somebody typing `--debug` is answering the question right now; a
+        stored preference is an answer they gave once."""
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+        JsonSettings().set_setting(LOG_LEVEL_SETTING, logging.WARNING)
+
+        assert run(["--debug"], tmp_path) == OK
+
+        assert logging.getLogger().level == logging.DEBUG
+
+    def test_an_unreadable_level_is_ignored_rather_than_fatal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The same rule as the device preference: a typo in a settings file
+        must not stop the application starting (ADR-0052)."""
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+        JsonSettings().set_setting(LOG_LEVEL_SETTING, "very loud")
+
+        assert run([], tmp_path) == OK
+
+        assert logging.getLogger().level == logging.INFO

@@ -28,7 +28,7 @@ from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox
 
 from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.gui.dialogs import ImportOptions
+from nanoscope.gui.dialogs import ImportOptions, SettingsDialog
 from nanoscope.gui.panels import (
     ImageViewer,
     JobStatus,
@@ -144,6 +144,9 @@ class MainWindow(QMainWindow):
         self.close_action.triggered.connect(self.close_project)
         self.close_action.setEnabled(False)
 
+        self.settings_action = QAction("Se&ttings…", self)
+        self.settings_action.triggered.connect(self.edit_settings)
+
         quit_action = QAction("&Quit", self)
         quit_action.setShortcut("Ctrl+Q")
         quit_action.triggered.connect(self.close)
@@ -154,6 +157,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.remove_action)
         file_menu.addSeparator()
+        file_menu.addAction(self.settings_action)
         file_menu.addAction(quit_action)
 
         view_menu = self.menuBar().addMenu("&View")
@@ -189,6 +193,10 @@ class MainWindow(QMainWindow):
             modality=choice.modality,
             pixel_size_nm=choice.pixel_size_nm,
         )
+
+    def edit_settings(self) -> None:
+        """Open the preferences. The dialog stores and applies; this opens it."""
+        SettingsDialog(self.session, self).exec()
 
     def open_project(self, project_dir: Path | str) -> OpenedProject | None:
         """Open a project through the session, and say what happened.

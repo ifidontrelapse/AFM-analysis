@@ -33,7 +33,9 @@ from PySide6.QtCore import QObject, Signal
 
 from nanoscope.application import use_cases
 from nanoscope.application.jobs import Job, JobContext, JobState
+from nanoscope.application.settings import Scope
 from nanoscope.application.use_cases.display import DisplayImage, load_for_display
+from nanoscope.core.entities.device import Device
 from nanoscope.core.entities.project import ImageRecord, ImportReport, OpenedProject
 from nanoscope.core.errors import NanoscopeError
 from nanoscope.core.values import Modality
@@ -70,6 +72,11 @@ class SessionViewModel(QObject):
     #: An outcome worth a line in the status bar — what an import did. Separate
     #: from `failed`, because "38 imported, 2 refused" is not a refusal.
     reported = Signal(str)
+
+    #: A stored preference changed. Panels that read one re-read it; the signal
+    #: carries no key, because every consumer so far reads exactly one and
+    #: filtering by name is work nobody has asked for (M5-T09).
+    settings_changed = Signal()
 
     def __init__(self, app: Nanoscope, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -122,6 +129,55 @@ class SessionViewModel(QObject):
         """How much hand work removing this image would destroy (ADR-0044)."""
         repository = self._app.repository
         return 0 if repository is None else len(repository.annotations_for(image_id))
+
+    # ── Preferences, for the panels that may not reach the container ──────────
+
+    def preference(self, key: str, default: object = None) -> object:
+        """What is stored for `key`, the project's answer first (ADR-0047).
+
+        Here because a panel may not import the composition root (ADR-0057), and
+        a widget reaching for `JsonSettings` would be the same hole in a
+        different wall.
+        """
+        return self._app.settings.get(key, default)
+
+    def own_preference(self, key: str, default: object = None) -> object:
+        """What the **operator** stored, ignoring any project override.
+
+        What a settings dialog has to show: it edits the operator's scope, so
+        displaying the merged value would put a project's answer in a control
+        that writes somewhere else — and OK would then copy the project's choice
+        into every other project (ADR-0047's first failure mode, exactly).
+        """
+        return self._app.application_settings.get_setting(key, default)
+
+    def remember(self, key: str, value: object) -> None:
+        """Store a preference for the **operator**, and say that it changed.
+
+        The application scope, always: this application writes no project-scoped
+        setting yet, and a dialog that guesses the scope is the failure ADR-0047
+        was written to prevent (M5-T09).
+        """
+        self._app.settings.set(key, value)
+        self.settings_changed.emit()
+
+    def devices(self) -> list[Device]:
+        """What this machine can run inference on, best first (ADR-0049).
+
+        Cached in the manager, which says so in its own docstring: probing
+        imports torch and asks a driver, and a settings dialog must not do that
+        on every repaint.
+        """
+        return self._app.devices.available()
+
+    def overridden_by_project(self, key: str) -> bool:
+        """Whether the open project answers this key, and would win.
+
+        `Settings.scope_of` has waited for a caller since M4-T10, whose docstring
+        named this one: *what a settings dialog needs to say "this project
+        overrides your default"*.
+        """
+        return self._app.settings.scope_of(key) is Scope.PROJECT
 
     @property
     def job(self) -> Job | None:

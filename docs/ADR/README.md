@@ -67,6 +67,7 @@ Use `TEMPLATE.md` for new records.
 | [0057](ADR-0057-one-viewmodel-and-a-widget-that-emits-intent.md) | One viewmodel, and a widget that emits intent | Accepted | 2026-08-13 |
 | [0058](ADR-0058-a-queued-signal-is-the-whole-of-the-marshalling.md) | A queued signal is the whole of the marshalling | Accepted | 2026-08-13 |
 | [0059](ADR-0059-a-log-line-is-a-fact-and-a-notification-is-a-count.md) | A log line is a fact, and a notification is a count | Accepted | 2026-08-13 |
+| [0060](ADR-0060-a-setting-is-offered-only-if-something-reads-it.md) | A setting is offered only if something reads it | Accepted | 2026-08-13 |
 
 ## When to write one
 

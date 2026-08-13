@@ -6,5 +6,6 @@ and at what scale.
 """
 
 from nanoscope.gui.dialogs.import_options import ImportOptions
+from nanoscope.gui.dialogs.settings import SettingsDialog
 
-__all__ = ["ImportOptions"]
+__all__ = ["ImportOptions", "SettingsDialog"]

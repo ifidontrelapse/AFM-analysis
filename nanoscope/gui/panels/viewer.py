@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nanoscope.application.settings import COLORMAP_SETTING
 from nanoscope.application.use_cases.display import (
     COLORMAPS,
     DisplayImage,
@@ -148,6 +149,11 @@ class ImageViewer(QWidget):
         self.colormap = QComboBox(self)
         self.colormap.addItems(COLORMAPS)
         self.colormap.currentTextChanged.connect(lambda _: self._redraw())
+        #: The combo is *this scan*; the stored preference is *the default*
+        #: (M5-T09). Two controls writing one key would fight; one reads it.
+        self._session = session
+        session.settings_changed.connect(self._apply_default_colormap)
+        self._apply_default_colormap()
 
         self.full_range = QCheckBox("Full range", self)
         self.full_range.setToolTip(
@@ -171,6 +177,13 @@ class ImageViewer(QWidget):
         layout.addWidget(self.view)
 
         self.show_image(session.image)
+
+    def _apply_default_colormap(self) -> None:
+        stored = str(self._session.preference(COLORMAP_SETTING, COLORMAPS[0]))
+        if stored in COLORMAPS:
+            #: `setCurrentText` with the current text emits nothing, so this
+            #: cannot loop back through `_redraw`.
+            self.colormap.setCurrentText(stored)
 
     # ── What it shows ─────────────────────────────────────────────────────────
 

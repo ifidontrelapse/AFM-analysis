@@ -23,6 +23,7 @@ from collections.abc import Sequence
 from nanoscope import __version__
 from nanoscope.app.container import Nanoscope
 from nanoscope.app.logging import configure_logging
+from nanoscope.application.settings import LOG_LEVEL_SETTING
 from nanoscope.core.entities.project import IntegrityReport, OpenedProject
 from nanoscope.core.errors import NanoscopeError
 
@@ -64,10 +65,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     args = build_parser().parse_args(argv)
 
-    level = logging.DEBUG if args.debug else logging.INFO
-    log_file = configure_logging(level=level, path=args.log_file, console=args.debug)
-
     with Nanoscope() as app:
+        #: The container first, because the stored log level is a preference
+        #: like any other and lives in the settings store it constructs (M5-T09).
+        #: Nothing logs before this line; if anything ever does, it goes to the
+        #: default handler and the ordering has to be revisited.
+        log_file = configure_logging(
+            level=_level(app, args), path=args.log_file, console=args.debug
+        )
+
         try:
             if args.devices:
                 _print_devices(app)
@@ -90,6 +96,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Logging to {log_file}")
 
     return OK
+
+
+def _level(app: Nanoscope, args: argparse.Namespace) -> int:
+    """`--debug`, else the stored preference, else `INFO`.
+
+    The flag wins: somebody typing `--debug` is answering the question right
+    now, and a stored preference is an answer they gave once. An unreadable
+    stored value is ignored rather than fatal — the same rule as the device
+    preference, and for the same reason (ADR-0052).
+    """
+    if args.debug:
+        return logging.DEBUG
+    stored = app.settings.get(LOG_LEVEL_SETTING)
+    if isinstance(stored, int) and not isinstance(stored, bool):
+        return stored
+    if stored is not None:
+        logging.getLogger(__name__).warning(
+            "ignoring an unreadable %s setting %r", LOG_LEVEL_SETTING, stored
+        )
+    return logging.INFO
 
 
 def _print_devices(app: Nanoscope) -> None:

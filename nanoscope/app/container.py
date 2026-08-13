@@ -23,7 +23,7 @@ from typing import Self
 from nanoscope.app.logging import attach_project_log, detach_project_log
 from nanoscope.application.commands import CommandStack
 from nanoscope.application.jobs import JobRunner
-from nanoscope.application.settings import Settings
+from nanoscope.application.settings import DEVICE_SETTING, Settings
 from nanoscope.application.use_cases import open_project
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.core.ports import ProjectRepository
@@ -33,10 +33,10 @@ from nanoscope.infrastructure.storage import JsonSettings, SqliteProjectReposito
 
 logger = logging.getLogger(__name__)
 
-#: The application-scope key holding the operator's device preference. Named
-#: here rather than in `DeviceManager`, because *which* setting drives a policy
-#: is a wiring decision and the manager should not know a settings store exists.
-DEVICE_SETTING = "device"
+#: Re-exported: the key lives in `application.settings` beside the other two a
+#: settings dialog writes (M5-T09), and *which* setting drives a policy is still
+#: a wiring decision the `DeviceManager` knows nothing about.
+__all__ = ["DEVICE_SETTING", "Nanoscope"]
 
 
 class Nanoscope:

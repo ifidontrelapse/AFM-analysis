@@ -7,6 +7,58 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M5-T09 · **a settings dialog that says whose setting it is**
+
+**Task:** `M5-T09`, the last in M5's list. **ADR:** **ADR-0060**. It collects an obligation M4-T10
+wrote into a docstring — `Settings.scope_of` exists *"to say **this project overrides your default**
+instead of showing a value with no explanation"* — and has had no caller since the day it was
+written. It also reaches a preference nothing could set: `DEVICE_SETTING` is read on every
+`select_device()`, and the only way to express it was to edit `settings.json` by hand.
+
+### The decisions
+
+**Three rows, each with a reader that predates the dialog:** the device `select_device` resolves
+(ADR-0049), the colormap a scan opens in (M5-T05), and the log level a support conversation asks for
+first (ADR-0051). A settings dialog is where invented options accumulate; the rule that keeps this
+one honest is that nothing is offered which nothing reads, and a test per row says so.
+
+**It writes the operator's scope, and says so.** Project-scoped rows are not offered because this
+application writes none yet — M6's analysis parameters are when the second scope earns a tab.
+
+**The control shows the operator's own value, and an override is said out loud** — `scope_of`'s
+first caller, six milestones after it was written.
+
+**A change takes effect where it can:** the level applies to the running process, because an
+operator setting DEBUG is about to reproduce something; the colormap is the default for the *next*
+scan, since **the toolbar combo is this scan and the dialog is the default**; the device applies to
+the next analysis, which means M6. **The stored level survives a restart and `--debug` beats it.**
+
+**The keys moved to `application/settings.py`.** A settings key typed twice is a preference that
+silently does nothing on one side of the application.
+
+### What it turned up
+
+**The dialog showed the project's value in a control that writes the operator's.** `preference()`
+merges project-first, so with a project override the combo read `bone` from the project while OK
+would have written `bone` as *the operator's* default — **ADR-0047's first failure mode in one
+screen**, one project's choice promoted to every project. Found by opening the dialog against such a
+project and reading it; the override note, written before the bug existed, is what made the screen
+*look* right. It now reads `own_preference`, the application store alone.
+
+**`main` configured logging before constructing the container**, so a stored level could not be read
+at all. Reordered, with a comment saying nothing logs before that line.
+
+### Numbers
+
+19 tests, **1034** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** M5's task list is complete. Three of five exit criteria are ticked; the settings dialog is
+not one of them, and *"GUI smoke tests pass headless in CI"* cannot be verified from this machine —
+CI installs PySide6 and runs `make test` (141 GUI tests, offscreen), but the branch is unpushed and
+no run has been read. **Closing the milestone is the operator's call**, as it was for M3 and M4.
+
+---
+
 ## 2026-08-13 — M5-T08 · **the log an operator can see, and a warning that does not need them watching**
 
 **Task:** `M5-T08`. **ADR:** **ADR-0059**. The Log dock was the **last placeholder** M5-T02 left,
