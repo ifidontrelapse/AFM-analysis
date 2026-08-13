@@ -23,14 +23,24 @@ from nanoscope.application.use_cases.preprocessing import (
     run_preprocessing,
 )
 from nanoscope.application.use_cases.projects import import_images, open_project
+from nanoscope.application.use_cases.statistics import (
+    Summary,
+    histogram,
+    numeric_columns,
+    summarise,
+)
 
 __all__ = [
     "PreprocessingParams",
+    "Summary",
     "export_measurements",
+    "histogram",
     "import_images",
+    "numeric_columns",
     "open_project",
     "preprocess_image",
     "run_analysis",
     "run_pipeline",
     "run_preprocessing",
+    "summarise",
 ]

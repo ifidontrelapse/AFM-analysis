@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M6-T05`
-**Title:** The measurements, beside the particles they belong to
-**Milestone:** M6 — Analysis workflow in the GUI, fifth task
-**Defect:** — · **ADR:** **ADR-0065** · **Filed:** **B-069**
+**ID:** `M6-T06`
+**Title:** What the run says about the sample, not about one particle
+**Milestone:** M6 — Analysis workflow in the GUI, sixth task
+**Defect:** — · **ADR:** **ADR-0066**
 **Branch:** `feat/m6-analysis-workflow`
 **Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,41 +11,43 @@
 
 ## Why this task is next
 
-M6's second exit criterion is *"selecting a table row highlights the particle, and vice versa"*, and
-it is the one that turns a stored measurement table into something an operator can argue with. A run
-that says a particle is 14 nm tall is a number; the same number next to the particle it came from is
-evidence.
-
-`measurements_for` has been on the port since M4-T05 and has one reader — the CSV export.
+M6-T05 put thirty rows on screen. Nobody measures thirty particles to read thirty numbers — they
+measure thirty to say *"the particles on this sample are 15 nm across, give or take 4"*. That
+sentence is the reason the table exists, and nothing in the application can produce it.
 
 ---
 
 ## The decisions this task has to make
 
-**1. What links a row to a particle?** Its **coordinates**, not its index.
+**1. Who computes the statistics?** `application`, over the stored table — not the widget.
 
-The measurement table is not one row per detection: a height that is not a number is discarded
-(ADR-0033), so the table is a subset and the two lists are different lengths. `x_px`/`y_px` are in
-the schema's core (ADR-0031) and in every detection, so the link is a position — which is also the
-only link that survives a producer that renumbers its rows.
+A panel that computes a mean is a second place where "what is the mean of this column" is decided,
+and the moment a column contains a `NaN` the two answers differ. It is also the rule this milestone
+runs on: **the UI introduces nothing of its own.**
 
-**2. Which direction is authoritative?** Neither: the selection lives in the viewmodel.
+**2. How many bins?** By a **named rule**, not by a number somebody liked.
 
-The table asks for a particle to be selected; the canvas asks for a particle to be selected; both
-listen for the answer. Two widgets talking to each other is what ADR-0057 removed, and *"vice
-versa"* is exactly the case where it would come back.
+`numpy`'s `"auto"` — the larger of Sturges and Freedman–Diaconis — because a fixed 20 is an invented
+parameter, and the shape of a histogram *is* the claim it makes. An operator who wants a different
+binning is asking a different question, and that is a control, not a default.
 
-**3. What does a click on the canvas mean, when dragging pans?** A press and a release in the same
-place.
+**3. What is drawn, and by what?** Bars, painted by Qt.
 
-The view drags to pan (M5-T05), so a click is a *release without movement*. Three pixels of
-tolerance, because a mouse moves under a finger.
+matplotlib lives in `infrastructure` and `gui/` may not import it (Architecture §3.2, checked by a
+test since M5-T06). The binning is `numpy` in `application`; what is left for the widget is
+rectangles, which is thirty lines of `paintEvent` and no new dependency. `QtCharts` would be a whole
+module to draw a bar chart nobody will interact with.
 
-**4. What does the table show?** The stored table, as it is.
+**4. Which columns?** The numeric ones the table actually has, physical first.
 
-Column names and dtypes are the producer's (ADR-0031) — a panel that renames them for display is a
-second vocabulary, and a reader of the exported CSV would then be reading different words for the
-same measurement.
+`particle_id` is an identifier, not a measurement, and averaging it is a number with no meaning.
+Which columns exist depends on the producer (ADR-0031) and on whether the scale was known
+(ADR-0025) — so the list is derived from the table in hand, never assumed.
+
+**5. What does an absent column look like?** Absent.
+
+A column that is entirely `NaN` — every `_nm` column of an unscaled scan — is not offered, and the
+panel says the scale is unknown rather than showing `nan ± nan`.
 
 ---
 
@@ -53,49 +55,42 @@ same measurement.
 
 **In scope**
 
-1. `gui/viewmodels/session.py` — the measurement table for the current run, the selected particle,
-   and the signals for both
-2. `gui/panels/measurements.py` — the table, and what it does with a selection
-3. `gui/panels/viewer.py` — the highlighted item, and the click that picks one
-4. **ADR-0065** — coordinates as the link, selection in the viewmodel, a click that is not a drag
-5. Tests: the table matches the stored one, a row selects the particle, a click selects the row, a
-   run with no table says so, and the selection clears with the image
+1. `application/use_cases/statistics.py` — `numeric_columns`, `summarise`, `histogram`
+2. `gui/panels/statistics.py` — the column choice, the numbers, and the bars
+3. `MainWindow` — the Statistics dock, beside the measurements
+4. **ADR-0066** — statistics in `application`, a named binning rule, Qt-painted bars
+5. Tests: the numbers against `numpy` on the same column, `NaN` excluded, the bin rule, an unscaled
+   run offering no physical column, and the panel following the run
 
 **Out of scope**
 
-- **Sorting and filtering the table** — the stored order is the producer's; sorting is a view state
-  nothing has asked for yet
-- **Editing a measurement** — a measurement is derived; the thing an operator edits is an
-  annotation (M7)
-- **Statistics and histograms** — M6-T06
+- **Statistics across images** — M6-T08's navigation has to exist first, and "the sample" is then a
+  different question from "this scan"
+- **Fitting a distribution** — a log-normal fit is a scientific claim with an ADR behind it
+- **Exporting the plot** — M6-T07 exports the table; a figure is `infrastructure.imaging.plots`
 
 ---
 
 ## Definition of done
 
-- [x] The table shows the run's stored measurements, with the producer's own column names
-- [x] Selecting a row highlights the particle; clicking the particle selects the row
-- [x] A detect-only run says it measured nothing rather than showing an empty grid
-- [x] ADR-0065 + the ADR index
-- [x] `make check` green — 1108 tests, golden byte-identical
+- [x] The summary matches `numpy` on the same column, with `NaN` excluded
+- [x] The histogram's bins come from a named rule
+- [x] An unscaled run offers no physical column and says why
+- [x] ADR-0066 + the ADR index
+- [x] `make check` green — 1127 tests, golden byte-identical
 - [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M6-T05: the measurements, beside the particles they belong to`
+- [x] Commit: `M6-T06: what the run says about the sample, not about one particle`
 
 ---
 
 ## What it turned up
 
-**`particle_id` means two different things depending on which producer wrote the row.** The baseline
-producer writes the *blob's* index; the segmentation producers write the index of the row being
-appended, which renumbers after every discard. One column, two meanings, in the schema ADR-0031 built
-to stop exactly that — filed as **B-069**, and the reason this task links rows to particles by
-**coordinates** instead.
+**An unscaled scan keeps its heights.** The first wording of the panel's note said an unknown scale
+means "no physical columns", and the test written to prove it failed: `height_nm`, `peak_nm`,
+`baseline_nm` and `mean_nm` are all there. **A height is calibrated by the z axis; a radius comes
+from the pixel size.** Losing the lateral scale costs the sizes and nothing else — the note says
+that now, and the test asserts both halves.
 
-**Tabbing a dock changed what an M5-T08 test meant.** Putting Measurements in front of the Log dock
-made `log_dock.show()` insufficient — a dock behind a tab is *not visible*, which is precisely the
-semantics the unseen-warning count wants, and a trap for a test that only calls `show()`.
-
-**An absolute size assertion became order-dependent.** The measurements table's minimum width pushed
-the window's minimum past the 640 the layout test asked for, and the failure only appeared in a full
-run. The test now compares the second window against **what the first actually got**, which is what
-it always meant.
+**`np.issubdtype` raises on a pandas extension dtype.** Every measurement table carries a string
+column (`method`, ADR-0031), and asking numpy whether it is numeric is a `TypeError` rather than a
+"no". The check is `dtype.kind` now.

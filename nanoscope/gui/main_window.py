@@ -38,6 +38,7 @@ from nanoscope.gui.panels import (
     PreprocessingPanel,
     ProjectExplorer,
     PropertiesPanel,
+    StatisticsPanel,
 )
 from nanoscope.gui.viewmodels import SessionViewModel
 from nanoscope.gui.viewmodels.log_stream import LogLine, LogStream
@@ -62,6 +63,7 @@ LOG_DOCK = "Log"  # M5-T08
 PREPROCESSING_DOCK = "Preprocessing"  # M6-T01
 DETECTION_DOCK = "Detection"  # M6-T02
 MEASUREMENTS_DOCK = "Measurements"  # M6-T05
+STATISTICS_DOCK = "Statistics"  # M6-T06
 
 
 class MainWindow(QMainWindow):
@@ -142,6 +144,13 @@ class MainWindow(QMainWindow):
         measurements_dock.setObjectName("dock.measurements")
         measurements_dock.setWidget(self.measurements)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, measurements_dock)
+
+        self.statistics = StatisticsPanel(self.session, self)
+        statistics_dock = QDockWidget(STATISTICS_DOCK, self)
+        statistics_dock.setObjectName("dock.statistics")
+        statistics_dock.setWidget(self.statistics)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, statistics_dock)
+        self.tabifyDockWidget(detection_dock, statistics_dock)
 
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)

@@ -7,6 +7,42 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T06 · **what the run says about the sample, not about one particle**
+
+**Task:** `M6-T06`. **ADR:** **ADR-0066**.
+
+### The decisions
+
+**`application` computes and the widget renders** — a panel that computes a mean is a second place
+deciding what a mean is, and the first `NaN` makes the two differ. `count` is the number of *finite*
+values; the spread is the **sample** standard deviation, undefined for one particle and printed as
+absent rather than as a zero.
+
+**The bins come from a named rule** (numpy's `auto`), because a fixed 20 is an invented parameter and
+the shape of a histogram is the claim it makes. **The bars are painted by Qt**, since matplotlib is
+`infrastructure` and `gui/` may not import it — the binning is numpy's, and what is left for a widget
+is rectangles.
+
+**The columns are the table's own**, identifiers excluded and all-`NaN` columns not offered.
+
+### What it turned up
+
+**An unscaled scan keeps its heights.** The panel's first note said an unknown scale means "no
+physical columns", and the test written to prove it failed: `height_nm`, `peak_nm`, `baseline_nm`,
+`mean_nm` are all there. **A height is calibrated by the z axis; a radius comes from the pixel
+size.** Losing the lateral scale costs the sizes and nothing else, and the wording says so now.
+
+**`np.issubdtype` raises on a pandas extension dtype** — every measurement table carries a string
+column, and asking numpy whether it is numeric is a `TypeError` rather than a "no".
+
+### Numbers
+
+14 tests, **1127** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M6-T07` — the CSV export, from the UI this time.
+
+---
+
 ## 2026-08-13 — M6-T05 · **the measurements, beside the particles they belong to**
 
 **Task:** `M6-T05`. **ADR:** **ADR-0065**. **Filed: B-069.** **M6's second exit criterion is met** —

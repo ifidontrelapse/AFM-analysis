@@ -61,8 +61,18 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T05` done 2026-08-13 (ADR-0065); `M6-T06` — statistics and histograms — is
-next.** Two of M6's four exit criteria are met: *invalid combinations disabled by the matrix*
+**None selected. `M6-T06` done 2026-08-13 (ADR-0066); `M6-T07` — the CSV export from the UI — is
+next.**
+
+**`M6-T06` done 2026-08-13 (ADR-0066) — what the run says about the sample.** **`application`
+computes and the widget renders**; `count` is finite values, the spread is the **sample** standard
+deviation and is undefined for one particle. **The bins come from a named rule** (numpy's `auto`),
+because the shape of a histogram is the claim it makes, and **the bars are painted by Qt** since
+`gui/` may not import matplotlib. **Found:** an unscaled scan **keeps its heights** — the panel's
+first wording said an unknown scale means "no physical columns" and the test written to prove it
+failed, because a height is calibrated by the *z* axis while a radius comes from the pixel size; and
+`np.issubdtype` **raises** on the pandas extension dtype every measurement table carries. 14 tests,
+**1127** in the suite. Two of M6's four exit criteria are met: *invalid combinations disabled by the matrix*
 (M6-T02) and *a table row highlights its particle and vice versa* (M6-T05). What remains is the full
 chain through the UI including export (M6-T07) and results surviving a restart (M6-T09).
 

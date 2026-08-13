@@ -33,6 +33,7 @@ from nanoscope.gui.main_window import (
     PROJECT_DOCK,
     PROPERTIES_DOCK,
     STATE_SETTING,
+    STATISTICS_DOCK,
     MainWindow,
 )
 from nanoscope.infrastructure.storage import SqliteProjectRepository
@@ -82,6 +83,7 @@ class TestTheWindowIsBuilt:
             PREPROCESSING_DOCK,
             DETECTION_DOCK,
             MEASUREMENTS_DOCK,
+            STATISTICS_DOCK,
         }
 
     def test_every_dock_has_a_panel_in_it(self, app: Nanoscope) -> None:
@@ -100,6 +102,7 @@ class TestTheWindowIsBuilt:
             "PreprocessingPanel",
             "DetectionPanel",
             "MeasurementsPanel",
+            "StatisticsPanel",
         }
 
     def test_docks_are_named_so_a_saved_layout_can_find_them(self, app: Nanoscope) -> None:
@@ -208,7 +211,7 @@ class TestTheLayoutIsRemembered:
         window = MainWindow(app)
 
         assert window.statusBar().currentMessage() == "No project open"
-        assert len(window.findChildren(QDockWidget)) == 6
+        assert len(window.findChildren(QDockWidget)) == 7
 
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)

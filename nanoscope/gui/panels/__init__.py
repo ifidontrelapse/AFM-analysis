@@ -12,6 +12,7 @@ from nanoscope.gui.panels.measurements import MeasurementsPanel
 from nanoscope.gui.panels.preprocessing import PreprocessingPanel
 from nanoscope.gui.panels.project_explorer import ProjectExplorer
 from nanoscope.gui.panels.properties import PropertiesPanel
+from nanoscope.gui.panels.statistics import StatisticsPanel
 from nanoscope.gui.panels.viewer import ImageViewer
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "PreprocessingPanel",
     "ProjectExplorer",
     "PropertiesPanel",
+    "StatisticsPanel",
 ]
