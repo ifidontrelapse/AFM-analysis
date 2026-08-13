@@ -16,7 +16,7 @@ test, in M2-T15.
 
 from nanoscope.application.use_cases.analysis import run_analysis
 from nanoscope.application.use_cases.export import export_measurements
-from nanoscope.application.use_cases.metrology import ruler_length
+from nanoscope.application.use_cases.metrology import ruler_length, ruler_profile
 from nanoscope.application.use_cases.pipeline import run_pipeline
 from nanoscope.application.use_cases.preprocessing import (
     PreprocessingParams,
@@ -41,6 +41,7 @@ __all__ = [
     "open_project",
     "preprocess_image",
     "ruler_length",
+    "ruler_profile",
     "run_analysis",
     "run_pipeline",
     "run_preprocessing",

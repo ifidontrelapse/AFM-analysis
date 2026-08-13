@@ -37,7 +37,12 @@ from nanoscope.application.capabilities import DetectorOption
 from nanoscope.application.commands import AddAnnotation, AddRuler
 from nanoscope.application.jobs import Job, JobContext, JobState
 from nanoscope.application.settings import Scope
-from nanoscope.application.use_cases.display import DisplayImage, Stage, load_for_display
+from nanoscope.application.use_cases.display import (
+    DisplayImage,
+    Stage,
+    load_for_display,
+    stage_image,
+)
 from nanoscope.application.use_cases.preprocessing import PreprocessingParams
 from nanoscope.core.entities import (
     AnalysisRun,
@@ -508,6 +513,28 @@ class SessionViewModel(QObject):
         )
         self.reload_rulers()
         return True
+
+    def ruler_profile(
+        self, ruler: Ruler
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray] | None:
+        """The heights under a line, over **the array the viewer is showing**.
+
+        Profiling a raw map and a flattened one give different numbers, and both
+        are legitimate questions — so the stage is part of the answer and the
+        panel names it (ADR-0061, ADR-0075).
+        """
+        image = self._image
+        if image is None:
+            return None
+        array = stage_image(self._stage, image, self._preview).data
+        record = None if self._image_id is None else self.image_record(self._image_id)
+        try:
+            return use_cases.ruler_profile(
+                array, ruler, None if record is None else record.pixel_size_nm
+            )
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return None
 
     def ruler_length(self, ruler: Ruler) -> tuple[float, float | None]:
         """`(pixels, nanometres)` — the second `None` when the scale is unknown.

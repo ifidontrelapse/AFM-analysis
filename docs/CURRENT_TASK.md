@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M7-T05`
-**Title:** A distance somebody measured, in the units they can defend
-**Milestone:** M7 — Annotation & metrology tools, fifth task
-**Defect:** — · **ADR:** **ADR-0074**
+**ID:** `M7-T06`
+**Title:** The heights under a line, and what the notebook actually did
+**Milestone:** M7 — Annotation & metrology tools, sixth task
+**Defect:** — · **ADR:** **ADR-0075**
 **Branch:** `feat/m7-annotation-tools`
 **Status:** **done 2026-08-14.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,44 +11,45 @@
 
 ## Why this task is next
 
-Four tools in, every shape this project stores describes *a thing*. A ruler describes **a distance
-between two things**, which is the first output in the whole project that no algorithm produced —
-and the roadmap says so in its own risk line for M7:
+M7-T05 stored a line and read it as a length. A profile is the same geometry read as **the heights
+underneath it** — the row already carries `kind`, and the migration was written for this.
 
-> *"Manual measurements are a new output and get their own tests."*
+M7's third exit criterion names its own reference:
+
+> *"A height profile along a drawn line matches the notebook implementation."*
 
 ---
 
 ## The decisions this task has to make
 
-**1. It is not an annotation, and the reason is the same one that refused the point.**
+**1. What the notebook actually did, and what that means for the criterion.**
 
-A line has no area. ADR-0044 stores shapes with extent and refuses a zero-area one twice; a ruler
-would fail both checks, and forcing it through as a degenerate box would be the invention this
-project keeps declining. It gets a table.
+`notebooks/afm_gold_nanoparticles.ipynb` §5.1 takes `z_flat[y_i, x_i-half : x_i+half]` — **a
+horizontal row slice**, no interpolation, plotted against `(arange(2*half) - half) * pixel_size_nm`.
 
-**2. The word "measurement" is taken.**
+So the criterion covers exactly one case: an axis-aligned line. That is the case the compliance test
+can assert *equality* for, and it is asserted. **An arbitrary line has no notebook counterpart**, so
+the general case is an extension with a rule of its own — which is the honest version of "matches
+the notebook".
 
-`measurements.csv` is what an analysis run produces (ADR-0031, ADR-0042) — derived, re-runnable, and
-shaped by its producer. What an operator draws by hand is none of those things, and calling both
-"measurements" would make *"where are the measurements?"* a question with two answers. The table is
-**`rulers`**.
+**2. How an arbitrary line is sampled.** Bilinear, one sample per pixel of length.
 
-**3. One table for two tools.** A profile line (M7-T06) is the same geometry read differently, so the
-row carries a `kind` — and the migration happens once rather than twice.
+A diagonal profile made of nearest-neighbour steps is a picture of the sampling, not of the sample.
+One sample per pixel of length means a horizontal line returns **exactly the pixels it crosses**,
+which is what makes §1's equality hold rather than approximately hold.
 
-**4. The length is `core.science`, not a widget.**
+**3. Which array is profiled?** The stage on screen — and the panel says which.
 
-Two points and Pythagoras is arithmetic, and putting it in a panel would be the first science in
-`gui/` in seven milestones. It is a new output, so it gets a module with tests: `metrology.py`.
+Profiling a raw map and a flattened one give different numbers, and both are legitimate questions.
+ADR-0061 already made the stage visible; a profile that did not name its stage would be a
+measurement whose provenance is a checkbox somebody set four clicks ago.
 
-**5. Without a scale there is no length in nanometres.**
+**4. It is a numerical entry point, so it validates like one.**
 
-Pixels always; nanometres only when the project recorded a scale, and **the words "scale unknown"**
-otherwise. This is ADR-0025's rule arriving at the first surface that *produces* a physical number
-rather than reading one.
+`ensure_height_map` at the door (ADR-0030, its fifteenth site). A profile of a 3-D array or of a NaN
+map is a wrong answer waiting to be plotted.
 
-**6. It goes through the command stack**, like every other tool since M7-T02.
+**5. Distances in nm only with a scale** — ADR-0025, the same as M7-T05's length.
 
 ---
 
@@ -56,44 +57,39 @@ rather than reading one.
 
 **In scope**
 
-1. `core/science/metrology.py` — `distance_px`, `distance_nm`, with their degenerate cases
-2. `core/entities/project.py` — `Ruler`
-3. `infrastructure/storage` — schema **v8**, the `rulers` table, read and write
-4. `application/commands.py` — `AddRuler`, so undo covers it
-5. `gui/` — the ruler tool, the line on the canvas, and the readout
-6. **ADR-0074** — a ruler is not an annotation, the word "measurement" is taken, and units are
-   honest
-7. Tests: the arithmetic, the round trip, an unknown scale, undo/redo, and the drawing gesture
+1. `core/science/metrology.py` — `height_profile`, validated and tested against the notebook's slice
+2. `application/use_cases/metrology.py` — the profile of a ruler over a stage array
+3. `gui/panels/profile.py` — the plot, painted by Qt like M6-T06's histogram
+4. `gui/` — the profile tool (the `kind` M7-T05 already stores) and the dock
+5. **ADR-0075** — what the notebook did, bilinear sampling, and the named stage
+6. Tests: equality with the notebook's row slice, the bilinear case, a validated input, an unknown
+   scale, and the plot following the selection
 
 **Out of scope**
 
-- **The profile plot** — M7-T06 reads heights along the same geometry
-- **Editing a stored ruler** — M7-T07
-- **Angles and areas** — no tool has asked for them
+- **Exporting a profile** — a CSV of one line is M9's packaging question, and nobody has asked
+- **Roughness or step-height statistics over a profile** — each is a scientific claim with its own
+  ADR
 
 ---
 
 ## Definition of done
 
-- [x] A drawn line stores as a ruler and reads back
-- [x] Its length is right in pixels, and in nanometres only when there is a scale
-- [x] Undo and redo cover it
-- [x] ADR-0074 + the ADR index
-- [x] `make check` green — 1231 tests, golden byte-identical
-- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `ProjectFormat.md`
-- [x] Commit: `M7-T05: a distance somebody measured, in the units they can defend`
+- [x] A horizontal profile equals the notebook's row slice, asserted as equality
+- [x] A diagonal one is bilinear, one sample per pixel of length
+- [x] The plot names the stage it measured
+- [x] ADR-0075 + the ADR index
+- [x] `make check` green — 1250 tests, golden byte-identical
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M7-T06: the heights under a line, and what the notebook actually did`
 
 ---
 
 ## What it turned up
 
-**Undo reloaded annotations only, so undoing a ruler left the line on the canvas.** M7-T02 wired the
-window's Undo label to `annotations_changed` and wrote down *why it was allowed to*: every command in
-the stack mutated annotations, and the first one that did not would need its own signal. The ruler is
-that command, one task later, and the note it left is what made the fix obvious rather than
-mysterious.
-
-**The gate ran against a tree that had already moved.** M7-T04's `make check` was started in the
-background and M7-T05's edits landed in the same working tree while it ran, so it reported a failure
-belonging to neither task. The two tasks are therefore committed together, with one clean gate over
-both — stated here rather than papered over.
+**The exit criterion names a reference that covers one case.** The notebook's "height profile" is a
+horizontal row slice through a particle — no interpolation, no arbitrary line. So *"matches the
+notebook implementation"* can be asserted as an **equality** for the axis-aligned case and cannot be
+asserted at all for the case the tool actually offers. Both halves are written down: the equality is
+a test, and the extension is a decision with a rule and a test of its own. Reading the reference
+before implementing against it turned a vague criterion into two precise ones.

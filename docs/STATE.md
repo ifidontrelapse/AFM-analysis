@@ -65,8 +65,17 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T05` done 2026-08-14 (ADR-0074); `M7-T06` — the height profile — is next, and
-it is the second reading of the geometry M7-T05 stored.**
+**None selected. `M7-T06` done 2026-08-14 (ADR-0075); `M7-T07` — manual add/edit/delete of
+detections — is next.**
+
+**`M7-T06` done 2026-08-14 (ADR-0075) — the heights under a line. M7's third exit criterion is
+met**, and the first job was to read the reference it names: the notebook's "height profile" is
+`z_flat[y_i, x_i-half : x_i+half]` — **a horizontal row slice, no interpolation**. So the criterion
+covers one case, asserted as **equality**; an arbitrary line is an **extension with a stated rule**,
+bilinear, proven by the one assertion nearest-neighbour cannot pass. One sample per pixel of length
+plus the far end, clamped at the edges, validated like every numerical entry point — and **the
+profile names the stage it measured**, because a raw map and a flattened one give different numbers.
+19 tests, **1250** in the suite.
 
 **`M7-T05` done 2026-08-14 (ADR-0074, schema v8) — a distance somebody measured.** The first output
 in this project that **no algorithm produced**. **It is not an annotation** (a line has no area, and

@@ -11,6 +11,7 @@ from nanoscope.gui.panels.job_status import JobStatus
 from nanoscope.gui.panels.log_panel import LogPanel
 from nanoscope.gui.panels.measurements import MeasurementsPanel
 from nanoscope.gui.panels.preprocessing import PreprocessingPanel
+from nanoscope.gui.panels.profile import ProfilePanel
 from nanoscope.gui.panels.project_explorer import ProjectExplorer
 from nanoscope.gui.panels.properties import PropertiesPanel
 from nanoscope.gui.panels.statistics import StatisticsPanel
@@ -24,6 +25,7 @@ __all__ = [
     "LogPanel",
     "MeasurementsPanel",
     "PreprocessingPanel",
+    "ProfilePanel",
     "ProjectExplorer",
     "PropertiesPanel",
     "StatisticsPanel",

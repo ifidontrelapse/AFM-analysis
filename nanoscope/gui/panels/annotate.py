@@ -13,6 +13,7 @@ invent one — and a "point size" control is that invention wearing a label.
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -21,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from nanoscope.core.entities.project import Annotation, Ruler
+from nanoscope.core.entities.project import Annotation, Ruler, RulerKind
 from nanoscope.gui.theme import tokens
 from nanoscope.gui.viewmodels import SessionViewModel
 
@@ -79,6 +80,12 @@ class AnnotatePanel(QWidget):
         )
         self.measure.toggled.connect(self._measure_toggled)
 
+        self.as_profile = QCheckBox("…as a profile line", self)
+        self.as_profile.setToolTip(
+            "The same line, read as the heights underneath it rather than as a "
+            "length. One geometry, two readings (ADR-0074)."
+        )
+
         self.lengths = QLabel("", self)
         self.lengths.setWordWrap(True)
         self.lengths.setStyleSheet(f"color: {tokens.TEXT_MUTED};")
@@ -95,6 +102,7 @@ class AnnotatePanel(QWidget):
         layout.addWidget(self.brush)
         layout.addWidget(self.brush_size)
         layout.addWidget(self.measure)
+        layout.addWidget(self.as_profile)
         layout.addWidget(self.lengths)
         layout.addWidget(self.report)
         layout.addStretch(1)
@@ -120,7 +128,12 @@ class AnnotatePanel(QWidget):
     def line_drawn(self, line: tuple[tuple[float, float], tuple[float, float]]) -> None:
         """Store the line that was just dragged, with the field's label."""
         start, end = line
-        self._session.add_ruler(start, end, label=self.label.text())
+        self._session.add_ruler(
+            start,
+            end,
+            label=self.label.text(),
+            kind=RulerKind.PROFILE if self.as_profile.isChecked() else RulerKind.DISTANCE,
+        )
 
     def _rulers_changed(self, rulers: tuple[Ruler, ...]) -> None:
         """What has been measured, in pixels and — when there is a scale — in

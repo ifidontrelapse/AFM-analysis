@@ -37,6 +37,7 @@ from nanoscope.gui.panels import (
     LogPanel,
     MeasurementsPanel,
     PreprocessingPanel,
+    ProfilePanel,
     ProjectExplorer,
     PropertiesPanel,
     StatisticsPanel,
@@ -66,6 +67,7 @@ DETECTION_DOCK = "Detection"  # M6-T02
 MEASUREMENTS_DOCK = "Measurements"  # M6-T05
 STATISTICS_DOCK = "Statistics"  # M6-T06
 ANNOTATE_DOCK = "Annotate"  # M7-T02
+PROFILE_DOCK = "Profile"  # M7-T06
 
 
 class MainWindow(QMainWindow):
@@ -191,6 +193,13 @@ class MainWindow(QMainWindow):
         self.viewer.view.mask_painted.connect(self.annotate.mask_painted)
         self.annotate.measure.toggled.connect(self.viewer.view.set_measuring)
         self.viewer.view.line_drawn.connect(self.annotate.line_drawn)
+
+        self.profile = ProfilePanel(self.session, self)
+        profile_dock = QDockWidget(PROFILE_DOCK, self)
+        profile_dock.setObjectName("dock.profile")
+        profile_dock.setWidget(self.profile)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, profile_dock)
+        self.tabifyDockWidget(measurements_dock, profile_dock)
 
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)

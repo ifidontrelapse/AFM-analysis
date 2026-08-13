@@ -11,8 +11,10 @@ layer instead of around it.
 
 from __future__ import annotations
 
+import numpy as np
+
 from nanoscope.core.entities import Ruler
-from nanoscope.core.science.metrology import distance_nm, distance_px
+from nanoscope.core.science.metrology import distance_nm, distance_px, height_profile
 
 
 def ruler_length(ruler: Ruler, pixel_size_nm: float | None) -> tuple[float, float | None]:
@@ -25,3 +27,20 @@ def ruler_length(ruler: Ruler, pixel_size_nm: float | None) -> tuple[float, floa
         distance_px(ruler.start, ruler.end),
         distance_nm(ruler.start, ruler.end, pixel_size_nm),
     )
+
+
+def ruler_profile(
+    z: np.ndarray,
+    ruler: Ruler,
+    pixel_size_nm: float | None,
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
+    """The heights under a line, with the distance axis in both units.
+
+    Returns:
+        `(distance_px, distance_nm, heights)` — the middle one `None` when the
+        project recorded no scale, because a distance in nanometres computed
+        from a scale nobody wrote down is a fabricated axis (ADR-0025).
+    """
+    distances, heights = height_profile(z, ruler.start, ruler.end)
+    nm = None if pixel_size_nm is None else distances * pixel_size_nm
+    return distances, nm, heights

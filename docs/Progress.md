@@ -7,6 +7,45 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-14 — M7-T06 · **the heights under a line, and what the notebook actually did**
+
+**Task:** `M7-T06`. **ADR:** **ADR-0075**. **M7's third exit criterion is met.**
+
+### The decisions
+
+The criterion names its own reference, so the first job was to read it.
+`notebooks/afm_gold_nanoparticles.ipynb` §5.1 does exactly one thing: `z_flat[y_i, x_i-half :
+x_i+half]` — **a horizontal row slice, no interpolation**.
+
+**So the criterion covers one case, and that case is asserted as equality** — `array_equal`, not
+`allclose`. **An arbitrary line has no notebook counterpart**, so it is an extension with a stated
+rule: **bilinear**, because a diagonal profile made of nearest-neighbour steps is a picture of the
+sampling rather than of the sample. The test for it is the one assertion nearest-neighbour cannot
+pass.
+
+**One sample per pixel of length plus the far end** is what makes the equality exact. The sampling
+**clamps at the edges** rather than extrapolating, and the function **validates its map** like every
+other numerical entry point (ADR-0030's funnel, fifteenth site).
+
+**The profile names the stage it measured**: a raw map and a flattened one give different numbers,
+and both are legitimate questions.
+
+### What it turned up
+
+**The criterion named a reference that covers one case.** *"Matches the notebook implementation"* can
+be an equality for the axis-aligned slice and cannot be asserted at all for the line an operator
+actually draws. Both halves are now written down — an equality test, and an extension with a rule and
+a test of its own. Reading the reference before implementing against it turned one vague criterion
+into two precise ones.
+
+### Numbers
+
+19 tests, **1250** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M7-T07` — manual add, edit and delete of detections.
+
+---
+
 ## 2026-08-14 — M7-T05 · **a distance somebody measured, in the units they can defend**
 
 **Task:** `M7-T05`. **ADR:** **ADR-0074**. **Schema v8.** The first output in this project that no
