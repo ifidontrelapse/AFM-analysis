@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M6-T04`
-**Title:** The predictor the matrix keeps asking for, and the masks it produces
-**Milestone:** M6 — Analysis workflow in the GUI, fourth task
-**Defect:** — · **ADR:** **ADR-0064**
+**ID:** `M6-T05`
+**Title:** The measurements, beside the particles they belong to
+**Milestone:** M6 — Analysis workflow in the GUI, fifth task
+**Defect:** — · **ADR:** **ADR-0065** · **Filed:** **B-069**
 **Branch:** `feat/m6-analysis-workflow`
 **Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,53 +11,41 @@
 
 ## Why this task is next
 
-M6-T02 disables every `segment` row with *"segmentation needs a loaded predictor, which arrives in
-M6-T04"*. This is M6-T04, and the sentence is a promise with a date on it.
+M6's second exit criterion is *"selecting a table row highlights the particle, and vice versa"*, and
+it is the one that turns a stored measurement table into something an operator can argue with. A run
+that says a particle is 14 nm tall is a number; the same number next to the particle it came from is
+evidence.
 
-It is also the last unwired half of ADR-0050: the registry hands back **factories**, and until now
-nothing has ever called one. `resolve()` has no caller outside its own tests.
+`measurements_for` has been on the port since M4-T05 and has one reader — the CSV export.
 
 ---
 
 ## The decisions this task has to make
 
-**1. Who builds the predictor?** The composition root, lazily, once.
+**1. What links a row to a particle?** Its **coordinates**, not its index.
 
-`Nanoscope.segmentation_predictor()` looks up a `SEGMENT`-task model in the open project, resolves
-its factory (ADR-0050), and constructs it with the device `select_device` chose (ADR-0049). It is
-`app/`'s work by PROJECT_RULES §2.7 — nothing else constructs infrastructure — and it is **cached**,
-because building it loads weights off a disk.
+The measurement table is not one row per detection: a height that is not a number is discarded
+(ADR-0033), so the table is a subset and the two lists are different lengths. `x_px`/`y_px` are in
+the schema's core (ADR-0031) and in every detection, so the link is a position — which is also the
+only link that survives a producer that renumbers its rows.
 
-**2. When?** Inside the job, never on the main thread.
+**2. Which direction is authoritative?** Neither: the selection lives in the viewmodel.
 
-Loading weights is seconds of I/O and GPU allocation. `has_predictor` for the *matrix* is answered by
-a **registered model**, not a constructed one: ADR-0050 made the registry cheap on purpose, so
-asking "can this project segment?" must not load anything.
+The table asks for a particle to be selected; the canvas asks for a particle to be selected; both
+listen for the answer. Two widgets talking to each other is what ADR-0057 removed, and *"vice
+versa"* is exactly the case where it would come back.
 
-**3. Where does the panel for it go?** There is no new panel, and that is the decision.
+**3. What does a click on the canvas mean, when dragging pans?** A press and a release in the same
+place.
 
-The detection panel already offers modes from the matrix, and `segment` is one of its rows. A second
-panel would have its own detector and mode choices — the duplication ADR-0062 exists to prevent, one
-task after it was written. What this task adds is the mode becoming *available*, and the masks
-becoming visible.
+The view drags to pan (M5-T05), so a click is a *release without movement*. Three pixels of
+tolerance, because a mouse moves under a finger.
 
-**4. The mask parameters are not offered, and the reason is worth writing down.**
-`PipelineConfig`'s fields for them are named after the framework, **the golden records that class's
-field names**, and a widget setting them would have to write the name PROJECT_RULES §2.5 forbids in
-`gui/`. Renaming the fields is a golden-moving change and gets its own commit (ADR-0010). They stay
-at their defaults, which is what every call before this one used.
+**4. What does the table show?** The stored table, as it is.
 
-**5. How does a mask reach the screen if masks are not stored?**
-
-ADR-0042 did not persist them — SAM2's weights are outside the gate, so the format would have been
-written blind. So the run **carries them in memory**: `AnalysisRun.masks`, empty on everything the
-repository returns, filled on the run you just computed. The overlay therefore shows masks for this
-session's run and says nothing about older ones, which is the truth about what is stored.
-
-**6. What is drawn?** The mask's outline, not a filled sheet.
-
-A filled overlay hides the pixels it describes, and the pixels are the measurement. One outline per
-mask, in the same accent as the detections, under the same kind of toggle.
+Column names and dtypes are the producer's (ADR-0031) — a panel that renames them for display is a
+second vocabulary, and a reader of the exported CSV would then be reading different words for the
+same measurement.
 
 ---
 
@@ -65,50 +53,49 @@ mask, in the same accent as the detections, under the same kind of toggle.
 
 **In scope**
 
-1. `app/container.py` — `segmentation_predictor()`: registry → factory → device, cached
-2. `core/entities/project.py` — `AnalysisRun.masks`, in memory only
-3. `application/use_cases/analysis.py` — the masks travel back with the run
-4. `gui/viewmodels/session.py` — a predictor when the mode needs one, `has_predictor` from the
-   registry
-5. `gui/panels/viewer.py` — the mask outlines and their toggle
-6. **ADR-0064** — who builds the predictor, why there is no second panel, and why masks are
-   in-memory
-7. Tests, with a **stub predictor** registered through the registry — the only way this path can be
-   tested at all, and M3-T14's precedent
+1. `gui/viewmodels/session.py` — the measurement table for the current run, the selected particle,
+   and the signals for both
+2. `gui/panels/measurements.py` — the table, and what it does with a selection
+3. `gui/panels/viewer.py` — the highlighted item, and the click that picks one
+4. **ADR-0065** — coordinates as the link, selection in the viewmodel, a click that is not a drag
+5. Tests: the table matches the stored one, a row selects the particle, a click selects the row, a
+   run with no table says so, and the selection clears with the image
 
 **Out of scope**
 
-- **Persisting masks** — a format decision with a migration behind it; ADR-0042's deferral stands
-- **The mask parameters** — decision 4
-- **Choosing between two segmentation models** — a project has at most one today
+- **Sorting and filtering the table** — the stored order is the producer's; sorting is a view state
+  nothing has asked for yet
+- **Editing a measurement** — a measurement is derived; the thing an operator edits is an
+  annotation (M7)
+- **Statistics and histograms** — M6-T06
 
 ---
 
 ## Definition of done
 
-- [x] A registered segmentation model makes the mode selectable, without loading weights
-- [x] The predictor is built once, in the job, by the composition root
-- [x] Masks from the run just computed are drawn as outlines, and can be turned off
-- [x] ADR-0064 + the ADR index
-- [x] `make check` green — 1095 tests, golden byte-identical
+- [x] The table shows the run's stored measurements, with the producer's own column names
+- [x] Selecting a row highlights the particle; clicking the particle selects the row
+- [x] A detect-only run says it measured nothing rather than showing an empty grid
+- [x] ADR-0065 + the ADR index
+- [x] `make check` green — 1108 tests, golden byte-identical
 - [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M6-T04: the predictor the matrix keeps asking for, and the masks it produces`
+- [x] Commit: `M6-T05: the measurements, beside the particles they belong to`
 
 ---
 
 ## What it turned up
 
-**The panel this task was scheduled to build already existed.** The detection panel offers modes
-from the matrix, and `segment` is one of its rows — a segmentation panel would have carried a second
-detector and mode choice, which is precisely what ADR-0062 was written to prevent one task earlier.
-Closed with an argument rather than with code, the way M4 closed three of its own.
+**`particle_id` means two different things depending on which producer wrote the row.** The baseline
+producer writes the *blob's* index; the segmentation producers write the index of the row being
+appended, which renumbers after every discard. One column, two meanings, in the schema ADR-0031 built
+to stop exactly that — filed as **B-069**, and the reason this task links rows to particles by
+**coordinates** instead.
 
-**A `has_predictor=False` written in M6-T02 survived the edit that was supposed to replace it** —
-the formatter had reflowed the block my replacement was matching on, so the substitution silently
-did nothing and the mode stayed disabled with a registered model in the project. Caught by the test
-that asserted the opposite. **A search-and-replace that matches nothing is a change that did not
-happen**, and only the test noticed.
+**Tabbing a dock changed what an M5-T08 test meant.** Putting Measurements in front of the Log dock
+made `log_dock.show()` insufficient — a dock behind a tab is *not visible*, which is precisely the
+semantics the unseen-warning count wants, and a trap for a test that only calls `show()`.
 
-**The refusal sentence named a task that had just shipped.** *"...which arrives in M6-T04"* would
-have been wrong the moment this commit landed; it now says what is actually missing — a registered
-model — which is a sentence that stays true.
+**An absolute size assertion became order-dependent.** The measurements table's minimum width pushed
+the window's minimum past the 640 the layout test asked for, and the failure only appeared in a full
+run. The test now compares the second window against **what the first actually got**, which is what
+it always meant.

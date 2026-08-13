@@ -61,8 +61,38 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T02` done 2026-08-13 (ADR-0062); `M6-T03` — detections drawn on the canvas — is
-next**, and it is the first thing an operator wants after reading "30 detection(s)" in a status bar.
+**None selected. `M6-T05` done 2026-08-13 (ADR-0065); `M6-T06` — statistics and histograms — is
+next.** Two of M6's four exit criteria are met: *invalid combinations disabled by the matrix*
+(M6-T02) and *a table row highlights its particle and vice versa* (M6-T05). What remains is the full
+chain through the UI including export (M6-T07) and results surviving a restart (M6-T09).
+
+**`M6-T05` done 2026-08-13 (ADR-0065, filed B-069) — the measurements, beside the particles they
+belong to.** **The link is a coordinate, not an index**: the table is a subset of the detections
+(ADR-0033), and `particle_id` **means two different things** depending on the producer — the blob's
+index on one path, the appended row's number on the other, which is the defect class ADR-0031 removed
+from `radius_nm`, filed as **B-069**. **The selection lives in the viewmodel**, because both the
+table and the canvas ask and both are told. A click is a release that did not move; the columns are
+the producer's own; a run that measured nothing says so. **Found:** tabbing the Measurements dock in
+front of the Log dock changed what an M5-T08 test meant, since a dock behind a tab is not visible;
+and an absolute size assertion in the layout test became order-dependent once the table's minimum
+width grew the window's. 10 tests, **1108** in the suite.
+
+**`M6-T04` done 2026-08-13 (ADR-0064) — the predictor the matrix keeps asking for.** The composition
+root builds it lazily and once from a registered segmentation model — the last unwired half of
+ADR-0050, whose `resolve()` had no caller outside its own tests — and *"can this project segment?"*
+is answered by a **registered** model rather than a built one, so filling a combo box reads no
+weights. **There is no new panel:** the detection panel already offers the matrix's modes, and a
+second one would duplicate the choice ADR-0062 centralised. Masks ride on the run **in memory only**
+(ADR-0042 did not persist them) and are drawn as outlines, not fills. **Found:** the panel this task
+was scheduled to build already existed; and a `has_predictor=False` from M6-T02 survived the edit
+meant to replace it, because the formatter had reflowed the matched block — a search-and-replace that
+matches nothing is a change that did not happen.
+
+**`M6-T03` done 2026-08-13 (ADR-0063) — the detections, drawn where they were found.** The shape is
+the one the detection carries; the overlay lives in the scene in pixel coordinates with a cosmetic
+pen; the run shown is the newest stored one, which gave `runs_for` its first reader since M4-T05.
+**Found:** the count label was clipped mid-word and now rides on the toggle, and **the circle branch
+has no producer today** because the blob detector synthesises a bbox.
 
 **`M6-T02` done 2026-08-13 (ADR-0062) — a detection panel that offers what the matrix allows, and
 says why not. M6's third exit criterion is met**, verified in a window: one detector enabled, the

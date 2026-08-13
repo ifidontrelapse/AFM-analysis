@@ -160,11 +160,18 @@ class TestTheNotification:
         settle()
 
         window.log_dock.show()
+        #: `raise_` as well as `show`: M6-T05 tabbed this dock with the
+        #: measurements, and a dock behind a tab is **not visible** — which is
+        #: the semantics the count wants and a trap for a test that only shows it.
+        window.log_dock.raise_()
+        settle()
 
         assert window.log_dock.windowTitle() == LOG_DOCK
 
     def test_a_warning_while_it_is_open_is_not_counted(self, window: MainWindow) -> None:
         window.log_dock.show()
+        window.log_dock.raise_()
+        settle()
 
         logger.warning("something")
         settle()

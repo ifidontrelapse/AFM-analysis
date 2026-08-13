@@ -7,6 +7,47 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T05 · **the measurements, beside the particles they belong to**
+
+**Task:** `M6-T05`. **ADR:** **ADR-0065**. **Filed: B-069.** **M6's second exit criterion is met** —
+*"selecting a table row highlights the particle, and vice versa"* — verified in a window on a
+30-particle run.
+
+### The decisions
+
+**The link is a coordinate, not an index.** The table is a subset of the detections (a height that is
+not a number is discarded, ADR-0033), so row *n* is not detection *n*.
+
+**And it has to be a coordinate, because `particle_id` means two different things**: the baseline
+producer writes the blob's index, the segmentation producers write the index of the row being
+appended. One column, two meanings across producers — the defect class ADR-0031 removed from
+`radius_nm` — filed as **B-069**.
+
+**The selection lives in the viewmodel**, because both the table and the canvas ask and both are
+told; *"and vice versa"* is exactly where widget-to-widget wiring would come back (ADR-0057).
+
+**A click is a release that did not move** — this view drags to pan, so a press cannot be a
+selection. **The columns are the producer's own**, and a run that measured nothing says so rather
+than showing an empty grid.
+
+### What it turned up
+
+**Tabbing a dock changed what an M5-T08 test meant.** With Measurements in front of it,
+`log_dock.show()` no longer makes the log visible — a dock behind a tab is not visible, which is the
+semantics the unseen-warning count wants and a trap for a test that only calls `show()`.
+
+**An absolute size assertion became order-dependent** once the table's minimum width pushed the
+window's past the 640 the layout test asked for; it now compares the second window against what the
+first actually got, which is what it always meant.
+
+### Numbers
+
+10 tests, **1108** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M6-T06` — statistics and histograms over the table this task put on screen.
+
+---
+
 ## 2026-08-13 — M6-T04 · **the predictor the matrix keeps asking for, and the masks it produces**
 
 **Task:** `M6-T04`. **ADR:** **ADR-0064**. M6-T02 disabled every `segment` row with a sentence

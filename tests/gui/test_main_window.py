@@ -28,6 +28,7 @@ from nanoscope.gui.main_window import (
     DETECTION_DOCK,
     GEOMETRY_SETTING,
     LOG_DOCK,
+    MEASUREMENTS_DOCK,
     PREPROCESSING_DOCK,
     PROJECT_DOCK,
     PROPERTIES_DOCK,
@@ -80,6 +81,7 @@ class TestTheWindowIsBuilt:
             LOG_DOCK,
             PREPROCESSING_DOCK,
             DETECTION_DOCK,
+            MEASUREMENTS_DOCK,
         }
 
     def test_every_dock_has_a_panel_in_it(self, app: Nanoscope) -> None:
@@ -97,6 +99,7 @@ class TestTheWindowIsBuilt:
             "LogPanel",
             "PreprocessingPanel",
             "DetectionPanel",
+            "MeasurementsPanel",
         }
 
     def test_docks_are_named_so_a_saved_layout_can_find_them(self, app: Nanoscope) -> None:
@@ -181,17 +184,20 @@ class TestTheLayoutIsRemembered:
         assert (tmp_path / "settings.json").is_file()
 
     def test_a_new_window_restores_what_the_last_one_saved(self, app: Nanoscope) -> None:
-        """The size is small on purpose: the offscreen platform has an 800x600
-        virtual screen and clamps a window to it, so asking for 1234 wide gets
-        798 back and the test fails for a reason that has nothing to do with
-        the code under it."""
+        """Compared against what the first window **actually got**, not against
+        what it was asked for. Two clamps sit in between: the offscreen platform
+        has an 800x600 virtual screen, and the docks' minimum sizes grow as
+        panels arrive — M6-T05's table pushed the minimum width past 640, which
+        turned an absolute assertion into an order-dependent one. What the test
+        means is that the second window matches the first."""
         first = MainWindow(app)
         first.resize(640, 480)
+        saved = (first.width(), first.height())
         first.save_layout()
 
         second = MainWindow(app)
 
-        assert (second.width(), second.height()) == (640, 480)
+        assert (second.width(), second.height()) == saved
 
     def test_an_unreadable_layout_is_ignored_rather_than_fatal(self, app: Nanoscope) -> None:
         """A layout from an older version can be unreadable; the answer is the
@@ -202,7 +208,7 @@ class TestTheLayoutIsRemembered:
         window = MainWindow(app)
 
         assert window.statusBar().currentMessage() == "No project open"
-        assert len(window.findChildren(QDockWidget)) == 5
+        assert len(window.findChildren(QDockWidget)) == 6
 
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)

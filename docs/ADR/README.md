@@ -72,6 +72,7 @@ Use `TEMPLATE.md` for new records.
 | [0062](ADR-0062-the-matrix-decides-what-may-be-asked-for.md) | The matrix decides what may be asked for | Accepted | 2026-08-13 |
 | [0063](ADR-0063-the-overlay-draws-what-the-detection-carries.md) | The overlay draws what the detection carries | Accepted | 2026-08-13 |
 | [0064](ADR-0064-the-predictor-is-built-once-and-the-masks-are-not-stored.md) | The predictor is built once, and the masks are not stored | Accepted | 2026-08-13 |
+| [0065](ADR-0065-a-row-and-a-particle-are-linked-by-position.md) | A row and a particle are linked by position | Accepted | 2026-08-13 |
 
 ## When to write one
 

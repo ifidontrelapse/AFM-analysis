@@ -45,6 +45,8 @@ from nanoscope.core.errors import NanoscopeError
 from nanoscope.core.values import Modality
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from nanoscope.app.container import Nanoscope
 
 logger = logging.getLogger(__name__)
@@ -90,6 +92,11 @@ class SessionViewModel(QObject):
     #: the selected image, replaced by a run this session stores (M6-T03).
     run_changed = Signal(object)
 
+    #: Which particle is selected — an index into the current run's detections,
+    #: or `None`. Emitted for both directions: the table asks, the canvas asks,
+    #: and both listen for the answer (ADR-0065).
+    particle_selected = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -109,6 +116,7 @@ class SessionViewModel(QObject):
         #: single value prevents (M6-T02).
         self._preprocessing = PreprocessingParams()
         self._run: AnalysisRun | None = None
+        self._particle: int | None = None
         self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
         #: carries the handle, not a snapshot**, so every update emitted during
@@ -231,7 +239,61 @@ class SessionViewModel(QObject):
             else repository.runs_for(self._image_id)
         )
         self._run = runs[-1] if runs else None
+        self._particle = None
+        self.particle_selected.emit(None)
         self.run_changed.emit(self._run)
+
+    @property
+    def particle(self) -> int | None:
+        """The selected detection's index in the current run, if any."""
+        return self._particle
+
+    def select_particle(self, index: int | None) -> None:
+        """Select one particle, from wherever the operator pointed at it.
+
+        The viewmodel holds it because both the table and the canvas can ask and
+        both have to be told; two widgets telling each other is what ADR-0057
+        removed, and *"and vice versa"* is where it would come back.
+        """
+        run = self._run
+        if index is not None and (run is None or not 0 <= index < len(run.detections)):
+            index = None
+        if index == self._particle:
+            return
+        self._particle = index
+        self.particle_selected.emit(index)
+
+    def measurements(self) -> pd.DataFrame | None:
+        """The current run's stored table, or `None` when it measured nothing.
+
+        `detect` mode writes no table at all (ADR-0042), and an empty grid with
+        the right columns would claim it did.
+        """
+        repository = self._app.repository
+        run = self._run
+        if repository is None or run is None or run.measurements_path is None:
+            return None
+        try:
+            return repository.measurements_for(run)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return None
+
+    def particle_at(self, x_px: float, y_px: float, *, tolerance: float = 1.0) -> int | None:
+        """Which detection sits at these coordinates, if one does.
+
+        **Coordinates, not indices.** The measurement table is a *subset* of the
+        detections — a height that is not a number is discarded (ADR-0033) — so
+        row *n* is not detection *n*, and `x_px`/`y_px` are the one link both
+        sides carry (ADR-0031's core columns).
+        """
+        run = self._run
+        if run is None:
+            return None
+        for index, detection in enumerate(run.detections):
+            if abs(detection.x_px - x_px) <= tolerance and abs(detection.y_px - y_px) <= tolerance:
+                return index
+        return None
 
     def detector_options(self) -> tuple[DetectorOption, ...]:
         """What the selected image's modality allows, and why the rest does not.
@@ -530,6 +592,8 @@ class SessionViewModel(QObject):
                 extra={"image_id": self._image_id},
             )
             self._run = job.result
+            self._particle = None
+            self.particle_selected.emit(None)
             self.run_changed.emit(self._run)
             self.run_stored.emit(job.result)
             self.reported.emit(
@@ -593,6 +657,8 @@ class SessionViewModel(QObject):
         self._image = None
         self._clear_preview()
         self._run = None
+        self._particle = None
+        self.particle_selected.emit(None)
         self.run_changed.emit(None)
         self.image_changed.emit(None)
 

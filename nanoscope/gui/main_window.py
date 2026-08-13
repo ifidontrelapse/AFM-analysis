@@ -34,6 +34,7 @@ from nanoscope.gui.panels import (
     ImageViewer,
     JobStatus,
     LogPanel,
+    MeasurementsPanel,
     PreprocessingPanel,
     ProjectExplorer,
     PropertiesPanel,
@@ -60,6 +61,7 @@ PROPERTIES_DOCK = "Properties"  # M5-T06
 LOG_DOCK = "Log"  # M5-T08
 PREPROCESSING_DOCK = "Preprocessing"  # M6-T01
 DETECTION_DOCK = "Detection"  # M6-T02
+MEASUREMENTS_DOCK = "Measurements"  # M6-T05
 
 
 class MainWindow(QMainWindow):
@@ -135,6 +137,12 @@ class MainWindow(QMainWindow):
         self.tabifyDockWidget(preprocessing_dock, detection_dock)
         properties_dock.raise_()
 
+        self.measurements = MeasurementsPanel(self.session, self)
+        measurements_dock = QDockWidget(MEASUREMENTS_DOCK, self)
+        measurements_dock.setObjectName("dock.measurements")
+        measurements_dock.setWidget(self.measurements)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, measurements_dock)
+
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)
         self.log_dock.setObjectName("dock.log")
@@ -143,6 +151,10 @@ class MainWindow(QMainWindow):
         #: signal Qt already emits for that.
         self.log_dock.visibilityChanged.connect(self._log_visibility_changed)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
+        #: Tabbed with the log: both are things one reads *after* a run, and the
+        #: bottom of the window has room for one of them at a time.
+        self.tabifyDockWidget(measurements_dock, self.log_dock)
+        measurements_dock.raise_()
 
     def _build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")

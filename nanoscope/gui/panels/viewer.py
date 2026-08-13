@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import numpy as np
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QImage,
@@ -65,6 +65,11 @@ from nanoscope.gui.viewmodels import SessionViewModel
 #: pen measured in scene units turns a circle into a filled blob at 32x.
 OVERLAY_WIDTH_PX = 1.5
 
+#: How far a press may travel and still be a click rather than a drag. A mouse
+#: moves under a finger, and without the tolerance half an operator's clicks
+#: would be pans that selected nothing.
+CLICK_SLOP_PX = 3
+
 #: How far in and out the wheel may go. Not taste: past 64x a pixel fills the
 #: window and there is nothing more to see, and below 1/32 the scan is a dot.
 MIN_ZOOM, MAX_ZOOM = 1 / 32, 64.0
@@ -79,6 +84,11 @@ class ImageView(QGraphicsView):
 
     #: `(x_px, y_px)` under the cursor, or `None` when it leaves the image.
     hovered = Signal(object)
+
+    #: The index of the overlay item that was clicked, or `None` for a click on
+    #: bare image. A **click**, not a press: this view drags to pan (M5-T05), so
+    #: a selection is a release that did not move (ADR-0065).
+    picked = Signal(object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -96,6 +106,7 @@ class ImageView(QGraphicsView):
         self._fitted = True
         self._overlay: list[QGraphicsItem] = []
         self._masks: list[QGraphicsItem] = []
+        self._pressed_at: QPoint | None = None
 
     def show_pixmap(self, pixmap: QPixmap) -> None:
         self._item.setPixmap(pixmap)
@@ -123,6 +134,13 @@ class ImageView(QGraphicsView):
     @property
     def mask_overlay(self) -> list[QGraphicsItem]:
         return list(self._masks)
+
+    def highlight(self, index: int | None) -> None:
+        """Thicken the selected outline, and only that one."""
+        for position, item in enumerate(self._overlay):
+            pen = item.pen()  # type: ignore[attr-defined]  # every shape here has one
+            pen.setWidthF(OVERLAY_WIDTH_PX * (3 if position == index else 1))
+            item.setPen(pen)  # type: ignore[attr-defined]
 
     def draw_detections(self, detections: Iterable[Detection]) -> None:
         """Put one item on each particle, in **scene** coordinates.
@@ -184,6 +202,30 @@ class ImageView(QGraphicsView):
         self._fitted = False
         self.scale(factor, factor)
 
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
+        self._pressed_at = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
+        """A release within a few pixels of its press is a click, not a drag.
+
+        Three pixels because a mouse moves under a finger; without the
+        tolerance, half of an operator's clicks would be pans that selected
+        nothing.
+        """
+        super().mouseReleaseEvent(event)
+        start = self._pressed_at
+        self._pressed_at = None
+        if start is None or (event.position().toPoint() - start).manhattanLength() > CLICK_SLOP_PX:
+            return
+
+        point = self.mapToScene(event.position().toPoint())
+        for index, item in enumerate(self._overlay):
+            if item.sceneBoundingRect().contains(point):
+                self.picked.emit(index)
+                return
+        self.picked.emit(None)
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 — Qt's name
         super().mouseMoveEvent(event)
         point = self.mapToScene(event.position().toPoint())
@@ -209,6 +251,11 @@ class ImageViewer(QWidget):
 
         self.view = ImageView(self)
         self.view.hovered.connect(self._describe)
+        #: Both directions of M6's selection criterion, and neither of them is
+        #: a widget talking to a widget: the canvas asks the session, and the
+        #: session answers everyone (ADR-0065).
+        self.view.picked.connect(session.select_particle)
+        session.particle_selected.connect(self.view.highlight)
 
         self.colormap = QComboBox(self)
         self.colormap.addItems(COLORMAPS)
@@ -278,6 +325,7 @@ class ImageViewer(QWidget):
         run = self._session.run
         detections = run.detections if run is not None and self.show_detections.isChecked() else ()
         self.view.draw_detections(detections)
+        self.view.highlight(self._session.particle)
         masks = _mask_arrays(run) if run is not None and self.show_masks.isChecked() else ()
         self.view.draw_masks(masks)
         #: Hidden entirely when there are none: a control for something that
