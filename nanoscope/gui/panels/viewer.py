@@ -17,13 +17,27 @@ for figures that get saved.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 import numpy as np
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QImage, QMouseEvent, QPainter, QPixmap, QResizeEvent, QWheelEvent
+from PySide6.QtGui import (
+    QBrush,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QPixmap,
+    QResizeEvent,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QGraphicsEllipseItem,
+    QGraphicsItem,
     QGraphicsPixmapItem,
+    QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -41,7 +55,13 @@ from nanoscope.application.use_cases.display import (
     stage_image,
     value_range,
 )
+from nanoscope.core.entities import AnalysisRun, Detection
+from nanoscope.gui.theme import tokens
 from nanoscope.gui.viewmodels import SessionViewModel
+
+#: How wide the overlay's outline is, in screen pixels. Cosmetic on purpose: a
+#: pen measured in scene units turns a circle into a filled blob at 32x.
+OVERLAY_WIDTH_PX = 1.5
 
 #: How far in and out the wheel may go. Not taste: past 64x a pixel fills the
 #: window and there is nothing more to see, and below 1/32 the scan is a dot.
@@ -72,6 +92,7 @@ class ImageView(QGraphicsView):
         #: Whether the view is still showing the whole scan. A resize refits
         #: while it is, and leaves the operator's zoom alone once it is not.
         self._fitted = True
+        self._overlay: list[QGraphicsItem] = []
 
     def show_pixmap(self, pixmap: QPixmap) -> None:
         self._item.setPixmap(pixmap)
@@ -81,6 +102,25 @@ class ImageView(QGraphicsView):
     def clear(self) -> None:
         self._item.setPixmap(QPixmap())
         self.setSceneRect(QRectF())
+        self.draw_detections(())
+
+    def draw_detections(self, detections: Iterable[Detection]) -> None:
+        """Put one item on each particle, in **scene** coordinates.
+
+        The view transforms the scene, so an item placed at `(x_px, y_px)` stays
+        on its particle at every zoom and pan for nothing. Painting over the
+        viewport instead would mean redoing that arithmetic, and being wrong the
+        first time somebody drags.
+        """
+        for item in self._overlay:
+            self.scene().removeItem(item)
+        self._overlay = [_shape(detection) for detection in detections]
+        for item in self._overlay:
+            self.scene().addItem(item)
+
+    @property
+    def overlay(self) -> list[QGraphicsItem]:
+        return list(self._overlay)
 
     @property
     def zoom(self) -> float:
@@ -145,6 +185,7 @@ class ImageViewer(QWidget):
         self._image: DisplayImage | None = None
         session.image_changed.connect(self.show_image)
         session.preview_changed.connect(lambda _preview: self.show_image(session.image))
+        session.run_changed.connect(self._run_changed)
 
         self.view = ImageView(self)
         self.view.hovered.connect(self._describe)
@@ -165,6 +206,14 @@ class ImageViewer(QWidget):
         )
         self.full_range.toggled.connect(lambda _: self._redraw())
 
+        self.show_detections = QCheckBox("Detections", self)
+        self.show_detections.setChecked(True)
+        self.show_detections.setToolTip(
+            "The overlay covers the data it describes; turning it off is how "
+            "'what does this look like without the circles?' gets answered."
+        )
+        self.show_detections.toggled.connect(lambda _: self._draw_overlay())
+
         #: Which array is on screen. ADR-0056's rule was never "show the file
         #: and nothing else" — it was *never show something the file does not
         #: contain without saying so*, and this label is how that promise
@@ -176,6 +225,7 @@ class ImageViewer(QWidget):
         controls.addWidget(QLabel("Colormap", self))
         controls.addWidget(self.colormap)
         controls.addWidget(self.full_range)
+        controls.addWidget(self.show_detections)
         #: Beside the controls rather than at the far right: it was clipped to
         #: "result (flatte…" when it competed with the scale bar for the end of
         #: the row, and a label nobody can finish reading is not a statement.
@@ -189,6 +239,22 @@ class ImageViewer(QWidget):
         layout.addWidget(self.view)
 
         self.show_image(session.image)
+        self._draw_overlay()
+
+    def _run_changed(self, _run: AnalysisRun | None) -> None:
+        self._draw_overlay()
+
+    def _draw_overlay(self) -> None:
+        """Draw the current run's detections, or none of them."""
+        run = self._session.run
+        detections = run.detections if run is not None and self.show_detections.isChecked() else ()
+        self.view.draw_detections(detections)
+        #: The count rides on the checkbox rather than on a label of its own:
+        #: the row was already carrying a colormap, a range, a stage and a scale
+        #: bar, and the sixth widget was **clipped mid-word** in a real
+        #: window. "Detections (0)" and an unticked box are also two different
+        #: statements, which a separate label had to spell out.
+        self.show_detections.setText(_count(run))
 
     def _apply_default_colormap(self) -> None:
         stored = str(self._session.preference(COLORMAP_SETTING, COLORMAPS[0]))
@@ -215,7 +281,11 @@ class ImageViewer(QWidget):
             self.stage_label.setText("")
             return
 
-        self.stage_label.setText(f"showing: {stage}")
+        #: The stage alone, not "showing: raw" — six widgets share this row and
+        #: the words that carry no information are the ones that clip the ones
+        #: that do. The long form stays as the tooltip.
+        self.stage_label.setText(str(stage))
+        self._draw_overlay()
         self.stage_label.setToolTip(STAGE_LABELS[stage])
         self._redraw()
         self.readout.emit(self._summary())
@@ -295,3 +365,34 @@ def _to_qimage(rgb: np.ndarray) -> QImage:
     contiguous = np.ascontiguousarray(rgb)
     image = QImage(contiguous.data, width, height, 3 * width, QImage.Format.Format_RGB888)
     return image.copy()
+
+
+def _shape(detection: Detection) -> QGraphicsItem:
+    """A box when the detector produced one, a circle when it did not.
+
+    `bbox` is `None` on the blob path (ADR-0031), and drawing an invented box
+    around a circle would be a shape nothing found — the same substitution
+    ADR-0028 removed from `confidence`.
+    """
+    pen = QPen(tokens.qcolor(tokens.ACCENT))
+    pen.setWidthF(OVERLAY_WIDTH_PX)
+    #: Cosmetic: the width is in screen pixels, so the outline stays one line
+    #: thick at 32x instead of swallowing the particle it marks.
+    pen.setCosmetic(True)
+
+    if detection.bbox is not None:
+        x1, y1, x2, y2 = detection.bbox
+        item: QGraphicsItem = QGraphicsRectItem(QRectF(x1, y1, x2 - x1, y2 - y1))
+    else:
+        radius = detection.radius_px
+        item = QGraphicsEllipseItem(
+            QRectF(detection.x_px - radius, detection.y_px - radius, 2 * radius, 2 * radius)
+        )
+    item.setPen(pen)  # type: ignore[attr-defined]  # both shapes have one
+    item.setBrush(QBrush())  # type: ignore[attr-defined]  # outline only: the data is underneath
+    return item
+
+
+def _count(run: AnalysisRun | None) -> str:
+    """The checkbox's label: what there is to show, or that there is nothing."""
+    return "Detections" if run is None else f"Detections ({len(run.detections)})"

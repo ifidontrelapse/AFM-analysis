@@ -219,12 +219,12 @@ class TestTheViewerSaysWhatItIsShowing:
         never show something the file does not contain **without saying so**."""
         viewer = ImageViewer(session)
         session.select_image(image_ids(session)[0])
-        assert viewer.stage_label.text() == "showing: raw"
+        assert viewer.stage_label.text() == "raw"
 
         settle(session.preprocess())
 
         assert session.stage is Stage.RESULT
-        assert viewer.stage_label.text() == "showing: result"
+        assert viewer.stage_label.text() == "result"
         #: The long form is the tooltip, because the short one has to fit
         #: beside the colormap without being clipped.
         assert viewer.stage_label.toolTip() == STAGE_LABELS[Stage.RESULT]
@@ -236,7 +236,7 @@ class TestTheViewerSaysWhatItIsShowing:
 
         session.show_stage(Stage.SUBSTRATE)
 
-        assert viewer.stage_label.text() == "showing: substrate"
+        assert viewer.stage_label.text() == "substrate"
         assert not viewer.view._item.pixmap().isNull()
 
     def test_a_stage_with_no_preview_behind_it_is_refused(self, session: SessionViewModel) -> None:

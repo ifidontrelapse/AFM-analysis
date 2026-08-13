@@ -86,6 +86,10 @@ class SessionViewModel(QObject):
     #: a preview, this is a *result* — the difference ADR-0061 §5 exists for.
     run_stored = Signal(object)
 
+    #: The run whose detections are on screen, or `None`. The newest one for
+    #: the selected image, replaced by a run this session stores (M6-T03).
+    run_changed = Signal(object)
+
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
     #: filtering by name is work nobody has asked for (M5-T09).
@@ -104,6 +108,7 @@ class SessionViewModel(QObject):
         #: and analysed at another, with nothing saying so, is the defect this
         #: single value prevents (M6-T02).
         self._preprocessing = PreprocessingParams()
+        self._run: AnalysisRun | None = None
         self._stage = Stage.RAW
         #: The job whose ending has already been dealt with. **A queued signal
         #: carries the handle, not a snapshot**, so every update emitted during
@@ -206,6 +211,27 @@ class SessionViewModel(QObject):
         name = f"Preprocessing {self.image_record(image_id).display_name}"  # type: ignore[union-attr]
         self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
         return self._job
+
+    @property
+    def run(self) -> AnalysisRun | None:
+        """The analysis whose detections are being shown, if there is one."""
+        return self._run
+
+    def _show_newest_run(self) -> None:
+        """The newest stored run for the selected image, or none.
+
+        `runs_for` has existed since M4-T05 and nothing had read it: a scan
+        analysed yesterday, selected today, showed nothing. M6-T09 owns proving
+        that survives a restart; showing it at all is M6-T03's job.
+        """
+        repository = self._app.repository
+        runs = (
+            []
+            if repository is None or self._image_id is None
+            else repository.runs_for(self._image_id)
+        )
+        self._run = runs[-1] if runs else None
+        self.run_changed.emit(self._run)
 
     def detector_options(self) -> tuple[DetectorOption, ...]:
         """What the selected image's modality allows, and why the rest does not.
@@ -383,6 +409,7 @@ class SessionViewModel(QObject):
 
         self._image_id = image_id
         self._clear_preview()
+        self._show_newest_run()
         try:
             self._image = load_for_display(repository, image_id)
         except NanoscopeError as refusal:
@@ -491,6 +518,8 @@ class SessionViewModel(QObject):
                 job.result.id,
                 extra={"image_id": self._image_id},
             )
+            self._run = job.result
+            self.run_changed.emit(self._run)
             self.run_stored.emit(job.result)
             self.reported.emit(
                 f"{job.result.mode} with {job.result.detector}: "
@@ -552,6 +581,8 @@ class SessionViewModel(QObject):
         self._image_id = None
         self._image = None
         self._clear_preview()
+        self._run = None
+        self.run_changed.emit(None)
         self.image_changed.emit(None)
 
     def _refuse(self, message: str) -> None:

@@ -7,6 +7,43 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T03 · **the detections, drawn where they were found**
+
+**Task:** `M6-T03`. **ADR:** **ADR-0063**. M6-T02 ended with *"30 detection(s)"* in a status bar and
+a scan on screen with nothing on it.
+
+### The decisions
+
+**The shape is the one the detection carries** — a box when `bbox` is present, a circle of
+`radius_px` when it is `None` (ADR-0031). An invented box around a circle is the substitution
+ADR-0028 removed from `confidence`, one field over.
+
+**The overlay lives in the scene, in pixel coordinates**, so the view's own transform keeps each item
+on its particle at every zoom and pan; the pen is **cosmetic**, so a 2 px circle stays a one-pixel
+outline at 32x.
+
+**The run shown is the newest stored one for the selected image.** `runs_for` had existed since
+M4-T05 with no reader at all.
+
+**One colour, not the colormap's:** a confidence ramp would be a second scale beside the one
+carrying the measurement, and the blob path has no confidence to colour by.
+
+### What it turned up
+
+**The circle branch has no producer today** — the blob detector synthesises a bbox (M3-T24, M4-T05),
+so every detection currently draws as a box. Recorded rather than papered over.
+
+**The count label was the seventh widget in the viewer's control row and clipped mid-word**, seen in
+the window. It rides on the toggle now, which also separates "hidden" from "found none".
+
+### Numbers
+
+10 tests, **1084** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M6-T04` — segmentation, and the predictor whose absence M6-T02 reports.
+
+---
+
 ## 2026-08-13 — M6-T02 · **a detection panel that offers what the matrix allows, and says why not**
 
 **Task:** `M6-T02`. **ADR:** **ADR-0062**. **M6's third exit criterion is met** — *"invalid
