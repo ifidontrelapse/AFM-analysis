@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M6-T07`
-**Title:** The export an operator can ask for, and the scope they mean
-**Milestone:** M6 — Analysis workflow in the GUI, seventh task
-**Defect:** — · **ADR:** **ADR-0067**
+**ID:** `M6-T08`
+**Title:** Moving through a project's scans without going back to the list
+**Milestone:** M6 — Analysis workflow in the GUI, eighth task
+**Defect:** — · **ADR:** **ADR-0068**
 **Branch:** `feat/m6-analysis-workflow`
 **Status:** **done 2026-08-13.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,37 +11,44 @@
 
 ## Why this task is next
 
-M6's first exit criterion is *load → detect → segment → measure → **export CSV**, entirely through
-the UI*, and the export is the last step of it. `export_measurements` has been in `application` since
-M4-T11 with tests as its only callers: the operator's way to get a table out of this project is
-still a Python prompt.
+The workflow M6 has been assembling is *look at a scan, run it, read the numbers* — and the real
+version of that is doing it to forty scans in a row. Every one of them currently costs a trip back to
+the explorer, a click on the next row, and a search for where you were.
+
+It is also the last task before M6-T09, which has to prove results survive a restart: proving it is
+easier when moving between images is one keystroke.
 
 ---
 
 ## The decisions this task has to make
 
-**1. What can be exported?** Two scopes, and they are named, not implied.
+**1. Where does the selection live?** In the viewmodel, as it already does.
 
-*This run* and *every run in the project*. ADR-0048 built the second on purpose — *"statistics across
-a dataset is why the measurements exist"* — and a menu item that silently means one of them is a
-menu item somebody uses wrong once.
+Navigation is `select_image` with a different id — not a second mechanism. What is new is *which* id,
+and that comes from the open project's own order (ADR-0057, and the reason there is one place to ask).
 
-**2. Where does the file go?** Into the project's `exports/`, with the name the use case chooses.
+**2. Does it wrap?** No. The ends are the ends.
 
-Not a file dialog. The export is **part of the project** (ADR-0003's layout), it is timestamped so
-today's does not replace yesterday's (ADR-0048), and asking an operator where to put a file they
-have not seen yet is asking them to invent a filing system per export. What the window then does is
-say **where it went**.
+Wrapping takes an operator from the fortieth scan back to the first without saying so, which in a
+batch review means quietly starting again — and the review that is *"did I look at all of them?"* is
+exactly the one that must not lie. The actions go dead instead.
 
-**3. What happens when there is nothing to export?** The refusal the use case already writes.
+**3. How does an operator know where they are?** A count in the status bar: **"3 of 40"**.
 
-A detect-only run measures nothing, and `export_measurements` raises rather than writing headers with
-no rows — because a file with headers and no rows says *"we measured and found nothing"*, which is a
-different statement (ADR-0048). The window shows that sentence; it does not pre-empt it with a
-disabled button that says less.
+Half of navigating is knowing whether there is anywhere left to go. A permanent label costs one
+widget and answers it without a trip to the list.
 
-**4. Does it run as a job?** Yes. Reading every stored table in a project is disk, and the runner
-has been there since M5-T07.
+**4. Does the explorer follow?** Yes, and without echoing.
+
+A panel listing the images while a different one is on screen is a panel that lies. It sets its row
+with its signals blocked, because otherwise selecting the row asks the session for the selection it
+just announced — the loop M6-T05 already met once, on the measurements table.
+
+**5. Does the zoom survive the move?** No, and that is a deliberate absence.
+
+Every scan gets fitted, because scans differ in size and a zoom held across a smaller one shows a
+corner. A *"keep the view"* toggle is a real feature for comparing two scans of the same sample, and
+it is a feature, with a control and a name — not a default.
 
 ---
 
@@ -49,38 +56,38 @@ has been there since M5-T07.
 
 **In scope**
 
-1. `gui/viewmodels/session.py` — `export(scope)` as a job, and where the file went
-2. `MainWindow` — *File → Export Measurements…* with the two scopes
-3. **ADR-0067** — two named scopes, the project's own `exports/`, and a refusal that is a sentence
-4. Tests: each scope writes what it names, the file lands in `exports/`, a detect-only run is refused
-   with the use case's own message, and the window says where the file went
+1. `gui/viewmodels/session.py` — `select_next`, `select_previous`, and the position in the project
+2. `MainWindow` — the two actions, their shortcuts, and the "3 of 40" label
+3. `gui/panels/project_explorer.py` — the row follows the session
+4. **ADR-0068** — one selection mechanism, no wrapping, and where the operator is
+5. Tests: the order is the project's, the ends disable the actions, the explorer follows without
+   echoing, and the count is right
 
 **Out of scope**
 
-- **Choosing a directory outside the project** — decision 2; an export that leaves the project is a
-  copy, and copying is what a file manager is for
-- **Choosing columns** — the export's shape is ADR-0048's, provenance first
-- **Exporting a figure** — `infrastructure.imaging.plots`, and no task has asked for it
+- **Keeping the zoom across images** — decision 5
+- **Filtering or sorting the list** — the project's order is the import order, and a sort is view
+  state nothing has asked for
+- **Running a batch across images** — analysing forty scans unattended is a job that reports per
+  scan, and it is not this task
 
 ---
 
 ## Definition of done
 
-- [x] Both scopes export, as a job, into the project's `exports/`
-- [x] The window says the path, relative to the project
-- [x] Nothing to export is the use case's own sentence, not a silent no-op
-- [x] ADR-0067 + the ADR index
-- [x] `make check` green — 1135 tests, golden byte-identical
+- [x] Next and previous move through the project's order, and stop at the ends
+- [x] The status bar says which scan of how many
+- [x] The explorer's row follows, without a loop
+- [x] ADR-0068 + the ADR index
+- [x] `make check` green — 1145 tests, golden byte-identical
 - [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M6-T07: the export an operator can ask for, and the scope they mean`
+- [x] Commit: `M6-T08: moving through a project's scans without going back to the list`
 
 ---
 
 ## What it turned up
 
-**Two test files with the same basename broke collection — for the second time.** `tests/gui/test_export.py`
-against `tests/integration/test_export.py`, exactly the trap M5-T07 hit with `test_jobs.py`. Every
-targeted run passed and `make check` could not collect. Renamed to `test_export_ui.py`, **and this
-time the lesson ships as a guard**: `test_no_two_test_modules_share_a_basename` walks `tests/` and
-fails on a clash. A lesson that lives only in a `Progress.md` entry is one the project gets to learn
-twice.
+**`next_action` was enabled with no project open.** The window set every action's state from the
+session's signals and never from its own initial state, so between construction and the first signal
+each one sat in whatever Qt's default was. A test asked the obvious question and got the wrong
+answer; the window now starts in the state the session implies.

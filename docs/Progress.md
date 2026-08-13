@@ -7,6 +7,43 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-13 — M6-T08 · **moving through a project's scans without going back to the list**
+
+**Task:** `M6-T08`. **ADR:** **ADR-0068**.
+
+### The decisions
+
+**Navigation is `select_image` with a different id** — not a second mechanism; what is new is which
+id, taken from the project's own order.
+
+**It does not wrap.** Taking an operator from the fortieth scan back to the first without saying so
+means a batch review quietly starts again, and *"did I look at all of them?"* is exactly the review
+that must not lie. The actions go dead at the ends.
+
+**The status bar says "3 of 40"**, permanently: half of navigating is knowing whether there is
+anywhere left to go.
+
+**The explorer follows with its signals blocked** — a panel listing the images while a different one
+is on screen is a panel that lies, and setting the row would otherwise ask the session for the
+selection it just announced (M6-T05's loop, met once already).
+
+**The zoom does not survive the move**, because scans differ in size and a held zoom shows a corner
+of the next one. *Keep the view* is a feature with a control and a name.
+
+### What it turned up
+
+**`next_action` was enabled with no project open.** The window set its actions from the session's
+signals and never from its own initial state, so each one sat in Qt's default until the first signal
+arrived. A test asked; the window now starts in the state the session implies.
+
+### Numbers
+
+10 tests, **1145** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M6-T09` — results surviving a restart, and M6's fourth exit criterion with it.
+
+---
+
 ## 2026-08-13 — M6-T07 · **the export an operator can ask for, and the scope they mean**
 
 **Task:** `M6-T07`. **ADR:** **ADR-0067**. The last step of M6's first exit criterion:

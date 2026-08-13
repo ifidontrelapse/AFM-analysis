@@ -54,6 +54,10 @@ class ProjectExplorer(QWidget):
         super().__init__(parent)
         self._session = session
         session.project_changed.connect(self.show_project)
+        #: A panel listing the images while a *different* one is on screen is a
+        #: panel that lies, so the row follows a selection made elsewhere —
+        #: M6-T08's Next/Previous, so far.
+        session.image_changed.connect(lambda _image: self.follow_selection())
 
         self.tree = QTreeWidget(self)
         self.tree.setHeaderLabels(["Image", "Scale"])
@@ -78,6 +82,26 @@ class ProjectExplorer(QWidget):
         missing = {image.id for image in opened.integrity.missing_files}
         for image in opened.images:
             self.tree.addTopLevelItem(_row(image, is_missing=image.id in missing))
+
+    def follow_selection(self) -> None:
+        """Show the session's selection, without announcing it back.
+
+        `blockSignals`, or setting the row asks the session for the selection it
+        has just announced — the loop M6-T05 met once already on the
+        measurements table.
+        """
+        image_id = self._session.image_id
+        if image_id is None or image_id == self.selected_image_id:
+            return
+        for index in range(self.tree.topLevelItemCount()):
+            #: `topLevelItem` is typed as optional because an out-of-range index
+            #: returns `None`; every index in this loop is in range.
+            item = self.tree.topLevelItem(index)
+            if item is not None and int(item.data(0, _IMAGE_ID)) == image_id:
+                self.tree.blockSignals(True)
+                self.tree.setCurrentItem(item)
+                self.tree.blockSignals(False)
+                return
 
     @property
     def selected_image_id(self) -> int | None:

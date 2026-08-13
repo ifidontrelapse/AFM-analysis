@@ -158,6 +158,45 @@ class SessionViewModel(QObject):
             return None
         return next((image for image in self._project.images if image.id == image_id), None)
 
+    @property
+    def image_position(self) -> tuple[int, int] | None:
+        """`(which, how many)`, one-based, or `None` when nothing is selected.
+
+        Half of navigating is knowing whether there is anywhere left to go
+        (M6-T08).
+        """
+        images = () if self._project is None else self._project.images
+        ids = [image.id for image in images]
+        if self._image_id is None or self._image_id not in ids:
+            return None
+        return ids.index(self._image_id) + 1, len(ids)
+
+    def position_text(self) -> str:
+        """ "3 of 40", or nothing at all when nothing is selected."""
+        position = self.image_position
+        return "" if position is None else f"{position[0]} of {position[1]}"
+
+    def select_next(self) -> bool:
+        """The next scan in the project's own order. **No wrapping.**
+
+        Wrapping takes an operator from the fortieth scan to the first without
+        saying so, and the review that asks *"did I look at all of them?"* is
+        exactly the one that must not lie (ADR-0068).
+        """
+        return self._step(+1)
+
+    def select_previous(self) -> bool:
+        return self._step(-1)
+
+    def _step(self, by: int) -> bool:
+        position = self.image_position
+        if position is None or self._project is None:
+            return False
+        index = position[0] - 1 + by
+        if not 0 <= index < len(self._project.images):
+            return False
+        return self.select_image(self._project.images[index].id)
+
     def annotation_count(self, image_id: int) -> int:
         """How much hand work removing this image would destroy (ADR-0044)."""
         repository = self._app.repository

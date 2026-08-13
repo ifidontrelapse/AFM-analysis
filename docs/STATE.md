@@ -61,7 +61,15 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M6-T07` done 2026-08-13 (ADR-0067); `M6-T08` — multi-image navigation — is next.**
+**None selected. `M6-T08` done 2026-08-13 (ADR-0068); `M6-T09` — results surviving a restart — is
+next, and it closes M6's fourth exit criterion.**
+
+**`M6-T08` done 2026-08-13 (ADR-0068) — moving through a project's scans.** Navigation is
+`select_image` with a different id, taken from the project's own order; **it does not wrap**, because
+a review that silently restarts is one that lies. The status bar says **"3 of 40"**, and the explorer
+follows with its signals blocked so setting the row does not ask the session for the selection it just
+announced. **Found:** `next_action` was **enabled with no project open** — the window set its actions
+from signals and never from its own initial state. 10 tests, **1145** in the suite.
 **M6's first exit criterion is now reachable end to end** — load, preprocess, detect, measure and
 export, all from the window.
 

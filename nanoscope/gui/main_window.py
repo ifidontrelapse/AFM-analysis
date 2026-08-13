@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QAction, QCloseEvent
-from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox
 
 from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
@@ -103,7 +103,15 @@ class MainWindow(QMainWindow):
         #: message — and on the right, where it does not fight the readout.
         self.jobs = JobStatus(self.session, self)
         self.statusBar().addPermanentWidget(self.jobs)
+        #: Where in the project the operator is. Permanent, because half of
+        #: navigating is knowing whether there is anywhere left to go (M6-T08).
+        self.position = QLabel("", self)
+        self.statusBar().addPermanentWidget(self.position)
         self.statusBar().showMessage("No project open")
+        #: Every action starts in the state the *session* implies, rather than
+        #: in whatever Qt's default is: `next_action` was enabled with no
+        #: project open until a test asked (M6-T08).
+        self._update_actions()
 
         self._restore_layout()
 
@@ -188,6 +196,13 @@ class MainWindow(QMainWindow):
         self.close_action.triggered.connect(self.close_project)
         self.close_action.setEnabled(False)
 
+        self.next_action = QAction("&Next Image", self)
+        self.next_action.setShortcut("Ctrl+Right")
+        self.next_action.triggered.connect(self.session.select_next)
+        self.previous_action = QAction("&Previous Image", self)
+        self.previous_action.setShortcut("Ctrl+Left")
+        self.previous_action.triggered.connect(self.session.select_previous)
+
         self.export_run_action = QAction("&Export This Run…", self)
         self.export_run_action.triggered.connect(lambda: self.export(everything=False))
         self.export_run_action.setEnabled(False)
@@ -218,6 +233,11 @@ class MainWindow(QMainWindow):
         file_menu.addAction(quit_action)
 
         view_menu = self.menuBar().addMenu("&View")
+        view_menu.addAction(self.previous_action)
+        view_menu.addAction(self.next_action)
+        view_menu.addSeparator()
+        for action in (self.previous_action, self.next_action):
+            toolbar.addAction(action)
         for dock in self.findChildren(QDockWidget):
             view_menu.addAction(dock.toggleViewAction())
 
@@ -317,6 +337,12 @@ class MainWindow(QMainWindow):
         self.remove_action.setEnabled(not busy and self.session.image_id is not None)
         self.export_run_action.setEnabled(not busy and self.session.run is not None)
         self.export_all_action.setEnabled(not busy and has_project)
+
+        position = self.session.position_text()
+        self.position.setText(position)
+        where = self.session.image_position
+        self.previous_action.setEnabled(not busy and where is not None and where[0] > 1)
+        self.next_action.setEnabled(not busy and where is not None and where[0] < where[1])
 
     def _logged(self, line: LogLine) -> None:
         """Count what an operator has not looked at, and say so in the title.
