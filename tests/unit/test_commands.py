@@ -10,14 +10,17 @@ from __future__ import annotations
 
 import pytest
 
-from nanoscope.application.commands import CommandStack
+from nanoscope.application.commands import CommandStack, Composite
 
 
 class Recording:
     """A command that only remembers what was done to it."""
 
-    def __init__(self, name: str = "edit", *, fails_undo: bool = False) -> None:
+    def __init__(
+        self, name: str = "edit", *, fails_undo: bool = False, image_id: int | None = None
+    ) -> None:
         self.label = name
+        self.image_id = image_id
         self.calls: list[str] = []
         self._fails_undo = fails_undo
 
@@ -131,3 +134,56 @@ class TestWhatTheMenuShows:
 
         assert not stack.can_undo
         assert not stack.can_redo
+
+
+class TestOneGestureIsOneUndo:
+    """`Composite`, M7-T08. Adopting forty detections is one click (ADR-0076),
+    and forty entries on the history is a click nobody can take back."""
+
+    def test_the_whole_batch_is_one_entry(self) -> None:
+        stack, children = CommandStack(), [Recording("one"), Recording("two")]
+
+        stack.run(Composite(children, label="adopt 2 detection(s)"))
+
+        assert stack.undo_label == "adopt 2 detection(s)"
+        assert all(child.calls == ["do"] for child in children)
+
+        assert stack.undo() is not None
+
+        assert not stack.can_undo
+        assert all(child.calls == ["do", "undo"] for child in children)
+
+    def test_it_undoes_in_reverse_order(self) -> None:
+        """The children are a sequence, and the last may depend on what the one
+        before it left behind."""
+        order: list[str] = []
+
+        class Ordered(Recording):
+            def undo(self) -> None:
+                order.append(self.label)
+
+        Composite([Ordered("first"), Ordered("second")], label="both").undo()
+
+        assert order == ["second", "first"]
+
+    def test_a_child_that_fails_takes_back_the_ones_that_did_not(self) -> None:
+        """`CommandStack.run` promises a command that raised is not on the
+        history, so half a batch would be an edit nothing can reverse."""
+
+        class Failing(Recording):
+            def do(self) -> None:
+                raise ValueError("the third one")
+
+        stack, first = CommandStack(), Recording("first")
+
+        with pytest.raises(ValueError, match="third"):
+            stack.run(Composite([first, Failing()], label="both"))
+
+        assert not stack.can_undo
+        assert first.calls == ["do", "undo"]
+
+    def test_it_says_which_image_the_batch_edited(self) -> None:
+        """From its children, so undo can show the work it took back — and the
+        stack still never asks (M7-T08)."""
+        assert Composite([Recording(image_id=7)], label="batch").image_id == 7
+        assert Composite([], label="nothing").image_id is None

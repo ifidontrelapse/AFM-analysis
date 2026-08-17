@@ -54,6 +54,19 @@ class Command(Protocol):
         """What the menu item says, without "Undo" in front of it."""
         ...
 
+    @property
+    def image_id(self) -> int | None:
+        """Which scan this edited, so a caller can show the work it undid.
+
+        **The stack never reads this** — it still knows nothing but order
+        (ADR-0045). The session does, because it owns the selection: undoing an
+        edit made on another scan is otherwise a row removed off screen and a
+        window that does not change (M7-T08).
+
+        `None` when the command has not run yet and cannot say.
+        """
+        ...
+
     def do(self) -> None: ...
 
     def undo(self) -> None: ...
@@ -179,6 +192,10 @@ class AddAnnotation:
     def label(self) -> str:
         return f"add {self._label_text}"
 
+    @property
+    def image_id(self) -> int | None:
+        return self._image_id
+
     def do(self) -> None:
         if self._removed is not None:
             # A redo: the same annotation, not another one like it.
@@ -233,6 +250,10 @@ class AddRuler:
     def label(self) -> str:
         return f"measure {self._label_text}"
 
+    @property
+    def image_id(self) -> int | None:
+        return self._image_id
+
     def do(self) -> None:
         if self._removed is not None:
             self.ruler = self._repository.restore_ruler(self._removed)
@@ -282,6 +303,12 @@ class UpdateAnnotation:
     def label(self) -> str:
         return "edit annotation"
 
+    @property
+    def image_id(self) -> int | None:
+        """Read off the row that was captured, never passed in: an id supplied
+        beside the annotation's own is a second answer that can disagree."""
+        return None if self._before is None else self._before.image_id
+
     def do(self) -> None:
         self._before = self._repository.get_annotation(self._id)
         self.annotation = self._repository.update_annotation(
@@ -317,6 +344,10 @@ class RemoveAnnotation:
     def label(self) -> str:
         return "delete annotation"
 
+    @property
+    def image_id(self) -> int | None:
+        return None if self._removed is None else self._removed.image_id
+
     def do(self) -> None:
         self._removed = self._repository.get_annotation(self._id)
         self._repository.remove_annotation(self._id)
@@ -326,3 +357,53 @@ class RemoveAnnotation:
         if self._removed is None:
             return
         self.annotation = self._repository.restore_annotation(self._removed)
+
+
+class Composite:
+    """Several edits an operator asked for once, taken back the same way.
+
+    **One gesture is one undo.** Adopting forty detections is one click
+    (ADR-0076 §3), and forty entries on the history means forty `Ctrl+Z` to
+    reverse it — which nobody does, so what they do instead is close the project
+    (M7-T08).
+
+    Undone in reverse order, because the children are a sequence and the last
+    one may depend on the state the one before it left.
+    """
+
+    def __init__(self, commands: Sequence[Command], *, label: str) -> None:
+        self._commands = tuple(commands)
+        self._label = label
+
+    @property
+    def label(self) -> str:
+        return self._label
+
+    @property
+    def image_id(self) -> int | None:
+        return self._commands[0].image_id if self._commands else None
+
+    def do(self) -> None:
+        """Do them in order, and leave nothing behind if one of them fails.
+
+        `CommandStack.run` promises that a command which raised is not on the
+        history, so a half-finished composite would be a batch nothing can
+        reverse. The ones that succeeded are undone before the failure is
+        re-raised.
+
+        Raises:
+            Whatever a child raises.
+        """
+        done: list[Command] = []
+        try:
+            for command in self._commands:
+                command.do()
+                done.append(command)
+        except Exception:
+            for command in reversed(done):
+                command.undo()
+            raise
+
+    def undo(self) -> None:
+        for command in reversed(self._commands):
+            command.undo()

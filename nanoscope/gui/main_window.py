@@ -87,15 +87,13 @@ class MainWindow(QMainWindow):
         self.session.reported.connect(self.statusBar().showMessage)
         self.session.job_changed.connect(self._job_changed)
         self.session.run_changed.connect(self._run_changed)
-        #: Every command in the stack mutates annotations today, so this is the
-        #: signal that says "the history moved" — and the Undo menu is labelled
-        #: by what it would take back. When a command touches something else,
-        #: this needs a signal of its own (M7-T08).
-        #: Both signals, because either can mean "the history moved": M7-T02
-        #: could rely on annotations alone, and M7-T05's ruler is the command
-        #: that ended that (ADR-0074).
-        self.session.annotations_changed.connect(lambda _annotations: self._update_actions())
-        self.session.rulers_changed.connect(lambda _rulers: self._update_actions())
+        #: **The history says when it moved**, and the Undo menu is labelled by
+        #: what it would take back. M7-T02 read that off `annotations_changed`
+        #: while every command mutated annotations and wrote down that the first
+        #: one that did not would need a signal; M7-T05's ruler was it, and a
+        #: second layer signal was added beside the first. A third would have
+        #: been the same mistake again (M7-T08, ADR-0077).
+        self.session.history_changed.connect(self._update_actions)
 
         #: The log reaches the screen through one handler, attached by `app/`
         #: because that is the only layer allowed to attach one (ADR-0051), and
@@ -326,12 +324,11 @@ class MainWindow(QMainWindow):
         SettingsDialog(self.session, self).exec()
 
     def _undo(self) -> None:
+        """The session steps the history and says so; nothing to refresh here."""
         self.session.undo()
-        self._update_actions()
 
     def _redo(self) -> None:
         self.session.redo()
-        self._update_actions()
 
     def export(self, *, everything: bool) -> None:
         """Ask for a CSV. The session writes it; the status bar says where."""

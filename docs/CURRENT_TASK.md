@@ -1,57 +1,81 @@
 # CURRENT TASK
 
-**ID:** `M7-T07`
-**Title:** Correcting the machine without rewriting what it did
-**Milestone:** M7 — Annotation & metrology tools, seventh task
-**Defect:** — · **ADR:** **ADR-0076**
+**ID:** `M7-T08`
+**Title:** Undo/redo wired through every tool
+**Milestone:** M7 — Annotation & metrology tools, eighth task
+**Defect:** — · **ADR:** **ADR-0077**
 **Branch:** `feat/m7-annotation-tools`
-**Status:** **done 2026-08-14.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
+**Status:** **done 2026-08-17.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
 ---
 
 ## Why this task is next
 
-The task list calls this *"manual add/edit/delete of detections"*, and reading it properly is most of
-the work — because **a detection is not editable, and ADR-0044 already said what to do instead.**
+Every tool M7 built already goes through the command stack — M7-T02 wrote that rule and M7-T03,
+M7-T04, M7-T05 and M7-T07 kept it. So the task is **an audit**, and an audit's value is the gaps it
+finds. It found three, and two of them were written down by the tasks that created them:
 
-Three things M4 built are still waiting for a caller: `AnnotationSource.FROM_DETECTION` has never
-been written by anything, and `UpdateAnnotation` and `RemoveAnnotation` have no callers outside their
-own tests.
+1. **Nothing tells the window that the *history* moved.** M7-T02 wired the Undo menu to
+   `annotations_changed` and said in its own commit that this works *only* while every command
+   mutates annotations; M7-T05's ruler ended that and added `rulers_changed` beside it. The next
+   command that touches neither breaks it silently, and the debt names this task as the payer.
+2. **Adopting forty detections costs forty undos.** `adopt_all_detections` runs one command per
+   detection, so the one-click workflow ADR-0076 built needs `Ctrl+Z` forty times to take back.
+3. **Undo can edit a scan nobody is looking at.** The stack is per project, annotations are per
+   image, and `_history` reloads the *selected* image — so undoing an edit made on another scan
+   removes a row the operator cannot see and the screen does not change.
 
 ---
 
 ## The decisions this task has to make
 
-**1. A detection is not edited. It is adopted.**
+**1. The audit is the deliverable, and it is a table.**
 
-A stored detection is *what a detector produced in a run* — a record of something that happened
-(ADR-0042). An operator deleting one makes the run describe an analysis that never ran, and the
-project loses the only honest answer to *"what did the detector actually find?"*, which is the
-question M3-T15's evaluation harness exists to ask.
+Every mutating action reachable from the window is either an **edit** (on the stack) or **not an
+edit** (and says why). Written down, because "is everything undoable?" is a question that gets
+re-asked every milestone and answered by grepping.
 
-ADR-0044 built the way out and named it: an annotation carries `source`, `manual` or
-`from_detection`, *because* **"a model trained on its own output is confirming itself"**. Correcting
-the machine means **adopting** a detection into an annotation — and the adopted one is marked, for
-ever, as having come from the machine.
+| Action | On the stack | Why |
+|---|---|---|
+| Draw a box / outline / mask | yes | `AddAnnotation` (M7-T02, T03, T04) |
+| Draw a ruler / profile line | yes | `AddRuler` (M7-T05) |
+| Adopt a detection, adopt all | yes | `AddAnnotation` marked `from_detection` (M7-T07) |
+| Rename, delete an annotation | yes | `UpdateAnnotation`, `RemoveAnnotation` (M7-T07) |
+| Import images | no | Work, not an edit: it copies files (ADR-0043 vs ADR-0045) |
+| Run an analysis | no | A run is a **record of what happened** (ADR-0042, ADR-0076 §1) |
+| Remove an image | no | Deliberate, with a dialog instead (ADR-0045, ADR-0055) |
+| Export a CSV | no | Produces a file outside the project's state |
+| Change a setting | no | ADR-0047's scopes; a preference is not an edit to the work |
+| Select an image, run, particle, box | no | Selection is not a mutation |
 
-**2. What is editable is an annotation**, which is the one thing in a project that was always
-hand-made (ADR-0044). Its label, its box, and its existence.
+**2. The history announces itself.**
 
-**3. Adoption is one click, and adopting everything is one more.**
+A `history_changed` signal on the session, emitted whenever a command runs and whenever the history
+steps. The window listens to *that* for its Undo/Redo labels, not to `annotations_changed`. The stack
+still knows nothing but order (ADR-0045) — what changed is that the *session* says so, because it is
+the only thing that runs commands.
 
-Reviewing forty detections means keeping thirty-eight and fixing two; a workflow that costs a
-dialog per particle is one nobody uses. Both go through the command stack, so both undo.
+**3. One gesture is one undo.**
 
-**4. Deleting an annotation asks nothing.**
+A `Composite` command holds several edits and reverses them in reverse order. `adopt_all_detections`
+becomes one entry on the history labelled *"adopt 40 detection(s)"*. A child that fails takes back
+the ones already done and re-raises, because `CommandStack.run` promises that a command which failed
+is not on the history — half an adoption on the history is worse than none.
 
-M5-T04's confirmation exists because removing an *image* destroys hand work that cannot be recomputed
-(ADR-0044). Deleting **one box** an operator is looking at, with `Ctrl+Z` in the same menu, is the
-opposite case: a dialog there is the one nobody reads by the third time.
+**4. Undo goes to the work it undoes.**
 
-**5. Editing needs a selection, and the canvas already has one.**
+Each command says which image it edited. The session reads it off the command the stack hands back
+and selects that image before redrawing. **The stack still does not learn what a command is:** it
+never reads `image_id`; the session does, and only because it is the layer that owns the selection.
+The alternative — leaving it — is an undo that silently edits a scan off screen, which is the
+`M6-T08` standard restated: a review that lies about where it is is worse than one that is slow.
 
-M6-T05 put particle selection in the viewmodel; annotations get the same treatment, and a click
-reaches the annotation layer first because M7-T01 drew it on top for exactly this.
+**5. A ruler cannot be deleted, and undo is not a delete button.**
+
+`remove_ruler` exists on the repository with `AddRuler.undo` as its only caller. Removing the third
+of five rulers needs a ruler *selection* on the canvas, which M7-T05 did not build. Filed as
+**B-070** rather than smuggled in here: undo is for taking back what you just did, and using it as
+the only way to remove anything is the workflow that loses the four rulers after it.
 
 ---
 
@@ -59,44 +83,48 @@ reaches the annotation layer first because M7-T01 drew it on top for exactly thi
 
 **In scope**
 
-1. `gui/viewmodels/session.py` — `adopt_detection`, `adopt_all_detections`, `rename_annotation`,
-   `remove_annotation`, and the selected annotation
-2. `gui/panels/viewer.py` — clicking an annotation selects it; the selected one is thicker
-3. `gui/panels/annotate.py` — adopt, rename, delete
-4. **ADR-0076** — a detection is a record, an annotation is the edit, and adoption is marked
-5. Tests: an adopted detection is `from_detection` and matches its box, adopt-all, rename and delete
-   through the stack with undo, and the selection
+1. `application/commands.py` — `Composite`, and `image_id` on the `Command` protocol
+2. `gui/viewmodels/session.py` — `history_changed`, one funnel for running a command, undo/redo that
+   follows the edit to its image
+3. `gui/main_window.py` — the Undo/Redo labels from `history_changed`
+4. **ADR-0077** — the audit, and the three gaps it closed
+5. Tests: every tool puts exactly one entry on the history and announces it; adopt-all undoes in one
+   step; a failing child leaves nothing behind; undo across images selects the scan it edited;
+   closing a project empties the history and the menu says so
+6. **B-070** filed
 
 **Out of scope**
 
-- **Editing a polygon's vertices or a painted mask** — the shapes are stored, and a vertex editor is
-  a tool of its own that nothing has asked for
-- **Deleting a stored run** — a destructive repository operation with a confirmation behind it
-- **Undo across the *other* tools** — M7-T08, which is now mostly an audit
+- **Deleting a ruler** — B-070, and it needs a canvas selection first
+- **Persisting the history** — ADR-0045 refused it with an argument that still holds
+- **Undoing an import, a run or an image removal** — each is a decision already made and recorded
 
 ---
 
 ## Definition of done
 
-- [x] A detection can be adopted as an annotation, marked `from_detection`
-- [x] An annotation can be renamed and deleted, both undoable
-- [x] No stored detection is ever modified
-- [x] ADR-0076 + the ADR index
-- [x] `make check` green — 1264 tests, golden byte-identical
-- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M7-T07: correcting the machine without rewriting what it did`
+- [x] `history_changed` is the signal the window's Undo/Redo reads
+- [x] Adopting every detection is one entry on the history
+- [x] Undo selects the image whose work it took back
+- [x] The audit table, in ADR-0077
+- [x] `make check` green — 1282 tests, golden byte-identical, mypy unchanged at 6
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `Backlog.md` (B-070), `PROJECT_CONTEXT.md`
+- [x] Commit: `M7-T08: one gesture, one undo — and the history says it moved`
 
 ---
 
 ## What it turned up
 
-**The task's own title was the decision.** *"Manual add/edit/delete of detections"* describes an
-operation this project deliberately cannot perform, and ADR-0044 had already written what to do
-instead — four milestones earlier, in the ADR that created `source`. Three pieces of M4 were waiting
-for exactly this task and none of them had ever been called: the `FROM_DETECTION` mark, and the
-update and remove commands.
+**Two of the three gaps had been written down by the tasks that made them.** M7-T02's own commit said
+the Undo menu's signal held *only* while every command mutated annotations; M7-T05 found the first
+command that did not and added a second signal beside the first. A third would have been the same
+mistake again — which is what makes this the task that pays the debt rather than the one that adds to
+it.
 
-**A blob detection has no box to adopt.** `bbox` is `None` on that path (ADR-0031), so the adopted
-annotation takes the square bounding the circle — which is not an invention this task made up but
-ADR-0044's own sentence: *"a circle converts to a box losslessly for training."* The rule was written
-down before the code that needed it.
+**Undo was being asked to do a delete button's job.** `remove_ruler` has had exactly one caller since
+M7-T05, `AddRuler.undo`, so a ruler measured four edits ago cannot be removed at all — and the one
+mechanism that reaches it also takes back the four edits after it. **B-070**, because deleting one
+needs the canvas selection annotations got in M7-T07 and rulers never did.
+
+**The cross-image gap was proved before it was fixed:** undoing a box drawn on the first scan while
+looking at the second left the operator on the second, with nothing changed on screen.

@@ -7,6 +7,54 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-17 — M7-T08 · **one gesture is one undo, and the history says it moved**
+
+**Task:** `M7-T08`. **ADR:** **ADR-0077**. **Filed:** **B-070**.
+
+### The decisions
+
+**The audit is the deliverable.** Every tool since M7-T02 already went through the command stack, so
+what this task owed was the *table*: ten mutating actions reachable from the window, each either an
+edit on the stack or not an edit with the ADR that decided so. *"Is everything undoable?"* is otherwise
+a question re-answered by grepping once a milestone.
+
+**The history announces itself.** `history_changed` on the session, emitted when a command runs, when
+the history steps, and when a project opens or closes — which clears the stack (ADR-0045). The window's
+Undo/Redo labels listen to that. **The stack still knows nothing but order**; what changed is that the
+session says so, because it is the only thing that runs commands.
+
+**One gesture is one undo.** `Composite` makes adopt-all one entry on the history, and a child that
+fails takes back the ones already done — `CommandStack.run` promises a command that raised is not on
+the history, and half a batch there is an edit nothing can reverse.
+
+**Undo goes to the work it undoes.** The history is per project and the layers are per image; each
+command now says which image it edited, and the session selects that scan before redrawing. The stack
+does not read it, so ADR-0045's rule is intact.
+
+### What it turned up
+
+**Two of the three gaps had already been written down by the tasks that made them** — M7-T02's note
+that the Undo menu's signal held only while every command mutated annotations, and M7-T05's discovery
+of the first command that did not. The third signal would have been the same mistake again, which is
+what makes this the task that pays it rather than the task that adds one more.
+
+**Undo was being asked to do a delete button's job.** `remove_ruler` has had one caller since
+M7-T05 — `AddRuler.undo` — so a ruler measured four edits ago cannot be removed at all, and the only
+mechanism that reaches it also takes back the four edits after it. Filed as **B-070**: deleting one
+needs the canvas selection annotations got in M7-T07 and rulers never did.
+
+**A test proved the cross-image gap before the fix existed:** undoing a box drawn on scan 1 while
+looking at scan 2 left the operator on scan 2 with nothing changed on screen.
+
+### Numbers
+
+18 tests (14 GUI, 4 unit), **1282** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M7-T09` — annotation export/import in a training-ready format, the first task M8 consumes
+directly.
+
+---
+
 ## 2026-08-14 — M7-T07 · **correcting the machine without rewriting what it did**
 
 **Task:** `M7-T07`. **ADR:** **ADR-0076**.

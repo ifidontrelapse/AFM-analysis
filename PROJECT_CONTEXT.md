@@ -61,7 +61,8 @@ AFM-analysis/
 │   │   ├── capabilities.py             # THE execution matrix: validated before inference, and
 │   │   │                               #   asked what a UI may offer (M6-T02)
 │   │   ├── jobs.py                     # JobRunner, cooperative cancel, progress (M4-T06)
-│   │   ├── commands.py                 # CommandStack + annotation commands (M4-T08)
+│   │   ├── commands.py                 # CommandStack + annotation commands (M4-T08),
+│   │   │                               #   Composite: one gesture is one undo (M7-T08)
 │   │   ├── settings.py                 # the merged view of two scopes (M4-T10), and the
 │   │   │                               #   keys more than one layer names (M5-T09)
 │   │   └── use_cases/                  # pipeline.py, preprocessing.py, projects.py (M4-T04),
@@ -103,12 +104,12 @@ AFM-analysis/
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings, device, log sinks — 738 tests
+│   │                                   #   commands, settings, device, log sinks — 778 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…M7-T07) — 336 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M7-T08) — 349 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them

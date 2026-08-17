@@ -37,6 +37,8 @@ from nanoscope.application.capabilities import DetectorOption
 from nanoscope.application.commands import (
     AddAnnotation,
     AddRuler,
+    Command,
+    Composite,
     RemoveAnnotation,
     UpdateAnnotation,
 )
@@ -73,6 +75,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from nanoscope.app.container import Nanoscope
+    from nanoscope.core.ports import ProjectRepository
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +136,14 @@ class SessionViewModel(QObject):
     #: Which annotation is selected — an id, or `None`. The edit tools act on
     #: it, and the canvas draws it thicker (M7-T07).
     annotation_selected = Signal(object)
+
+    #: The undo history moved: a command ran, or was taken back, or was
+    #: forgotten with its project. **This is what the Undo menu listens to.**
+    #: M7-T02 wired it to `annotations_changed` and wrote down why that was
+    #: allowed *only* while every command mutated annotations; M7-T05's ruler was
+    #: the first that did not, and a second signal was added beside the first.
+    #: A third would have been the same mistake again (M7-T08).
+    history_changed = Signal()
 
     #: A stored preference changed. Panels that read one re-read it; the signal
     #: carries no key, because every consumer so far reads exactly one and
@@ -309,6 +320,21 @@ class SessionViewModel(QObject):
         """What a person judged about the selected image."""
         return self._annotations
 
+    def _edit(self, command: Command) -> bool:
+        """Run one command, or say why it was refused. **The one way in.**
+
+        Every tool in M7 goes through the stack, and this is the funnel that
+        makes that checkable rather than a habit: a refusal becomes a sentence,
+        and a success announces that the history moved (M7-T08).
+        """
+        try:
+            self._app.commands.run(command)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return False
+        self.history_changed.emit()
+        return True
+
     #: How small a drag is discarded rather than refused. An operator who clicks
     #: by accident should get nothing at all, not an error dialog — and the
     #: repository *does* refuse a zero-area box, twice (ADR-0044, ADR-0071).
@@ -340,10 +366,7 @@ class SessionViewModel(QObject):
             (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)),
             label_text=label.strip(),
         )
-        try:
-            self._app.commands.run(command)
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        if not self._edit(command):
             return False
 
         logger.info("annotated %r", label.strip(), extra={"image_id": self._image_id})
@@ -372,10 +395,7 @@ class SessionViewModel(QObject):
             label_text=label.strip(),
             points=tuple(points),
         )
-        try:
-            self._app.commands.run(command)
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        if not self._edit(command):
             return False
 
         logger.info(
@@ -409,10 +429,7 @@ class SessionViewModel(QObject):
             label_text=label.strip(),
             mask=np.asarray(mask, dtype=bool),
         )
-        try:
-            self._app.commands.run(command)
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        if not self._edit(command):
             return False
 
         logger.info(
@@ -474,34 +491,60 @@ class SessionViewModel(QObject):
             self._refuse("an annotation needs a label: a box with no label is a rectangle")
             return False
 
-        detection = run.detections[index]
-        command = AddAnnotation(
-            repository,
-            self._image_id,
-            _detection_box(detection),
-            label_text=label.strip(),
-            source=AnnotationSource.FROM_DETECTION,
-        )
-        try:
-            self._app.commands.run(command)
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        adoption = self._adoption(repository, self._image_id, run.detections[index], label.strip())
+        if not self._edit(adoption):
             return False
 
         self.reload_annotations()
         return True
 
     def adopt_all_detections(self, *, label: str) -> int:
-        """Adopt every detection of the current run. Returns how many.
+        """Adopt every detection of the current run, as **one** edit.
 
         Reviewing forty detections means keeping thirty-eight and fixing two, so
-        the common case is one click rather than forty.
+        the common case is one click rather than forty — and **one gesture is one
+        undo**: forty entries on the history is a click nobody can take back
+        (M7-T08).
+
+        Returns:
+            How many were adopted, or 0 if the whole batch was refused.
         """
+        repository = self._app.repository
         run = self._run
-        if run is None:
+        if repository is None or run is None or self._image_id is None or not run.detections:
             return 0
-        return sum(
-            1 for index in range(len(run.detections)) if self.adopt_detection(index, label=label)
+        if not label.strip():
+            self._refuse("an annotation needs a label: a box with no label is a rectangle")
+            return 0
+
+        command = Composite(
+            [
+                self._adoption(repository, self._image_id, one, label.strip())
+                for one in run.detections
+            ],
+            label=f"adopt {len(run.detections)} detection(s)",
+        )
+        if not self._edit(command):
+            return 0
+
+        self.reload_annotations()
+        return len(run.detections)
+
+    @staticmethod
+    def _adoption(
+        repository: ProjectRepository, image_id: int, detection: Detection, label: str
+    ) -> AddAnnotation:
+        """One detection, as the annotation that would adopt it.
+
+        A blob detection has no `bbox` (ADR-0031), so the circle becomes the
+        square that bounds it — ADR-0044's own stated conversion.
+        """
+        return AddAnnotation(
+            repository,
+            image_id,
+            _detection_box(detection),
+            label_text=label,
+            source=AnnotationSource.FROM_DETECTION,
         )
 
     def rename_annotation(self, annotation_id: int, label: str) -> bool:
@@ -513,12 +556,7 @@ class SessionViewModel(QObject):
             self._refuse("an annotation needs a label: a box with no label is a rectangle")
             return False
 
-        try:
-            self._app.commands.run(
-                UpdateAnnotation(repository, annotation_id, label_text=label.strip())
-            )
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        if not self._edit(UpdateAnnotation(repository, annotation_id, label_text=label.strip())):
             return False
 
         self.reload_annotations()
@@ -529,10 +567,7 @@ class SessionViewModel(QObject):
         repository = self._app.repository
         if repository is None:
             return False
-        try:
-            self._app.commands.run(RemoveAnnotation(repository, annotation_id))
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        if not self._edit(RemoveAnnotation(repository, annotation_id)):
             return False
 
         if annotation_id == self._selected_annotation:
@@ -547,22 +582,35 @@ class SessionViewModel(QObject):
     def redo(self) -> bool:
         return self._history(self._app.commands.redo)
 
-    def _history(self, step: Callable[[], object]) -> bool:
-        """One step of the history, with the layer reloaded from the project.
+    def _history(self, step: Callable[[], Command | None]) -> bool:
+        """One step of the history, on the scan whose work it moved.
 
-        Reloaded rather than adjusted in place: the stack knows what it did, and
-        the project knows what is there — and after a failed undo those are the
-        same only if somebody re-reads (ADR-0045).
+        The layer is **reloaded** rather than adjusted in place: the stack knows
+        what it did, the project knows what is there, and after a failed undo
+        those agree only if somebody re-reads (ADR-0045).
+
+        **The scan comes first.** The history is per project and annotations are
+        per image, so taking back an edit made on another scan would otherwise
+        remove a row nobody can see and leave the window unchanged — an undo that
+        appears to do nothing. The command says which image it edited; the stack
+        still never asks (M7-T08).
         """
-        if step() is None:
+        command = step()
+        if command is None:
             return False
-        #: **Both**, because the stack does not say what a command touched.
-        #: M7-T02 wired the window's Undo label to `annotations_changed` while
-        #: every command mutated annotations; M7-T05's ruler is the first that
-        #: does not, and undoing one left the line on the canvas until this
-        #: reloaded rulers too (ADR-0074).
-        self.reload_annotations()
-        self.reload_rulers()
+        where = command.image_id
+        if where is not None and where != self._image_id:
+            #: `select_image` reloads both layers itself.
+            self.select_image(where)
+        else:
+            #: **Both**, because the stack does not say what a command touched.
+            #: M7-T02 wired the window's Undo label to `annotations_changed`
+            #: while every command mutated annotations; M7-T05's ruler is the
+            #: first that did not, and undoing one left the line on the canvas
+            #: until this reloaded rulers too (ADR-0074).
+            self.reload_annotations()
+            self.reload_rulers()
+        self.history_changed.emit()
         return True
 
     @property
@@ -611,10 +659,7 @@ class SessionViewModel(QObject):
         command = AddRuler(
             repository, self._image_id, start, end, kind=kind, label_text=label.strip()
         )
-        try:
-            self._app.commands.run(command)
-        except NanoscopeError as refusal:
-            self._refuse(str(refusal))
+        if not self._edit(command):
             return False
 
         stored = command.ruler
@@ -961,11 +1006,16 @@ class SessionViewModel(QObject):
         #: and image 3 of the old one is not image 3 of the new one.
         self._clear_image()
         self._set_project(opened)
+        #: Opening one project closes the other, and the history goes with it
+        #: (ADR-0045): a stack whose commands refer to a closed repository is
+        #: worse than no stack, so the menu must go dead as well.
+        self.history_changed.emit()
         return opened
 
     def close_project(self) -> None:
         self._app.close_project()
         self._set_project(None)
+        self.history_changed.emit()
 
     def refresh(self) -> None:
         """Re-read the open project — after a removal, or an import.

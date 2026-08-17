@@ -84,6 +84,7 @@ Use `TEMPLATE.md` for new records.
 | [0074](ADR-0074-a-ruler-is-not-an-annotation.md) | A ruler is not an annotation, and the word "measurement" is taken | Accepted | 2026-08-14 |
 | [0075](ADR-0075-a-profile-is-the-notebooks-slice-extended-with-a-stated-rule.md) | A profile is the notebook's slice, extended with a stated rule | Accepted | 2026-08-14 |
 | [0076](ADR-0076-a-detection-is-a-record-and-an-annotation-is-the-edit.md) | A detection is a record; an annotation is the edit | Accepted | 2026-08-14 |
+| [0077](ADR-0077-one-gesture-is-one-undo-and-the-history-says-it-moved.md) | One gesture is one undo, and the history says it moved | Accepted | 2026-08-17 |
 
 ## When to write one
 

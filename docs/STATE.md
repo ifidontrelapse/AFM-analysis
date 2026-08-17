@@ -1,6 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-13 · **Branch:** `feat/m5-gui-shell` · **Base commit:** `aceb5c7`
+**Last updated:** 2026-08-17 · **Branch:** `feat/m7-annotation-tools` · **Base commit:** `fca6d98`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -65,8 +65,24 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T07` done 2026-08-14 (ADR-0076); `M7-T08` — undo through every tool — is next,
-and it is now mostly an audit: every tool since M7-T02 already goes through the stack.**
+**None selected. `M7-T08` done 2026-08-17 (ADR-0077, filed B-070); `M7-T09` — annotation
+export/import in a training-ready format — is next, and it is the first task M8 consumes directly.**
+
+**`M7-T08` done 2026-08-17 (ADR-0077, filed B-070) — one gesture is one undo, and the history says it
+moved.** An audit, and **two of the three gaps it found were written down by the tasks that made
+them**: M7-T02 recorded that the window learned about the history from `annotations_changed` and that
+this held *only* while every command mutated annotations, M7-T05 found the first command that did not,
+and a third signal would have been the same mistake again — so `history_changed` is now what the Undo
+menu listens to. **Adopting forty detections cost forty undos**: `Composite` makes ADR-0076's one
+click one entry on the history, and a child that fails takes back the ones already done, because
+`CommandStack.run` promises a failed command is not on the history. **Undo now goes to the work it
+undoes** — the history is per project and the layers are per image, so undoing an edit made on another
+scan removed a row nobody could see; each command says which image it edited and **the stack still
+never asks** (ADR-0045 intact). The audit table is the deliverable: ten actions, each on the stack or
+not, with the ADR that decided it. **Found:** `remove_ruler` has had one caller since M7-T05 —
+`AddRuler.undo` — so a ruler four edits back cannot be deleted at all, and deleting one needs the
+canvas selection annotations got in M7-T07 and rulers never did (**B-070**). 18 tests, **1282** in the
+suite.
 
 **`M7-T07` done 2026-08-14 (ADR-0076) — correcting the machine without rewriting what it did.**
 **A detection is not edited**: it is what a detector produced in a run, and deleting one makes the
