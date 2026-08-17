@@ -7,6 +7,54 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-17 — M7-T10 · **what the numbers mean, and where two producers disagree**
+
+**Task:** `M7-T10`. **ADR:** **ADR-0079**. **Filed:** **B-071**, **B-072**. **M7's task list is
+complete** — ten tasks, ADR-0070…ADR-0079. Closing the milestone is the operator's call.
+
+### The decisions
+
+**One reference document, `docs/Measurements.md`**, because the questions an operator asks are about
+the *relationships* between producers — *is this height comparable to that one?* — and a docstring can
+only describe the function it sits on.
+
+**A test holds it to the schema.** Every column `measurement_columns()` can declare must be named in
+the document, and the document may name none the schema lacks. M5-T03's rule applied to prose: the
+rule and its enforcement ship together, or only the rule does. Deliberately about vocabulary and not
+sentences — a test that asserted paragraphs would be rewritten to match whatever the document said.
+
+**`height_nm` is one column and two estimators, and `method` is the discriminator.** Both are
+*peak − baseline*; the baseline producer's peak is over a circular mask built from the detector's
+sigma and falls back to the global substrate median, SAM2's is over the eroded real mask and skips the
+particle instead. `area_px` is the same trap, sharper: a detector's disk on one path, a measurement on
+the other.
+
+**The project reports radii, not diameters** — the task's own title says otherwise, and the honest
+answer is the conversion, not a column that is `2 ×` another one.
+
+### What it turned up
+
+**Two degenerate cases where a constant stands in for an undefined value**, the class ADR-0025 and
+ADR-0033 each removed once. Measured, not inferred: `aspect_ratio` reports **1.0 — the value meaning
+*a circle*** — for a one-pixel-wide line, because its minor axis is 0; `circularity` reports **12.57**
+for a single pixel, because a perimeter of 0 is replaced by 1.0. And a *correct* digitised disk of
+radius 10 scores **0.916**, which an operator reading "1.0 = perfect circle" would take for a finding
+about their sample. Filed as **B-071** with **B-072** beside it, and documented meanwhile — naming a
+number's defect where the reader meets the column is not endorsing it.
+
+**The block that carries both is outside the gate.** `circularity` and `aspect_ratio` are only
+produced by the SAM2 SEM/TEM path, which CI cannot run for want of weights — which is why two lines
+this obvious survived to the tenth task of the seventh milestone.
+
+### Numbers
+
+22 tests, **1327** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** the operator's call — close M7 and open **M8** (training), or take one of the open findings
+first. M7's own list has nothing left.
+
+---
+
 ## 2026-08-17 — M7-T09 · **annotations out and back, in the format the trainer reads**
 
 **Task:** `M7-T09`. **ADR:** **ADR-0078**. **M7's fourth exit criterion is met.**

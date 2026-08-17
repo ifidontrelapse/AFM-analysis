@@ -21,6 +21,7 @@ silently ignore it.
 | `docs/Progress.md` | Append-only session log | **Every session** |
 | `docs/Architecture.md` | Target architecture and layer contracts | On architectural change |
 | `docs/ProjectFormat.md` | The project directory format — a public contract (M4-T01) | On a format change, with a version bump |
+| `docs/Measurements.md` | What every measured number means (M7-T10) | On a schema or producer change; a test checks the columns |
 | `docs/Development.md` | Environment, commands, workflow | On tooling change |
 | `docs/ADR/` | One file per architectural decision | On every decision |
 | `docs/audit/` | Phase 0 audit + characterization baseline (historical, do not edit) | Frozen |

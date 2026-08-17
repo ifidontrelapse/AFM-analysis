@@ -1,68 +1,87 @@
 # CURRENT TASK
 
-**ID:** `M7-T09`
-**Title:** Annotation export/import in a training-ready format
-**Milestone:** M7 — Annotation & metrology tools, ninth task
-**Defect:** — · **ADR:** **ADR-0078**
+**ID:** `M7-T10`
+**Title:** Measurement semantics documented: height, diameter, distance, aspect ratio
+**Milestone:** M7 — Annotation & metrology tools, tenth and last task
+**Defect:** — · **ADR:** **ADR-0079**
 **Branch:** `feat/m7-annotation-tools`
 **Status:** **done 2026-08-17.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
+**M7's task list is complete; closing the milestone is the operator's call.**
 
 ---
 
 ## Why this task is next
 
-It is **M7's fourth exit criterion** — *"annotations export to a format the M8 dataset builder
-consumes"* — and the last thing standing between six milestones of hand work and the milestone that
-trains on it. Everything M7 built writes rows into one project directory; nothing can take them out,
-and nothing can bring labels in from the tools an operator already uses.
+It is the last task in M7, and the one the milestone earned: M7-T05 and M7-T06 added two outputs *no
+algorithm produced*, M7-T09 sent the boxes to a trainer, and M8 will compare a model against numbers
+whose definitions live in four producers' docstrings. **A column called `height_nm` is not a
+measurement until somebody writes down what it is the height of.**
 
-The reading that shapes the task: **an export of annotations is lossy and must say so.** A project row
-carries an outline, a painted mask, a note, an id, two timestamps and — the one M8 depends on — the
-`source` that says whether a person drew it or a detector did (ADR-0044). A YOLO label file carries a
-class index and four numbers.
+PROJECT_RULES §8 sets the standard this task has to clear: *"documentation that contradicts the code
+is worse than no documentation"* and *"do not claim a feature exists because a document mentions
+it — verify in source"*. So the work is reading the four producers and the two hand tools and writing
+down **what they actually compute**, including where they disagree.
 
 ---
 
 ## The decisions this task has to make
 
-**1. The format is YOLO's, because the trainer is ultralytics.**
+**1. One document, `docs/Measurements.md`.**
 
-`labels/<image stem>.txt`, one line per box, `class cx cy w h` normalised to the image and clamped to
-`[0, 1]`, beside a `classes.txt` whose line numbers *are* the class indices. It is what M8-T03 will
-train with, what labelImg, CVAT and Roboflow read and write, and therefore the one format that makes
-*export* and *import* the same decision instead of two.
+The semantics are spread across `measurement/schema.py`, `height.py`, `geometry.py`, `metrology.py`
+and the two SAM2 producers in `infrastructure`. A docstring can only describe the function it sits
+on, and the questions an operator actually asks — *is this height comparable to that one?* — are
+about the relationship between them.
 
-**2. `data.yaml` and the train/val split are M8-T02's, not this task's.**
+**2. The document is checked by a test.**
 
-A split is a *dataset* decision — how much to hold out, and stratified by what. Writing one here means
-M8-T02 arrives to find its main decision already made by a task that had no reason to make it.
+M5-T03's refrain: *the rule and its enforcement ship together, or only the rule does.* Every column
+`measurement_columns` can declare must appear in the document, and the document may name no column
+the schema does not have. A column added in M8 then fails a test instead of silently arriving
+undocumented.
 
-**3. Adopted boxes are a scope the menu names, not a default it hides.**
+**3. The project reports radii, not diameters.**
 
-ADR-0044 built `source` because *"a model trained on its own output is confirming itself"*, and an
-export that silently includes `from_detection` boxes is exactly how a training set stops being able to
-tell. Two menu items, named — ADR-0067's rule, one milestone on: *hand-drawn only*, and *everything*.
+The task's own title says *diameter*, and **there is no diameter column** — there is `radius_px` /
+`radius_nm` (the equivalent-area radius of a measured mask) and `detector_radius_nm` (what the
+detector that prompted the measurement thought). The document says so and gives the conversion, the
+way M7-T07 answered a title that named an operation this project does not perform.
 
-**4. An import cannot guess where the labels came from, so it asks.**
+**4. `height_nm` is one column and two estimators, and `method` is the discriminator.**
 
-A `.txt` file says nothing about who drew the box. M5-T07's dialog asks modality and pixel size for the
-same reason and *"invents neither"*; this asks the one question a label file cannot answer, and writes
-the file it came from into the annotation's `note`, so the provenance survives the trip.
+Both producers compute *peak − baseline*, and neither the peak nor the baseline is the same quantity:
 
-**5. An import is one edit, on the main thread.**
+- the baseline producer takes the peak over a **circular mask** built from the detector's sigma, and
+  falls back to the **global substrate median** when the ring is too small;
+- the SAM2 producer takes it over the **eroded real mask**, and **skips the particle** when the ring
+  is too small, so `baseline_source` is always `ring` on that path.
 
-Two hundred labels through `Composite` is one entry on the history and one `Ctrl+Z` (ADR-0077 §3) —
-the first caller of that class outside adoption. It does **not** run as a job: the command stack is
-deliberately not thread-safe, because undo is one person's sequence of actions (ADR-0045), and a job
-that edits is the one shape ADR-0043 and ADR-0045 agree must not exist. Export *is* a job: it reads
-every scan and writes files, and touches no history.
+Neither is wrong; a table that mixes them without saying so is.
 
-**6. What is refused, and what is only reported.**
+**5. What was measured is not what was detected.**
 
-A label file naming a class `classes.txt` does not have, or a coordinate outside `[0, 1]`, is a
-**refusal**: it is not describing this image. A label file with no image of that name is **reported**
-and skipped — ADR-0040's shape, because a directory holding labels for a bigger dataset is a normal
-thing to import from, not a corrupt one.
+Rows are dropped — a mask running off the edge, a non-positive height — so a measurement table is a
+subset of the detections (ADR-0033), `particle_id` has gaps, and **B-069** means the column indexes
+different things per producer. The document carries that warning where a reader meets the column.
+
+---
+
+## What reading the code turned up
+
+Two defects, both in the geometry block, both **filed rather than fixed** — they change scientific
+output, which needs operator sign-off (PROJECT_RULES §4.5), and PROJECT_RULES §4.4 forbids bundling a
+numerical fix into another commit:
+
+- **`aspect_ratio` reports `1.0` — the value that means *a circle* — for the most elongated mask
+  there is.** A one-pixel-wide line has a minor axis of 0, and the guard substitutes 1.0. Measured:
+  a 5×1 line comes back `aspect_ratio=1.0`.
+- **`circularity` returns 12.57 for a single pixel**, because a perimeter of 0 is replaced by 1.0.
+  Measured. And a *real* digitised disk of radius 10 scores **0.916**, not ~1.0, because skimage's
+  perimeter overestimates a rasterised circle — which an operator reading "1.0 = perfect circle"
+  will mistake for a finding about their sample.
+
+Both are the defect class this project has removed twice already: **a constant standing in for an
+undefined value** (ADR-0025 for scales, ADR-0033 for NaN heights).
 
 ---
 
@@ -70,50 +89,29 @@ thing to import from, not a corrupt one.
 
 **In scope**
 
-1. `application/use_cases/annotations.py` — `export_annotations`, `import_annotations`, and the two
-   pure functions that format and parse a line
-2. `core/ports/project_repository.py` + the SQLite adapter — `write_export_text`, since `write_export`
-   is a `DataFrame` and a `.csv` suffix
-3. `gui/viewmodels/session.py` — the export as a job, the import as one `Composite`
-4. `gui/dialogs/` — the one question an import cannot guess
-5. `gui/main_window.py` — two export items and an import item
-6. **ADR-0078**
-7. Tests: the line format exactly, normalisation and clamping, the source filter, a **round trip**,
-   the refusals, the report, one undo for an import, and the menu wiring
+1. `docs/Measurements.md` — every column, both hand tools, units, coordinate conventions, what is
+   dropped, and where two producers differ
+2. `tests/unit/test_measurement_docs.py` — the document against `measurement_columns`
+3. `docs/ProjectFormat.md` — one row pointing at the new document
+4. `docs/PROJECT_RULES.md` §0 — the document map gains a row
+5. **ADR-0079** — the vocabulary is a contract, and a document nothing checks is a document that drifts
+6. **B-071**, **B-072** filed
 
 **Out of scope**
 
-- **`data.yaml`, the train/val split, copying images** — M8-T02's dataset, by decision 2
-- **Exporting outlines or masks as segmentation labels** — a polygon's box is already stored beside
-  its outline (ADR-0072), so the box export loses nothing the row did not already carry; segmentation
-  labels wait for a trainer that asks for them
-- **COCO/VOC** — a second format with no caller (ADR-0041's rule)
+- **Fixing either defect** — operator sign-off, own commit, own ADR, own golden run (§4.4, §4.5)
+- **A user manual** — M9-T02. This document is a reference for the numbers, not a guide to the tool
+- **New measurements** (volume, tip deconvolution) — B-025, B-026
 
 ---
 
 ## Definition of done
 
-- [x] Annotations export as YOLO labels + `classes.txt` under `exports/`
-- [x] The same directory imports back, as annotations whose source the operator stated
-- [x] Hand-drawn and everything are two named scopes — **in the menu and in the directory name**
-- [x] ADR-0078 + the ADR index
-- [x] `make check` green — 1305 tests, golden byte-identical, mypy unchanged at 6
-- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [x] Commit: `M7-T09: annotations out and back, in the format the trainer reads`
-
----
-
-## What it turned up
-
-**Two exports a second apart landed in one directory.** The test written for the source filter found
-it: the hand-drawn label set and the everything set shared a timestamped name, so the file an operator
-would then have trained on held both. The timestamp keeps ADR-0048's promise across time; it took the
-**scope in the name** to keep it across the two menu items.
-
-**The M6-T02 name guard caught the viewmodel saying *YOLO*.** Which trainer reads these files is
-`application`'s business (PROJECT_RULES §2.5); the window offers *annotations*, in and out — and the
-guard, written for a detection panel two milestones ago, is what said so.
-
-**`write_export` could not be reused.** It takes a `DataFrame` and forces a `.csv`, and a label export
-is a directory of small text files — so `write_export_text` sits beside it, sanitising **per path
-component** because this one is allowed to name subdirectories.
+- [x] `docs/Measurements.md`, verified against the source function by function
+- [x] A test that fails when a column is added without documenting it — proved with `volume_nm3`
+- [x] ADR-0079 + the ADR index
+- [x] B-071 and B-072 filed with the measured values
+- [x] `make check` green — 1327 tests, golden byte-identical, mypy unchanged at 6
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_RULES.md`, `ProjectFormat.md`,
+      `PROJECT_CONTEXT.md`
+- [x] Commit: `M7-T10: what the numbers mean, and where two producers disagree`

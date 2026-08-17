@@ -65,8 +65,34 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T09` done 2026-08-17 (ADR-0078) and M7's fourth exit criterion is met;
-`M7-T10` — measurement semantics documented — is the last task in the milestone.**
+**None selected. `M7-T10` done 2026-08-17 (ADR-0079, filed B-071 and B-072), and M7's task list is
+complete — ten tasks, ADR-0070…ADR-0079. Closing the milestone is the operator's call**, as it was
+for M3, M4, M5 and M6.
+
+**M7's four exit criteria:** *undo/redo covers every mutating action including brush strokes* (M7-T08,
+audited), *a height profile matches the notebook* (M7-T06, asserted as **equality**), and *annotations
+export to a format the M8 dataset builder consumes* (M7-T09) are met. The first — *all seven
+annotation/measurement tools usable and persisted* — is met with **one tool declined by argument**:
+ADR-0071 refused the point tool because ADR-0044 stores one shape and refuses a zero-area one twice,
+so a point tool must invent an extent, and a point has no reader. Six tools ship; the seventh is a
+decision, not an omission.
+
+**`M7-T10` done 2026-08-17 (ADR-0079, filed B-071 and B-072) — what the numbers mean, and where two
+producers disagree.** `docs/Measurements.md`: every column, both hand tools, units and conventions,
+what is dropped and why. **The document is checked by a test** (M5-T03's rule applied to prose — every
+column `measurement_columns()` can declare must be named there, and no column it cannot), verified by
+adding a `volume_nm3` column and watching the suite go red on that name. **`height_nm` is one column
+and two estimators:** both are *peak − baseline*, but the baseline producer's peak is over a
+**circular mask from the detector's sigma** with a **global-median fallback**, and SAM2's is over the
+**eroded real mask** and **skips** the particle instead — `method` is the discriminator, and `area_px`
+is sharper still, a detector's disk on one path and a measurement on the other. **The project reports
+radii, not diameters**, the task's own title notwithstanding. **Found by reading the code:**
+`aspect_ratio` reports **1.0 — the value that means *a circle*** — for a mask with no minor axis
+(measured: a 5×1 line), and `circularity` reports **12.57** for a single pixel; a real digitised disk
+scores 0.916, not 1.0. Both are *a constant standing in for an undefined value*, the class ADR-0025
+and ADR-0033 each removed once — **filed as B-071**, not fixed, because they move stored numbers
+(§4.4, §4.5), with **B-072** for the deprecated skimage properties on the same expression. 22 tests,
+**1327** in the suite.
 
 **`M7-T09` done 2026-08-17 (ADR-0078) — annotations out and back, and the lossy part is the
 decision.** **M7's fourth exit criterion is met**: the labels are the trainer's own format —

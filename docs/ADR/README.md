@@ -86,6 +86,7 @@ Use `TEMPLATE.md` for new records.
 | [0076](ADR-0076-a-detection-is-a-record-and-an-annotation-is-the-edit.md) | A detection is a record; an annotation is the edit | Accepted | 2026-08-14 |
 | [0077](ADR-0077-one-gesture-is-one-undo-and-the-history-says-it-moved.md) | One gesture is one undo, and the history says it moved | Accepted | 2026-08-17 |
 | [0078](ADR-0078-the-export-is-lossy-and-the-lossy-part-is-the-decision.md) | The export is lossy, and the lossy part is the decision | Accepted | 2026-08-17 |
+| [0079](ADR-0079-the-measurement-vocabulary-is-a-contract-and-a-test-holds-it.md) | The measurement vocabulary is a contract, and a test holds it | Accepted | 2026-08-17 |
 
 ## When to write one
 

@@ -106,14 +106,16 @@ AFM-analysis/
 ├── tests/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
-│   │                                   #   commands, settings, device, log sinks — 778 tests
+│   │                                   #   commands, settings, device, log sinks,
+│   │                                   #   measurement docs vs schema (M7-T10) — 804 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
 │   ├── gui/                            # headless Qt tests (M5-T02…M7-T09) — 368 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
-├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat, ADR/, audit/
+├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat,
+│                                       #   Measurements (M7-T10), ADR/, audit/
 ├── notebooks/                          # experiments; nothing may import them
 ├── configs/sam2_hiera_b+.yaml          # SAM2 model configuration
 ├── checkpoints/ data/ dataset/         # local, git-ignored
