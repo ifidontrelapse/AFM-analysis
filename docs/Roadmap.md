@@ -239,7 +239,15 @@ statistics panel with histograms; CSV export UI; multi-image navigation within a
 
 ---
 
-## M7 — Annotation & metrology tools (active)
+## M7 — Annotation & metrology tools ✅
+
+**Closed 2026-08-17.** All ten tasks, ADR-0070…ADR-0079, **all four exit criteria met**, and the
+golden did not move once. Tests 1151 → **1327**, of which 368 are headless GUI tests. Milestone
+summary in `docs/Progress.md`. The first criterion is met with **one tool declined by argument**:
+ADR-0071 refused the point tool, because ADR-0044 stores one shape and refuses a zero-area one twice,
+so a point tool must invent an extent — and a point has no reader. Left open on purpose: **B-070** (a
+ruler cannot be deleted), **B-071** and **B-072** (the geometry block's degenerate cases, which move
+stored numbers and need an operator's view).
 
 **Goal.** The operator can correct the machine and measure by hand, GWYDDION-style.
 
@@ -259,7 +267,7 @@ output and get their own tests.
 
 ---
 
-## M8 — Training module
+## M8 — Training module (active)
 
 **Goal.** The operator's own annotations become a model, inside the application.
 

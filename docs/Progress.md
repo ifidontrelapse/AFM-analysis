@@ -7,6 +7,72 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-17 — **M7 closed**, and M8 opened
+
+**All ten tasks done. ADR-0070 through ADR-0079 — ten decisions in one milestone. All four exit
+criteria met. The golden file did not move once, and no task in this milestone touched a number.**
+
+M7 gave the operator hands: draw a box, an outline or a painted mask on a scan and have it survive a
+restart; measure a distance and read the heights under a line; adopt what the detector found instead
+of retyping it; take any of it back with one `Ctrl+Z`; and send the result to a trainer in the format
+the rest of the world labels in. Before it, the most expensive data in a project — the part that
+cannot be recomputed — was the only data with no representation on screen.
+
+### What the milestone kept saying
+
+**A tool is refused when the shape it needs does not exist.** ADR-0071 declined the point tool
+because ADR-0044 stores one shape and refuses a zero-area one twice, so a point tool must invent an
+extent, and ADR-0044 had already written the condition for revisiting that: *a shape a box cannot
+express, **with a reader***. Two tasks later M7-T03 met the condition exactly — a polygon — and the
+outline was stored **beside** the box rather than instead of it, so no existing reader changed and
+nothing migrated.
+
+**The word already in use is the one that decides.** M7-T05's line is not an annotation (no area) and
+not a *measurement* (that word belongs to what an analysis run produces), so it is a `ruler`.
+M7-T07's title said *edit a detection*, which this project deliberately cannot do — a run is a record
+of what happened — so the operation is **adoption**, and `AnnotationSource.FROM_DETECTION` got its
+first writer four milestones after it was defined. M7-T10's title said *diameter*, and there is no
+diameter column.
+
+**A debt written down is a debt somebody pays.** M7-T02 recorded that wiring the Undo menu to
+`annotations_changed` held only while every command mutated annotations; M7-T05's ruler ended that;
+M7-T08 replaced both with `history_changed` rather than adding a third. ADR-0077's `Composite` was
+built for adopt-all and became M7-T09's import a task later.
+
+**What the format cannot carry, the caller states.** ADR-0044's `source` cannot survive a label file,
+so the export names its scope in the menu **and in the directory name**; an import cannot know who
+drew a box, so it asks. The same rule that made M5-T07's dialog ask modality and scale.
+
+### The numbers
+
+Tests 1151 → **1327**, of which 368 are headless GUI tests. mypy unchanged at 6. Schema v5 → **v8**
+(polygon outlines, mask paths, rulers). **The golden is byte-identical across all ten tasks.**
+
+### What CI found when it was finally read
+
+M5 carried *"GUI smoke tests pass headless in CI"* as **unverified rather than unmet** for two
+milestones. The branch was pushed after M7-T10 and the run read: `ImportError: libEGL.so.1` —
+**every one of the 368 GUI tests errored at import**, and the job that was supposed to prove them had
+never run them. One package later the gate is green on the runner, 497 s including the golden. *A
+criterion recorded as unverified is not a weaker "met"; it is a claim with nothing behind it.*
+
+### Left open on purpose
+
+**B-070** — a ruler cannot be deleted; the only way to remove one is an undo that takes back
+everything after it, and deleting one needs the canvas selection annotations got in M7-T07.
+**B-071** — `aspect_ratio` reports `1.0` (the value meaning *a circle*) for a mask with no minor
+axis, and `circularity` reports 12.57 for a single pixel; both change stored numbers, so they need an
+operator's view. **B-072** — the deprecated skimage properties on the same expression. **B-069** is
+still open, and a polygon's vertices and a painted mask still cannot be edited after the fact
+(ADR-0076): the shapes are stored, and a vertex editor is a tool of its own that nothing has asked
+for.
+
+**Next:** `M8-T01` — the `TrainingProvider` port. ADR-0006 chose the seam in M0 and said why: a
+multi-hour, dataset-consuming, artifact-producing operation does not belong on the object used for
+per-image inference. M7-T09 built the dataset's input side; nothing produces a model yet.
+
+---
+
 ## 2026-08-17 — CI · **the criterion nobody had read was false**
 
 **Task:** none — the operator's call after M7-T10. **ADR:** none: a workflow that installs a library

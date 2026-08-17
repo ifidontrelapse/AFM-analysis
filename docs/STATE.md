@@ -1,6 +1,7 @@
 # STATE
 
-**Last updated:** 2026-08-17 · **Branch:** `feat/m7-annotation-tools` · **Base commit:** `fca6d98`
+**Last updated:** 2026-08-17 · **Branch:** `feat/m7-annotation-tools` (M7 closed here; M8's work
+starts on `feat/m8-training`) · **Base commit:** `f5c93be`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -9,13 +10,33 @@
 
 ## Current milestone
 
-**M7 — Annotation & metrology tools** (opened 2026-08-13)
+**M8 — Training module** (opened 2026-08-17)
 
-The operator corrects the machine and measures by hand. M4-T07 made an annotation a row **because it
-cannot be recomputed**, M4-T08 built undo around it, and nothing in a window has ever drawn one. The
-roadmap's own warning governs the milestone: **manual measurements are a new output**, and they get
-their own tests — the automatic paths keep the golden, and a distance an operator drags has nothing
-protecting it but a test somebody wrote.
+The operator's own annotations become a model, inside the application. **ADR-0006 chose the seam in
+M0 and said why:** training runs for hours instead of seconds, consumes a dataset rather than an
+image, produces artifacts and metrics rather than detections, must be cancellable, and may run on
+another machine — so it is a separate module behind `TrainingProvider`, never a `train()` method on
+the object used for per-image inference. The roadmap's warning governs it: **new models change
+detections by design**, and model comparison is reported through M3-T15's evaluation harness.
+
+M7-T09 built the dataset's input side; **nothing in this project produces a model yet.**
+
+**M7 closed 2026-08-17 — all ten tasks, ADR-0070…ADR-0079, and all four exit criteria.** The operator
+has hands: draw a box, an outline or a painted mask and find it tomorrow; measure a distance and read
+the heights under a line; adopt what the detector found instead of retyping it; take any of it back
+with one `Ctrl+Z`; and export it in the format the rest of the world labels in. Tests 1151 → **1327**
+(368 GUI), schema v5 → **v8**, mypy unchanged at 6, **the golden did not move once**. Four refrains:
+**a tool is refused when the shape it needs does not exist** (ADR-0071's point, and ADR-0072's polygon
+meeting ADR-0044's stated condition two tasks later); **the word already in use decides** (a `ruler`,
+an *adoption*, and no *diameter* column); **a debt written down is a debt somebody pays** (M7-T02's
+note → M7-T08's `history_changed`; ADR-0077's `Composite` → M7-T09's import); and **what the format
+cannot carry, the caller states**. The first criterion is met with the point tool **declined by
+argument**. Left open on purpose: **B-070**, **B-071**, **B-072**, and editing a polygon's vertices
+or a painted mask after the fact. Milestone summary in `docs/Progress.md`.
+
+### The milestone this one stands on
+
+**M7 — Annotation & metrology tools** ✅
 
 **M6 closed 2026-08-13 — all nine tasks, ADR-0061…ADR-0069, and all four exit criteria.** The
 pipeline is driveable: preprocess and look at any stage, detect with what the matrix allows, see the
@@ -65,9 +86,8 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T10` done 2026-08-17 (ADR-0079, filed B-071 and B-072), and M7's task list is
-complete — ten tasks, ADR-0070…ADR-0079. Closing the milestone is the operator's call**, as it was
-for M3, M4, M5 and M6.
+**`M8-T01` — the `TrainingProvider` port — is planned in `docs/CURRENT_TASK.md` and not started.
+M7 was closed by the operator on 2026-08-17**, as M3, M4, M5 and M6 were.
 
 **CI, 2026-08-17 (operator's call after M7-T10): the branch is pushed and the run is read.** M5's
 *"GUI smoke tests pass headless in CI"* had been carried as **unverified** for two milestones, and

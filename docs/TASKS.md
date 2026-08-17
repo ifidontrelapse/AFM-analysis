@@ -1,6 +1,6 @@
 # TASKS
 
-**Updated:** 2026-08-13 · **Active:** **M7 — Annotation & metrology tools**, with `M7-T01` current. **M6 closed 2026-08-13** — nine tasks, ADR-0061…ADR-0069, all four exit criteria. **M5 closed 2026-08-13** with all nine tasks done, ADR-0052…ADR-0060, and four of five exit criteria met; the fifth, *GUI smoke tests in CI*, was carried as unverified and **was read on 2026-08-17: unmet** — PySide6 links against `libEGL.so.1` even under `offscreen`, so all 368 GUI tests errored at import on a runner that never had it. One package later the gate is green on CI, and the criterion is met. **M4 closed 2026-08-12** with all fifteen tasks done, all six exit criteria met and ADR-0038…ADR-0051; the golden did not move once in fifteen tasks. M3 closed 2026-08-09 with 25 of 26 tasks done and all five exit criteria met (`M3-T19` last, 2026-08-09); `M3-T16` stays open and blocked on **B6**, and **B-062**, **B-065**, **B-066**, **B-067** stay in M3 as algorithm choices needing an operator's view. Every defect the July audit reproduced is closed except **D-24** (the stale README, M9). M5 left **W10 closable rather than closed** and **B-068** open
+**Updated:** 2026-08-17 · **Active:** **M8 — Training module**, with `M8-T01` next. **M7 closed 2026-08-17** — ten tasks, ADR-0070…ADR-0079, all four exit criteria, and the golden did not move once; its first criterion is met with the point tool **declined by argument** (ADR-0071), and **B-070**, **B-071**, **B-072** stay open. **M6 closed 2026-08-13** — nine tasks, ADR-0061…ADR-0069, all four exit criteria. **M5 closed 2026-08-13** with all nine tasks done, ADR-0052…ADR-0060, and four of five exit criteria met; the fifth, *GUI smoke tests in CI*, was carried as unverified and **was read on 2026-08-17: unmet** — PySide6 links against `libEGL.so.1` even under `offscreen`, so all 368 GUI tests errored at import on a runner that never had it. One package later the gate is green on CI, and the criterion is met. **M4 closed 2026-08-12** with all fifteen tasks done, all six exit criteria met and ADR-0038…ADR-0051; the golden did not move once in fifteen tasks. M3 closed 2026-08-09 with 25 of 26 tasks done and all five exit criteria met (`M3-T19` last, 2026-08-09); `M3-T16` stays open and blocked on **B6**, and **B-062**, **B-065**, **B-066**, **B-067** stay in M3 as algorithm choices needing an operator's view. Every defect the July audit reproduced is closed except **D-24** (the stale README, M9). M5 left **W10 closable rather than closed** and **B-068** open
 
 Full task breakdown per milestone. One task ≈ one branch ≈ one focused work session.
 Statuses: `[ ]` todo · `[~]` in progress · `[x]` done · `[!]` blocked · `[-]` dropped.
@@ -173,7 +173,7 @@ capability matrix says so**, not because a widget repeated the rule.
 
 ---
 
-## M7 — Annotation & metrology tools (in progress)
+## M7 — Annotation & metrology tools ✅ (closed 2026-08-17)
 
 **Opened 2026-08-13.** M4-T07 made an annotation a row **because it cannot be recomputed**, M4-T08
 built undo around it, and nothing in a window has ever drawn one. The milestone's own rule, from the
@@ -194,7 +194,7 @@ roadmap: manual measurements are a **new output**, and they get their own tests.
 
 ---
 
-## M8 — Training module
+## M8 — Training module (in progress)
 
 | ID | Task | Status |
 |---|---|---|
