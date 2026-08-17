@@ -7,6 +7,50 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-17 — M7-T09 · **annotations out and back, in the format the trainer reads**
+
+**Task:** `M7-T09`. **ADR:** **ADR-0078**. **M7's fourth exit criterion is met.**
+
+### The decisions
+
+**The format is the trainer's.** `labels/<stem>.txt` with `class cx cy w h` normalised to the image,
+and a `classes.txt` whose line numbers are the indices. What M8-T03 trains with, and what every
+labelling tool in this ecosystem reads and writes — which is what makes export and import one decision
+rather than two formats that drift apart.
+
+**`data.yaml` and the train/val split are M8-T02's.** A split is a dataset decision, and writing one
+here means the next milestone finds its central choice already made by a task with no reason to make
+it.
+
+**What the format cannot carry, the caller chooses.** A polygon exports as the box the row already
+stores beside its outline (ADR-0072), so nothing is lost that the row did not lose first. `source` is
+the exception ADR-0044 built: two named menu items, hand-drawn only and everything, because an export
+that quietly includes adopted boxes is how a training set stops being able to tell.
+
+**An import is told what it cannot know**, the way M5-T07's dialog asks modality and scale, and the
+directory it came from is written into the note. It is **one `Composite`** — ADR-0077's second caller,
+one task later — and it runs on the main thread, because the command stack is single-threaded by
+decision (ADR-0045).
+
+### What it turned up
+
+**Two exports a second apart landed in one directory.** The test that asserted the source filter found
+it: a hand-drawn label set and an everything set mixed in the file an operator would then have trained
+on — the timestamp keeps ADR-0048's promise across time, and it took the scope in the name to keep it
+across the two menu items.
+
+**The M6-T02 name guard caught the viewmodel saying *YOLO*.** Which trainer reads these files is
+`application`'s business; the window offers *annotations*, in and out (PROJECT_RULES §2.5).
+
+### Numbers
+
+19 tests, **1305** in the suite; golden byte-identical; mypy unchanged at 6.
+
+**Next:** `M7-T10` — measurement semantics documented (height, diameter, distance, aspect ratio), the
+last task in the milestone.
+
+---
+
 ## 2026-08-17 — M7-T08 · **one gesture is one undo, and the history says it moved**
 
 **Task:** `M7-T08`. **ADR:** **ADR-0077**. **Filed:** **B-070**.

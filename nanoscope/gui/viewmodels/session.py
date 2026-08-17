@@ -911,6 +911,93 @@ class SessionViewModel(QObject):
         self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
         return self._job
 
+    def export_annotations(self, *, hand_drawn_only: bool) -> Job | None:
+        """Write the project's annotations as label files under `exports/` (M7-T09).
+
+        Args:
+            hand_drawn_only: exclude the boxes adopted from a detector. Named by
+                the caller rather than defaulted, because *a model trained on its
+                own output is confirming itself* (ADR-0044) and an export that
+                quietly includes them is how a training set stops being able to
+                tell.
+
+        Returns:
+            The handle, or `None` with no project or something already running. A
+            project with nothing drawn is **not** pre-empted here: the use case
+            says so in a sentence (ADR-0048's rule, as for the CSV).
+        """
+        repository = self._app.repository
+        if repository is None or self.is_busy:
+            return None
+
+        sources = (AnnotationSource.MANUAL,) if hand_drawn_only else None
+
+        def work(context: JobContext) -> use_cases.AnnotationExport:
+            context.report(0, 0, "collecting annotations")
+            return use_cases.export_annotations(repository, sources=sources)
+
+        name = "Exporting hand-drawn annotations" if hand_drawn_only else "Exporting annotations"
+        self._job = self._app.jobs.submit(name, work, listener=self.job_changed.emit)
+        return self._job
+
+    def import_annotations(self, directory: Path | str, *, source: AnnotationSource) -> int:
+        """Read labels from a directory, as **one** edit on the history.
+
+        Not a job, and the reason is the history: the command stack is
+        deliberately not thread-safe, because undo is one person's sequence of
+        actions (ADR-0045), and a background thread pushing onto it is two people
+        editing one project through one history. So this runs where the edits
+        belong — and it is one `Composite`, so two hundred labels are one
+        `Ctrl+Z` (ADR-0077 §3).
+
+        Args:
+            directory: where the labels are, with or without a `labels/` inside.
+            source: **stated, never guessed.** A `.txt` file says nothing about
+                who drew the box, and this is the field M8 depends on.
+
+        Returns:
+            How many annotations were created. The label files that named no
+            image of this project are *reported* through `reported`, not raised
+            (ADR-0040): a directory of labels for a larger dataset is a normal
+            thing to import from.
+        """
+        repository = self._app.repository
+        if repository is None:
+            return 0
+
+        try:
+            matched, skipped, classes = use_cases.read_labels(directory, repository.list_images())
+            commands: list[Command] = []
+            for record, text in matched:
+                height, width = load_for_display(repository, record.id).data.shape[:2]
+                commands.extend(
+                    AddAnnotation(
+                        repository,
+                        record.id,
+                        box,
+                        label_text=label,
+                        source=source,
+                        note=f"imported from {Path(directory).name}",
+                    )
+                    for label, box in use_cases.parse_labels(
+                        text, classes, width=width, height=height
+                    )
+                )
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return 0
+
+        if not commands:
+            self._refuse(f"no labels here name an image of this project: {directory}")
+            return 0
+        if not self._edit(Composite(commands, label=f"import {len(commands)} label(s)")):
+            return 0
+
+        logger.info("imported %d label(s) from %s as %s", len(commands), directory, source.value)
+        self.reload_annotations()
+        self.reported.emit(_imported(len(commands), len(matched), skipped))
+        return len(commands)
+
     def _clear_preview(self) -> None:
         """A preview belongs to the scan it was computed from.
 
@@ -1147,6 +1234,14 @@ class SessionViewModel(QObject):
             return
         self._settled = job
 
+        if job.state is JobState.SUCCEEDED and isinstance(job.result, use_cases.AnnotationExport):
+            logger.info("%s finished: %s", job.name, job.result.directory)
+            self.reported.emit(
+                f"Exported {job.result.boxes} box(es) over {job.result.images} scan(s) "
+                f"to {job.result.directory}"
+            )
+            return
+
         if job.state is JobState.SUCCEEDED and isinstance(job.result, str):
             #: The path the export went to, relative to the project root — the
             #: one thing an operator needs after asking for a file they never
@@ -1241,6 +1336,17 @@ class SessionViewModel(QObject):
     def _refuse(self, message: str) -> None:
         logger.error("%s", message)
         self.failed.emit(message)
+
+
+def _imported(boxes: int, images: int, skipped: Sequence[tuple[str, str]]) -> str:
+    """What an import did, including what it left alone (M7-T09).
+
+    The skipped files are counted rather than swallowed, for the reason an
+    import report exists at all: a batch that quietly does part of the job is one
+    an operator finds out about later (ADR-0041).
+    """
+    line = f"Imported {boxes} label(s) over {images} scan(s)"
+    return line if not skipped else f"{line}; {len(skipped)} file(s) named no image here"
 
 
 def _summarise(report: ImportReport | None, *, cancelled: bool) -> str:

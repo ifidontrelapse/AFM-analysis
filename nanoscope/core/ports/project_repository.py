@@ -208,6 +208,17 @@ class ProjectRepository(Protocol):
         """
         ...
 
+    def write_export_text(self, relative_name: str, text: str) -> str:
+        """Write one text file into `exports/`, returning its path from the root.
+
+        Beside `write_export` rather than inside it: that one is a `DataFrame`
+        and a `.csv` name, and a YOLO export is a directory of small text files
+        with one class list beside them (M7-T09). `relative_name` may name
+        subdirectories with `/`; the adapter is what decides they stay inside
+        `exports/`.
+        """
+        ...
+
     def register_model(self, descriptor: ModelDescriptor) -> ModelDescriptor:
         """Record a model this project can use."""
         ...

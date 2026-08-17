@@ -85,6 +85,7 @@ Use `TEMPLATE.md` for new records.
 | [0075](ADR-0075-a-profile-is-the-notebooks-slice-extended-with-a-stated-rule.md) | A profile is the notebook's slice, extended with a stated rule | Accepted | 2026-08-14 |
 | [0076](ADR-0076-a-detection-is-a-record-and-an-annotation-is-the-edit.md) | A detection is a record; an annotation is the edit | Accepted | 2026-08-14 |
 | [0077](ADR-0077-one-gesture-is-one-undo-and-the-history-says-it-moved.md) | One gesture is one undo, and the history says it moved | Accepted | 2026-08-17 |
+| [0078](ADR-0078-the-export-is-lossy-and-the-lossy-part-is-the-decision.md) | The export is lossy, and the lossy part is the decision | Accepted | 2026-08-17 |
 
 ## When to write one
 

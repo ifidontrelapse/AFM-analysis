@@ -65,8 +65,25 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**None selected. `M7-T08` done 2026-08-17 (ADR-0077, filed B-070); `M7-T09` — annotation
-export/import in a training-ready format — is next, and it is the first task M8 consumes directly.**
+**None selected. `M7-T09` done 2026-08-17 (ADR-0078) and M7's fourth exit criterion is met;
+`M7-T10` — measurement semantics documented — is the last task in the milestone.**
+
+**`M7-T09` done 2026-08-17 (ADR-0078) — annotations out and back, and the lossy part is the
+decision.** **M7's fourth exit criterion is met**: the labels are the trainer's own format —
+`labels/<stem>.txt` with `class cx cy w h` normalised, and a `classes.txt` whose line numbers *are*
+the indices — so export and import are one decision instead of two formats that drift. **`data.yaml`
+and the train/val split are not written**: a split is a dataset decision (how much to hold out,
+stratified by what) and belongs to M8-T02 rather than to the task that happened to write the labels
+first. **What the format cannot carry, the caller chooses:** an outline exports as the box the row
+already stores beside it (ADR-0072), and `source` becomes **two named menu items** — hand-drawn only,
+and everything — because ADR-0044 made that distinction load-bearing and an export that quietly
+includes adopted boxes is how a training set stops being able to tell. **An import is told where the
+labels came from** (M5-T07's dialog shape, one milestone on) and is **one `Composite`**, so two
+hundred labels are one `Ctrl+Z` — ADR-0077's second caller, a task later. **Found:** two exports a
+second apart landed in **one** directory, mixing a hand-drawn label set with an everything set in the
+file an operator would then have trained on — the scope is in the directory name now; and the M6-T02
+name guard caught the viewmodel saying *YOLO*, which is `application`'s word, not the window's. 19
+tests, **1305** in the suite.
 
 **`M7-T08` done 2026-08-17 (ADR-0077, filed B-070) — one gesture is one undo, and the history says it
 moved.** An audit, and **two of the three gaps it found were written down by the tasks that made

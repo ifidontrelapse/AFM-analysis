@@ -36,7 +36,7 @@ from contextlib import suppress
 from dataclasses import replace
 from datetime import UTC, datetime
 from functools import wraps
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import TracebackType
 from typing import Any, Self, cast
 
@@ -869,6 +869,30 @@ class SqliteProjectRepository:
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / safe
         table.to_csv(path, index=False)
+        return path.relative_to(self._root).as_posix()
+
+    @_serialised
+    def write_export_text(self, relative_name: str, text: str) -> str:
+        """Write one text file under `exports/`, and return its path from the root.
+
+        Same division as `write_export` (M4-T11): the use case decides what goes
+        in the file, this decides where it may land. Each component of the name
+        is reduced the same way, so a `..` or an absolute path from a caller
+        cannot write outside the project — the check `write_export` makes by
+        flattening the name, made once per component because a YOLO export is a
+        directory (M7-T09).
+        """
+        parts = [
+            re.sub(r"[^\w.\- ]+", "_", part).strip(" .") or "_"
+            for part in PurePosixPath(relative_name).parts
+            if part not in ("", ".", "/")
+        ]
+        if not parts:
+            parts = ["export.txt"]
+
+        path = self._root / _EXPORTS_DIRECTORY / PurePosixPath(*parts)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
         return path.relative_to(self._root).as_posix()
 
     @_serialised

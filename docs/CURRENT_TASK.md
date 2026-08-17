@@ -1,9 +1,9 @@
 # CURRENT TASK
 
-**ID:** `M7-T08`
-**Title:** Undo/redo wired through every tool
-**Milestone:** M7 — Annotation & metrology tools, eighth task
-**Defect:** — · **ADR:** **ADR-0077**
+**ID:** `M7-T09`
+**Title:** Annotation export/import in a training-ready format
+**Milestone:** M7 — Annotation & metrology tools, ninth task
+**Defect:** — · **ADR:** **ADR-0078**
 **Branch:** `feat/m7-annotation-tools`
 **Status:** **done 2026-08-17.** The record is in `docs/Progress.md` and `docs/TASKS.md`.
 
@@ -11,71 +11,58 @@
 
 ## Why this task is next
 
-Every tool M7 built already goes through the command stack — M7-T02 wrote that rule and M7-T03,
-M7-T04, M7-T05 and M7-T07 kept it. So the task is **an audit**, and an audit's value is the gaps it
-finds. It found three, and two of them were written down by the tasks that created them:
+It is **M7's fourth exit criterion** — *"annotations export to a format the M8 dataset builder
+consumes"* — and the last thing standing between six milestones of hand work and the milestone that
+trains on it. Everything M7 built writes rows into one project directory; nothing can take them out,
+and nothing can bring labels in from the tools an operator already uses.
 
-1. **Nothing tells the window that the *history* moved.** M7-T02 wired the Undo menu to
-   `annotations_changed` and said in its own commit that this works *only* while every command
-   mutates annotations; M7-T05's ruler ended that and added `rulers_changed` beside it. The next
-   command that touches neither breaks it silently, and the debt names this task as the payer.
-2. **Adopting forty detections costs forty undos.** `adopt_all_detections` runs one command per
-   detection, so the one-click workflow ADR-0076 built needs `Ctrl+Z` forty times to take back.
-3. **Undo can edit a scan nobody is looking at.** The stack is per project, annotations are per
-   image, and `_history` reloads the *selected* image — so undoing an edit made on another scan
-   removes a row the operator cannot see and the screen does not change.
+The reading that shapes the task: **an export of annotations is lossy and must say so.** A project row
+carries an outline, a painted mask, a note, an id, two timestamps and — the one M8 depends on — the
+`source` that says whether a person drew it or a detector did (ADR-0044). A YOLO label file carries a
+class index and four numbers.
 
 ---
 
 ## The decisions this task has to make
 
-**1. The audit is the deliverable, and it is a table.**
+**1. The format is YOLO's, because the trainer is ultralytics.**
 
-Every mutating action reachable from the window is either an **edit** (on the stack) or **not an
-edit** (and says why). Written down, because "is everything undoable?" is a question that gets
-re-asked every milestone and answered by grepping.
+`labels/<image stem>.txt`, one line per box, `class cx cy w h` normalised to the image and clamped to
+`[0, 1]`, beside a `classes.txt` whose line numbers *are* the class indices. It is what M8-T03 will
+train with, what labelImg, CVAT and Roboflow read and write, and therefore the one format that makes
+*export* and *import* the same decision instead of two.
 
-| Action | On the stack | Why |
-|---|---|---|
-| Draw a box / outline / mask | yes | `AddAnnotation` (M7-T02, T03, T04) |
-| Draw a ruler / profile line | yes | `AddRuler` (M7-T05) |
-| Adopt a detection, adopt all | yes | `AddAnnotation` marked `from_detection` (M7-T07) |
-| Rename, delete an annotation | yes | `UpdateAnnotation`, `RemoveAnnotation` (M7-T07) |
-| Import images | no | Work, not an edit: it copies files (ADR-0043 vs ADR-0045) |
-| Run an analysis | no | A run is a **record of what happened** (ADR-0042, ADR-0076 §1) |
-| Remove an image | no | Deliberate, with a dialog instead (ADR-0045, ADR-0055) |
-| Export a CSV | no | Produces a file outside the project's state |
-| Change a setting | no | ADR-0047's scopes; a preference is not an edit to the work |
-| Select an image, run, particle, box | no | Selection is not a mutation |
+**2. `data.yaml` and the train/val split are M8-T02's, not this task's.**
 
-**2. The history announces itself.**
+A split is a *dataset* decision — how much to hold out, and stratified by what. Writing one here means
+M8-T02 arrives to find its main decision already made by a task that had no reason to make it.
 
-A `history_changed` signal on the session, emitted whenever a command runs and whenever the history
-steps. The window listens to *that* for its Undo/Redo labels, not to `annotations_changed`. The stack
-still knows nothing but order (ADR-0045) — what changed is that the *session* says so, because it is
-the only thing that runs commands.
+**3. Adopted boxes are a scope the menu names, not a default it hides.**
 
-**3. One gesture is one undo.**
+ADR-0044 built `source` because *"a model trained on its own output is confirming itself"*, and an
+export that silently includes `from_detection` boxes is exactly how a training set stops being able to
+tell. Two menu items, named — ADR-0067's rule, one milestone on: *hand-drawn only*, and *everything*.
 
-A `Composite` command holds several edits and reverses them in reverse order. `adopt_all_detections`
-becomes one entry on the history labelled *"adopt 40 detection(s)"*. A child that fails takes back
-the ones already done and re-raises, because `CommandStack.run` promises that a command which failed
-is not on the history — half an adoption on the history is worse than none.
+**4. An import cannot guess where the labels came from, so it asks.**
 
-**4. Undo goes to the work it undoes.**
+A `.txt` file says nothing about who drew the box. M5-T07's dialog asks modality and pixel size for the
+same reason and *"invents neither"*; this asks the one question a label file cannot answer, and writes
+the file it came from into the annotation's `note`, so the provenance survives the trip.
 
-Each command says which image it edited. The session reads it off the command the stack hands back
-and selects that image before redrawing. **The stack still does not learn what a command is:** it
-never reads `image_id`; the session does, and only because it is the layer that owns the selection.
-The alternative — leaving it — is an undo that silently edits a scan off screen, which is the
-`M6-T08` standard restated: a review that lies about where it is is worse than one that is slow.
+**5. An import is one edit, on the main thread.**
 
-**5. A ruler cannot be deleted, and undo is not a delete button.**
+Two hundred labels through `Composite` is one entry on the history and one `Ctrl+Z` (ADR-0077 §3) —
+the first caller of that class outside adoption. It does **not** run as a job: the command stack is
+deliberately not thread-safe, because undo is one person's sequence of actions (ADR-0045), and a job
+that edits is the one shape ADR-0043 and ADR-0045 agree must not exist. Export *is* a job: it reads
+every scan and writes files, and touches no history.
 
-`remove_ruler` exists on the repository with `AddRuler.undo` as its only caller. Removing the third
-of five rulers needs a ruler *selection* on the canvas, which M7-T05 did not build. Filed as
-**B-070** rather than smuggled in here: undo is for taking back what you just did, and using it as
-the only way to remove anything is the workflow that loses the four rulers after it.
+**6. What is refused, and what is only reported.**
+
+A label file naming a class `classes.txt` does not have, or a coordinate outside `[0, 1]`, is a
+**refusal**: it is not describing this image. A label file with no image of that name is **reported**
+and skipped — ADR-0040's shape, because a directory holding labels for a bigger dataset is a normal
+thing to import from, not a corrupt one.
 
 ---
 
@@ -83,48 +70,50 @@ the only way to remove anything is the workflow that loses the four rulers after
 
 **In scope**
 
-1. `application/commands.py` — `Composite`, and `image_id` on the `Command` protocol
-2. `gui/viewmodels/session.py` — `history_changed`, one funnel for running a command, undo/redo that
-   follows the edit to its image
-3. `gui/main_window.py` — the Undo/Redo labels from `history_changed`
-4. **ADR-0077** — the audit, and the three gaps it closed
-5. Tests: every tool puts exactly one entry on the history and announces it; adopt-all undoes in one
-   step; a failing child leaves nothing behind; undo across images selects the scan it edited;
-   closing a project empties the history and the menu says so
-6. **B-070** filed
+1. `application/use_cases/annotations.py` — `export_annotations`, `import_annotations`, and the two
+   pure functions that format and parse a line
+2. `core/ports/project_repository.py` + the SQLite adapter — `write_export_text`, since `write_export`
+   is a `DataFrame` and a `.csv` suffix
+3. `gui/viewmodels/session.py` — the export as a job, the import as one `Composite`
+4. `gui/dialogs/` — the one question an import cannot guess
+5. `gui/main_window.py` — two export items and an import item
+6. **ADR-0078**
+7. Tests: the line format exactly, normalisation and clamping, the source filter, a **round trip**,
+   the refusals, the report, one undo for an import, and the menu wiring
 
 **Out of scope**
 
-- **Deleting a ruler** — B-070, and it needs a canvas selection first
-- **Persisting the history** — ADR-0045 refused it with an argument that still holds
-- **Undoing an import, a run or an image removal** — each is a decision already made and recorded
+- **`data.yaml`, the train/val split, copying images** — M8-T02's dataset, by decision 2
+- **Exporting outlines or masks as segmentation labels** — a polygon's box is already stored beside
+  its outline (ADR-0072), so the box export loses nothing the row did not already carry; segmentation
+  labels wait for a trainer that asks for them
+- **COCO/VOC** — a second format with no caller (ADR-0041's rule)
 
 ---
 
 ## Definition of done
 
-- [x] `history_changed` is the signal the window's Undo/Redo reads
-- [x] Adopting every detection is one entry on the history
-- [x] Undo selects the image whose work it took back
-- [x] The audit table, in ADR-0077
-- [x] `make check` green — 1282 tests, golden byte-identical, mypy unchanged at 6
-- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `Backlog.md` (B-070), `PROJECT_CONTEXT.md`
-- [x] Commit: `M7-T08: one gesture, one undo — and the history says it moved`
+- [x] Annotations export as YOLO labels + `classes.txt` under `exports/`
+- [x] The same directory imports back, as annotations whose source the operator stated
+- [x] Hand-drawn and everything are two named scopes — **in the menu and in the directory name**
+- [x] ADR-0078 + the ADR index
+- [x] `make check` green — 1305 tests, golden byte-identical, mypy unchanged at 6
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M7-T09: annotations out and back, in the format the trainer reads`
 
 ---
 
 ## What it turned up
 
-**Two of the three gaps had been written down by the tasks that made them.** M7-T02's own commit said
-the Undo menu's signal held *only* while every command mutated annotations; M7-T05 found the first
-command that did not and added a second signal beside the first. A third would have been the same
-mistake again — which is what makes this the task that pays the debt rather than the one that adds to
-it.
+**Two exports a second apart landed in one directory.** The test written for the source filter found
+it: the hand-drawn label set and the everything set shared a timestamped name, so the file an operator
+would then have trained on held both. The timestamp keeps ADR-0048's promise across time; it took the
+**scope in the name** to keep it across the two menu items.
 
-**Undo was being asked to do a delete button's job.** `remove_ruler` has had exactly one caller since
-M7-T05, `AddRuler.undo`, so a ruler measured four edits ago cannot be removed at all — and the one
-mechanism that reaches it also takes back the four edits after it. **B-070**, because deleting one
-needs the canvas selection annotations got in M7-T07 and rulers never did.
+**The M6-T02 name guard caught the viewmodel saying *YOLO*.** Which trainer reads these files is
+`application`'s business (PROJECT_RULES §2.5); the window offers *annotations*, in and out — and the
+guard, written for a detection panel two milestones ago, is what said so.
 
-**The cross-image gap was proved before it was fixed:** undoing a box drawn on the first scan while
-looking at the second left the operator on the second, with nothing changed on screen.
+**`write_export` could not be reused.** It takes a `DataFrame` and forces a `.csv`, and a label export
+is a directory of small text files — so `write_export_text` sits beside it, sanitising **per path
+component** because this one is allowed to name subdirectories.

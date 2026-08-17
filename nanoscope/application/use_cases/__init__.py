@@ -15,6 +15,12 @@ test, in M2-T15.
 """
 
 from nanoscope.application.use_cases.analysis import run_analysis
+from nanoscope.application.use_cases.annotations import (
+    AnnotationExport,
+    export_annotations,
+    parse_labels,
+    read_labels,
+)
 from nanoscope.application.use_cases.export import export_measurements
 from nanoscope.application.use_cases.metrology import ruler_length, ruler_profile
 from nanoscope.application.use_cases.pipeline import run_pipeline
@@ -32,14 +38,18 @@ from nanoscope.application.use_cases.statistics import (
 )
 
 __all__ = [
+    "AnnotationExport",
     "PreprocessingParams",
     "Summary",
+    "export_annotations",
     "export_measurements",
     "histogram",
     "import_images",
     "numeric_columns",
     "open_project",
+    "parse_labels",
     "preprocess_image",
+    "read_labels",
     "ruler_length",
     "ruler_profile",
     "run_analysis",

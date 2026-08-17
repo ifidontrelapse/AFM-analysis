@@ -28,7 +28,7 @@ from PySide6.QtWidgets import QDockWidget, QFileDialog, QLabel, QMainWindow, QMe
 
 from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.gui.dialogs import ImportOptions, SettingsDialog
+from nanoscope.gui.dialogs import ImportOptions, LabelSource, SettingsDialog
 from nanoscope.gui.panels import (
     AnnotatePanel,
     DetectionPanel,
@@ -249,6 +249,32 @@ class MainWindow(QMainWindow):
         self.export_all_action.triggered.connect(lambda: self.export(everything=True))
         self.export_all_action.setEnabled(False)
 
+        #: Two items rather than one with a hidden default, ADR-0067's rule one
+        #: milestone on — and here the scope is what keeps a training set honest:
+        #: boxes adopted from a detector are the model's own output (ADR-0044).
+        self.export_hand_drawn_action = QAction("Export &Hand-Drawn Annotations…", self)
+        self.export_hand_drawn_action.setToolTip(
+            "Only the boxes a person drew. A model trained on boxes copied from "
+            "its own output is confirming itself."
+        )
+        self.export_hand_drawn_action.triggered.connect(
+            lambda: self.export_annotations(hand_drawn_only=True)
+        )
+        self.export_hand_drawn_action.setEnabled(False)
+
+        self.export_annotations_action = QAction("Export All A&nnotations…", self)
+        self.export_annotations_action.setToolTip(
+            "Every annotation, including the ones adopted from a detector."
+        )
+        self.export_annotations_action.triggered.connect(
+            lambda: self.export_annotations(hand_drawn_only=False)
+        )
+        self.export_annotations_action.setEnabled(False)
+
+        self.import_annotations_action = QAction("Import Anno&tations…", self)
+        self.import_annotations_action.triggered.connect(self.choose_labels)
+        self.import_annotations_action.setEnabled(False)
+
         edit_menu = self.menuBar().addMenu("&Edit")
         self.undo_action = QAction("&Undo", self)
         self.undo_action.setShortcut("Ctrl+Z")
@@ -276,6 +302,10 @@ class MainWindow(QMainWindow):
         #: meant one of them is one somebody uses wrong once (ADR-0067).
         file_menu.addAction(self.export_run_action)
         file_menu.addAction(self.export_all_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.export_hand_drawn_action)
+        file_menu.addAction(self.export_annotations_action)
+        file_menu.addAction(self.import_annotations_action)
         file_menu.addSeparator()
         file_menu.addAction(self.settings_action)
         file_menu.addAction(quit_action)
@@ -335,6 +365,27 @@ class MainWindow(QMainWindow):
         self.session.export(everything=everything)
         self._update_actions()
 
+    def export_annotations(self, *, hand_drawn_only: bool) -> None:
+        """Write the labels. Which scope, the menu item already said (M7-T09)."""
+        self.session.export_annotations(hand_drawn_only=hand_drawn_only)
+        self._update_actions()
+
+    def choose_labels(self) -> None:
+        """Ask which directory, then the one question the files cannot answer.
+
+        Two dialogs because they are two questions, and the second one is the
+        provenance M8 depends on — asked once for the batch, like the modality of
+        an image import (ADR-0041, M5-T07).
+        """
+        directory = QFileDialog.getExistingDirectory(self, "Import Annotations")
+        if not directory:
+            return
+
+        dialog = LabelSource(self)
+        if dialog.exec() != LabelSource.DialogCode.Accepted:
+            return
+        self.session.import_annotations(directory, source=dialog.choice())
+
     def open_project(self, project_dir: Path | str) -> OpenedProject | None:
         """Open a project through the session, and say what happened.
 
@@ -392,6 +443,9 @@ class MainWindow(QMainWindow):
         self.remove_action.setEnabled(not busy and self.session.image_id is not None)
         self.export_run_action.setEnabled(not busy and self.session.run is not None)
         self.export_all_action.setEnabled(not busy and has_project)
+        self.export_hand_drawn_action.setEnabled(not busy and has_project)
+        self.export_annotations_action.setEnabled(not busy and has_project)
+        self.import_annotations_action.setEnabled(not busy and has_project)
 
         #: Labelled by *what they would take back*: "Undo" alone makes an
         #: operator press it to find out (M4-T08 wrote the labels for this).
