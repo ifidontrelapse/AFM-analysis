@@ -69,6 +69,16 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 complete — ten tasks, ADR-0070…ADR-0079. Closing the milestone is the operator's call**, as it was
 for M3, M4, M5 and M6.
 
+**CI, 2026-08-17 (operator's call after M7-T10): the branch is pushed and the run is read.** M5's
+*"GUI smoke tests pass headless in CI"* had been carried as **unverified** for two milestones, and
+the first run to execute it found it **unmet**: `ImportError: libEGL.so.1` — PySide6 links against it
+even under `offscreen`, and `ubuntu-latest` does not ship it, so **every one of the 368 GUI tests
+errored at import** while the job that was supposed to prove them had never run them. One `apt-get`
+package, named by the failure rather than guessed, and the gate is green on the runner: 497 s, the
+whole suite including the golden. **The lesson is the one M5 wrote and could not act on:** a criterion
+recorded as *unverified* is not a weaker *met* — it is a claim with nothing behind it, and this one
+was false for two milestones.
+
 **M7's four exit criteria:** *undo/redo covers every mutating action including brush strokes* (M7-T08,
 audited), *a height profile matches the notebook* (M7-T06, asserted as **equality**), and *annotations
 export to a format the M8 dataset builder consumes* (M7-T09) are met. The first — *all seven
@@ -304,11 +314,14 @@ looking; and the `gui/` import guard refused `core.science.DEFAULT_OPENING_SCALE
 chance. 26 tests, **1056** in the suite, **golden byte-identical**.
 
 **`M5-T09` done 2026-08-13 (ADR-0060), and M5's task list is complete** — nine
-tasks, ADR-0052…ADR-0060. **Three of five exit criteria are ticked.** The fourth, *"GUI smoke tests
-pass headless in CI"*, **cannot be verified from this machine**: CI installs PySide6 and runs
-`make test` (141 GUI tests, offscreen), but the branch is unpushed and no run has been read. The
-fifth was met in M5-T06. **Closing the milestone is the operator's call**, as it was for M3 and M4;
-what is left in M5's own list is nothing.
+tasks, ADR-0052…ADR-0060. **Four of five exit criteria were ticked; the fifth was met in M5-T06.**
+The fourth, *"GUI smoke tests pass headless in CI"*, was recorded as **unverified rather than
+unmet** — CI installs PySide6 and runs `make test` offscreen, but the branch was unpushed and no run
+had been read. **Read on 2026-08-17, and it was unmet:** PySide6 links against `libEGL.so.1` even
+under `QT_QPA_PLATFORM=offscreen`, `ubuntu-latest` does not ship it, and **all 368 GUI tests errored
+at import**. One package, named by the failure, and the next run is green — 497 s, the whole suite
+and the golden ([run 32060558851](https://github.com/ifidontrelapse/AFM-analysis/actions/runs/32060558851)).
+**The criterion is now met and verified.**
 
 **`M5-T09` done 2026-08-13 (ADR-0060) — a settings dialog that says whose setting it is.** It
 collects an obligation **M4-T10 wrote into a docstring** — `Settings.scope_of` exists *"to say this

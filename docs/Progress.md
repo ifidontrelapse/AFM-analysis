@@ -7,6 +7,41 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-17 — CI · **the criterion nobody had read was false**
+
+**Task:** none — the operator's call after M7-T10. **ADR:** none: a workflow that installs a library
+the runner lacks decides nothing (the M3-T18 precedent).
+
+### What happened
+
+The branch was pushed for the first time and the run was read. M5 recorded its exit criterion *"GUI
+smoke tests pass headless in CI"* as **unverified rather than unmet**, because the branch was unpushed
+and no run had been looked at; it stayed that way through M6 and M7, while the suite grew from 141 GUI
+tests to 368.
+
+**The first run to execute them failed at import, every one of them:**
+`ImportError: libEGL.so.1: cannot open shared object file`. PySide6's wheels bundle Qt but link
+against a few of the runner's own libraries, and `QT_QPA_PLATFORM=offscreen` does not change that;
+`ubuntu-latest` does not ship `libegl1`. So for three milestones the job that was supposed to prove
+the GUI ran headless had never run the GUI at all — and it was green throughout, because collection
+errors in the GUI directory were the only thing failing and nobody had pushed a branch to see it.
+
+**One package, named by the failure**, not a guessed set: a larger install would hide the next real
+dependency behind something that happened to pull it in. The next run is green — 497 s, the whole
+suite including the characterization golden, on the runner
+([32060558851](https://github.com/ifidontrelapse/AFM-analysis/actions/runs/32060558851)).
+
+### What was learned
+
+**A criterion recorded as *unverified* is not a weaker version of *met*.** It is a claim with nothing
+behind it, and this one was false for two milestones — cheaply falsifiable the whole time by one
+`git push`. M5 was right to refuse to tick it and wrong to leave it; the rule worth keeping is that
+*unverified* is a task, not a status.
+
+**Next:** the operator's call — close M7 and open M8, or take one of B-070…B-072 first.
+
+---
+
 ## 2026-08-17 — M7-T10 · **what the numbers mean, and where two producers disagree**
 
 **Task:** `M7-T10`. **ADR:** **ADR-0079**. **Filed:** **B-071**, **B-072**. **M7's task list is
