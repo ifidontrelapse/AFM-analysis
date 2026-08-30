@@ -80,17 +80,23 @@ def test_a_refused_project_does_not_stop_the_window_opening(
     assert app.repository is None
 
 
-def _launched_window(before: set[int]) -> MainWindow:
+def _launched_window(before: list[MainWindow]) -> MainWindow:
     """The window `run` just made, told apart from any left over by an earlier test.
 
     Not `QApplication.activeWindow()`: offscreen keeps previous tests' windows
-    alive and one of them answers that question, which made this assertion read
-    a different window's state.
+    alive and one of them answers that question, which had this reading a
+    different window's state.
+
+    `before` holds the widgets themselves rather than their `id()`s, which was
+    the first attempt and is a trap: CPython reuses an address once the object
+    at it is collected, so a genuinely new window could be "seen before". Keeping
+    the references also keeps them alive, which is what makes the comparison mean
+    anything.
     """
     fresh = [
         widget
         for widget in QApplication.topLevelWidgets()
-        if isinstance(widget, MainWindow) and id(widget) not in before
+        if isinstance(widget, MainWindow) and all(widget is not old for old in before)
     ]
     assert len(fresh) == 1, fresh
     return fresh[0]
@@ -98,7 +104,7 @@ def _launched_window(before: set[int]) -> MainWindow:
 
 def _maximised_during_run(app: Nanoscope) -> bool:
     """Run the loop, and report whether the window it showed came up maximised."""
-    before = {id(widget) for widget in QApplication.topLevelWidgets()}
+    before = [w for w in QApplication.topLevelWidgets() if isinstance(w, MainWindow)]
     seen: list[bool] = []
     QTimer.singleShot(
         50,
@@ -124,10 +130,11 @@ def test_a_first_run_is_maximised(app: Nanoscope) -> None:
     assert _maximised_during_run(app)
 
 
-def test_a_stored_size_is_not_overridden(app: Nanoscope) -> None:
-    """A window layout is a preference (ADR-0047): an operator who sized the
-    window and closed it gets that size back, not a window that maximises
-    itself every launch."""
-    MainWindow(app).save_layout()
-
-    assert not _maximised_during_run(app)
+# There is no launcher test for the *other* branch — a stored size that fits, so
+# `run` calls `show()` rather than `showMaximized()`. It cannot be staged here:
+# the offscreen platform's screen is 800x800 and this window's minimum is taller
+# than that once the theme is applied, so on this platform the application is
+# always right to maximise. The decision itself is
+# `MainWindow._reject_a_layout_that_does_not_fit`, and
+# `tests/gui/test_main_window.py` states both of its outcomes with the sizes
+# written out; what is left here is the two-line `if` that reads the answer.

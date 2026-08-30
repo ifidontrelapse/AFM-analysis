@@ -81,6 +81,11 @@ it, and the answer decides which reader runs:
 | **AFM** | `.npy` | nobody records one, so state it in the dialog or it stays unknown |
 | **SEM / TEM** | `.jpg`, `.png`, `.tif` — anything OpenCV reads | state it in the dialog, or it stays unknown |
 
+**If the window comes up in a bad shape**, the layout is a preference stored in
+`~/.config/nanoscope/settings.json` under `window.geometry` and `window.state` (ADR-0047). Delete
+those two keys and the application starts from its own layout; it also does that for you when a
+stored one needs more room than the screen has.
+
 A JPEG imported as **AFM** is refused: it has no height data, and the viewer says so beside the
 empty canvas. Re-import it as SEM or TEM. Physical values are absent rather than wrong when the
 scale is unknown (ADR-0025) — `unknown` is a legitimate answer, `0` is not.

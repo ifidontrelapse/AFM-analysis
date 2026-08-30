@@ -119,8 +119,29 @@ refused and loads fine as SEM, but the reason went to the status bar while the c
 blank, which reads as a broken application. A label beside the empty canvas now says why, and only
 when there is nothing to draw. **The gate's blind spot, again:** nothing tested `afm_format` at all,
 so no test could notice two modules answering one question differently, and every fixture in the
-suite is `.npy` or synthetic `.spm` — the two extensions the map already knew. 21 tests, **1421** in
-the suite.
+suite is `.npy` or synthetic `.spm` — the two extensions the map already knew.
+
+**Then the window: the maximise fix had not helped, and the bottom of the application was
+off-screen.** The second half was the diagnosis — *a window whose bottom cannot be clicked is bigger
+than the screen*, which no maximise fixes. Measured off the operator's own settings and display:
+screen **2048x1152**, stored geometry **1025x1797**, and the restored window's `minimumSizeHint`
+**883x1785** against **883x811** for the layout this application ships. The geometry was a **false
+lead** — Qt 6's `restoreGeometry` already clamps a stored size, proved by a test that refused to
+fail. **The cause is the stored dock layout:** `restoreState` puts the docks back *untabbed*, and the
+five right-hand panels stacked vertically ask for 1 464 px of minimum height before the canvas has
+any; `_build_docks` tabifies them, and a tabbed group asks for the tallest instead of the sum. A
+window is never smaller than its layout's minimum, so the status bar and three docks were below the
+edge of the monitor. **The rule: a stored layout that cannot be reached with a mouse is not
+restored** — the layout falls back to `apply_default_layout()` (extracted from `_build_docks` so it
+can be applied twice), the size is clamped, and `save_layout` writes the working one back on close,
+so it self-heals. **The tests had to be rewritten to mean anything:** `test_launcher` applies the
+theme to the shared `QApplication`, after which this window no longer fits the offscreen 800x800
+screen, so three guard tests passed alone and failed in `tests/gui`; the guard now takes the
+available size as an argument and the tests state the operator's numbers. One pre-existing test
+**skips** rather than asserting conditionally. **The gate, third time today:** every GUI test builds a
+`MainWindow` and none asks whether it fits on anything — the suite has no notion of a screen, so a
+layout needing 1 785 px was not a failing test but no test at all. 27 tests, **1421** in the suite
+(one skipped).
 M7 was closed by the operator on 2026-08-17, as M3, M4, M5 and M6 were.
 
 **`M8-T01` done 2026-08-30 (ADR-0080) — what a training run is, before anything trains.**

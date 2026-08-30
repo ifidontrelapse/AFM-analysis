@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -205,8 +206,21 @@ class TestTheLayoutIsRemembered:
         has an 800x600 virtual screen, and the docks' minimum sizes grow as
         panels arrive — M6-T05's table pushed the minimum width past 640, which
         turned an absolute assertion into an order-dependent one. What the test
-        means is that the second window matches the first."""
+        means is that the second window matches the first.
+
+        A **third** clamp arrived on 2026-08-30 and it is the reason for the skip:
+        a stored layout that does not fit the screen is deliberately not restored
+        (`_reject_a_layout_that_does_not_fit`), and whether this window fits the
+        offscreen platform's 800x800 depends on whether an earlier test has
+        applied the theme. Skipped rather than made conditional, because an
+        assertion that cannot fail is worse than one that does not run — and the
+        decision it would be reaching for is stated with explicit sizes in
+        `test_a_layout_that_fits_is_left_alone`.
+        """
         first = MainWindow(app)
+        available = first.screen().availableGeometry().size()  # type: ignore[union-attr]
+        if first.minimumSizeHint().height() > available.height():
+            pytest.skip("this window does not fit this screen, so the layout guard owns the case")
         first.resize(640, 480)
         saved = (first.width(), first.height())
         first.save_layout()
@@ -230,11 +244,68 @@ class TestTheLayoutIsRemembered:
         """The flag the launcher reads to decide whether to maximise."""
         assert not MainWindow(app).restored_geometry
 
-    def test_a_window_that_restored_a_size_says_so(self, app: Nanoscope) -> None:
-        first = MainWindow(app)
-        first.save_layout()
+    def test_a_dock_layout_too_tall_for_the_screen_is_not_restored(self, app: Nanoscope) -> None:
+        """The defect that made the application unusable, found 2026-08-30.
 
-        assert MainWindow(app).restored_geometry
+        `restoreState` puts the docks back exactly as they were, **including
+        untabbed**, and the five right-hand panels side by side vertically ask
+        for more minimum height than a screen has. A window is never smaller
+        than its layout's minimum, so no size and no maximise helps: the bottom
+        of it — the status bar, a running job's progress, three docks — sits
+        below the edge of the monitor and cannot be clicked.
+
+        Measured on the machine that found it: a minimum of **883x1785** against
+        a **2048x1152** screen, where the layout this application ships asks for
+        **883x811**. Those are the numbers the test states, because the
+        offscreen platform's own screen is smaller than this window's minimum
+        and could not stage the other outcome.
+        """
+        window = MainWindow(app)
+        for dock in window._right:
+            window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        untabbed = window.minimumSizeHint().height()
+        assert not window.tabifiedDockWidgets(window._right[0]), "the premise: they are apart"
+
+        window._reject_a_layout_that_does_not_fit(QSize(2048, 1152))
+
+        assert window.minimumSizeHint().height() < untabbed
+        assert window.minimumSizeHint().height() <= 1152
+        assert window.tabifiedDockWidgets(window._right[0]), (
+            "the fallback is the layout this application ships, which is the tabbed one"
+        )
+
+    def test_the_geometry_goes_with_it(self, app: Nanoscope) -> None:
+        """The second half, and the reason the first is not enough.
+
+        Qt's `restoreGeometry` clamps a stored *size* to the available screen on
+        its own — that part is not this project's to assert. What it does not
+        clamp is the **minimum**, so a window carrying the layout above is
+        oversized whatever geometry was stored, and putting the docks back is
+        not finished until the window is a size that fits too.
+        """
+        window = MainWindow(app)
+        window.restored_geometry = True
+        window.resize(3000, 3000)
+
+        window._reject_a_layout_that_does_not_fit(QSize(2048, 1152))
+
+        assert window.width() <= 2048
+        assert window.height() <= max(1152, window.minimumSizeHint().height())
+        assert not window.restored_geometry, "so the launcher maximises it"
+
+    def test_a_layout_that_fits_is_left_alone(self, app: Nanoscope) -> None:
+        """The guard is not "always start over": a layout and a size that fit
+        the screen come back untouched. A layout is a preference (ADR-0047)."""
+        window = MainWindow(app)
+        window.restored_geometry = True
+        window.resize(900, 900)
+        tabbed = window.minimumSizeHint()
+
+        window._reject_a_layout_that_does_not_fit(QSize(2048, 1152))
+
+        assert window.restored_geometry
+        assert (window.width(), window.height()) == (900, 900)
+        assert window.minimumSizeHint() == tabbed
 
     def test_an_unreadable_geometry_is_not_a_restored_one(self, app: Nanoscope) -> None:
         """Unreadable is not "stored": the fallback is the default layout, which

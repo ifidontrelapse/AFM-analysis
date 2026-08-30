@@ -22,7 +22,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QByteArray, Qt
+from PySide6.QtCore import QByteArray, QSize, Qt
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox
 
@@ -136,52 +136,36 @@ class MainWindow(QMainWindow):
         project_dock = QDockWidget(PROJECT_DOCK, self)
         project_dock.setObjectName("dock.project")
         project_dock.setWidget(self.explorer)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, project_dock)
 
         self.properties = PropertiesPanel(self.session, self)
         properties_dock = QDockWidget(PROPERTIES_DOCK, self)
         properties_dock.setObjectName("dock.properties")
         properties_dock.setWidget(self.properties)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, properties_dock)
 
         self.preprocessing = PreprocessingPanel(self.session, self)
         preprocessing_dock = QDockWidget(PREPROCESSING_DOCK, self)
         preprocessing_dock.setObjectName("dock.preprocessing")
         preprocessing_dock.setWidget(self.preprocessing)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, preprocessing_dock)
-        #: Tabbed with Properties rather than stacked: they answer different
-        #: questions about the same scan, and both want the height.
-        self.tabifyDockWidget(properties_dock, preprocessing_dock)
-        properties_dock.raise_()
 
         self.detection = DetectionPanel(self.session, self)
         detection_dock = QDockWidget(DETECTION_DOCK, self)
         detection_dock.setObjectName("dock.detection")
         detection_dock.setWidget(self.detection)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, detection_dock)
-        self.tabifyDockWidget(preprocessing_dock, detection_dock)
-        properties_dock.raise_()
 
         self.measurements = MeasurementsPanel(self.session, self)
         measurements_dock = QDockWidget(MEASUREMENTS_DOCK, self)
         measurements_dock.setObjectName("dock.measurements")
         measurements_dock.setWidget(self.measurements)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, measurements_dock)
 
         self.statistics = StatisticsPanel(self.session, self)
         statistics_dock = QDockWidget(STATISTICS_DOCK, self)
         statistics_dock.setObjectName("dock.statistics")
         statistics_dock.setWidget(self.statistics)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, statistics_dock)
-        self.tabifyDockWidget(detection_dock, statistics_dock)
 
         self.annotate = AnnotatePanel(self.session, self)
         annotate_dock = QDockWidget(ANNOTATE_DOCK, self)
         annotate_dock.setObjectName("dock.annotate")
         annotate_dock.setWidget(self.annotate)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, annotate_dock)
-        self.tabifyDockWidget(statistics_dock, annotate_dock)
-        properties_dock.raise_()
         #: The tool drives the canvas, and the canvas hands back what was drawn —
         #: both through the window that owns them, never panel to panel
         #: (ADR-0057).
@@ -199,8 +183,6 @@ class MainWindow(QMainWindow):
         profile_dock = QDockWidget(PROFILE_DOCK, self)
         profile_dock.setObjectName("dock.profile")
         profile_dock.setWidget(self.profile)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, profile_dock)
-        self.tabifyDockWidget(measurements_dock, profile_dock)
 
         self.log = LogPanel(self.log_stream, self)
         self.log_dock = QDockWidget(LOG_DOCK, self)
@@ -209,11 +191,57 @@ class MainWindow(QMainWindow):
         #: Looking at it is what marks it read, so the count resets on the
         #: signal Qt already emits for that.
         self.log_dock.visibilityChanged.connect(self._log_visibility_changed)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
-        #: Tabbed with the log: both are things one reads *after* a run, and the
-        #: bottom of the window has room for one of them at a time.
-        self.tabifyDockWidget(measurements_dock, self.log_dock)
-        measurements_dock.raise_()
+
+        #: Where each dock goes when nobody has moved it, kept so the layout can
+        #: be applied a **second** time — `_restore_layout` falls back to it when
+        #: a stored one cannot fit the screen.
+        self._right = (
+            properties_dock,
+            preprocessing_dock,
+            detection_dock,
+            statistics_dock,
+            annotate_dock,
+        )
+        self._bottom = (measurements_dock, profile_dock, self.log_dock)
+        self._left = (project_dock,)
+        self.apply_default_layout()
+
+    def apply_default_layout(self) -> None:
+        """Put every dock back where the application puts it.
+
+        Applied when the window is built, and **again** when a stored layout
+        turns out not to fit the screen — which is why it is a method rather
+        than a run of `addDockWidget` calls inline in `_build_docks`.
+
+        **The right-hand panels are tabbed, not stacked**, and that is the whole
+        of why the default fits: they answer different questions about the same
+        scan and each wants the height, so five of them side by side vertically
+        ask for 1 464 px before the canvas has any. Tabbed, the group asks for
+        the tallest one. Measured on the machine that found this: 811 px of
+        minimum height against 1 785 for the same five untabbed.
+        """
+        for docks, area in (
+            (self._left, Qt.DockWidgetArea.LeftDockWidgetArea),
+            (self._right, Qt.DockWidgetArea.RightDockWidgetArea),
+            (self._bottom, Qt.DockWidgetArea.BottomDockWidgetArea),
+        ):
+            for dock in docks:
+                #: A restored layout may have left it floating or hidden, and
+                #: `addDockWidget` alone does not undo either.
+                dock.setFloating(False)
+                dock.setVisible(True)
+                self.addDockWidget(area, dock)
+
+        for group in (self._right, self._bottom):
+            for dock in group[1:]:
+                self.tabifyDockWidget(group[0], dock)
+
+        #: Properties on top of the right-hand stack: it describes the scan that
+        #: was just selected, which is the question asked first.
+        self._right[0].raise_()
+        #: Measurements on top of the bottom one, for the same reason one task
+        #: later — it is what a finished run produces.
+        self._bottom[0].raise_()
 
     def _build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -526,6 +554,10 @@ class MainWindow(QMainWindow):
         **The decision to maximise instead is the launcher's**, because it is a
         decision about *showing* the window, and a constructor that shows itself
         is one a test cannot build offscreen without one appearing.
+
+        **A stored layout that does not fit the screen is not restored.** See
+        `_reject_a_layout_that_does_not_fit`, which runs after both halves are
+        back, because it is the restored dock state that decides the minimum.
         """
         for key, restore in (
             (GEOMETRY_SETTING, self.restoreGeometry),
@@ -537,6 +569,80 @@ class MainWindow(QMainWindow):
                     self.restored_geometry = self.restored_geometry or key == GEOMETRY_SETTING
                 else:
                     logger.info("ignoring an unreadable stored %s", key)
+
+        self._reject_a_layout_that_does_not_fit()
+
+    def _reject_a_layout_that_does_not_fit(self, available: QSize | None = None) -> None:
+        """A stored layout that cannot be reached with a mouse is not restored.
+
+        Two stored values, two ways to be unreachable, one rule. Both were live
+        on an operator's machine on 2026-08-30, and the second is the one that
+        made the application unusable:
+
+        **The dock layout.** `restoreState` puts the docks back exactly as they
+        were, including *untabbed*, and five right-hand panels side by side
+        vertically ask for 1 464 px of minimum height before the canvas has any.
+        Measured there: a **minimum** of 883x1785 against a 2048x1152 screen. A
+        window cannot be smaller than its layout's minimum, so it does not
+        matter what size it is given or whether it is maximised — the bottom of
+        it, with the status bar, the progress of a running job and three docks
+        in it, is below the edge of the monitor and cannot be clicked. The
+        remedy is the layout this application ships, which asks for 811.
+
+        **The geometry.** `restoreGeometry` restores a size saved on whatever
+        display was in use last, and Qt clamps the *position* onto a screen
+        rather than shrinking the *size* to one. That machine's `settings.json`
+        held 1025x1797, written when the monitor reported 4096x2304 at a device
+        pixel ratio of 1 and read back after it began reporting half that at a
+        ratio of 2. Nothing was corrupt; Qt restored what it was given.
+
+        Height and width both, and size only: on Wayland the compositor owns
+        placement and a client's idea of its own position is not something to
+        decide from, while a window that is too *big* is unreachable everywhere.
+
+        Neither is a corruption, so neither is an error — `save_layout` writes
+        the working layout back on close, and the next launch restores that.
+
+        Args:
+            available: the room there is, for a test that needs to state it.
+                Defaults to the screen's, which is what the application uses —
+                and the reason the parameter exists is that the offscreen test
+                platform's screen is smaller than this window's own minimum, so
+                a test that took its numbers from there could only ever stage
+                one of the two outcomes.
+        """
+        if available is None:
+            screen = self.screen()
+            if screen is None:  # pragma: no cover — a built window always has one
+                return
+            available = screen.availableGeometry().size()
+
+        needed = self.minimumSizeHint()
+        if needed.height() > available.height() or needed.width() > available.width():
+            logger.info(
+                "the stored dock layout needs %dx%d and the screen is %dx%d; "
+                "using the default layout instead",
+                needed.width(),
+                needed.height(),
+                available.width(),
+                available.height(),
+            )
+            self.apply_default_layout()
+
+        if self.width() > available.width() or self.height() > available.height():
+            logger.info(
+                "the stored geometry is %dx%d and the screen is %dx%d; ignoring it",
+                self.width(),
+                self.height(),
+                available.width(),
+                available.height(),
+            )
+            #: Resized as well as un-restored, so that *un*-maximising later
+            #: gives a window that fits rather than putting the operator back
+            #: into the state this method exists to leave. Qt clamps it up to
+            #: the window's own minimum, which is the honest floor.
+            self.resize(available)
+            self.restored_geometry = False
 
     def save_layout(self) -> None:
         """Remember where things are, in the operator's settings and not the project's.

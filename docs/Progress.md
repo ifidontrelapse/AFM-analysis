@@ -7,6 +7,87 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-30 — the window was never the problem; the stored dock layout was
+
+The operator came back with *"still not maximised, and the bottom of the application is off-screen —
+I cannot reach it with the mouse"*. The second half is the one that mattered: **a window whose bottom
+edge cannot be clicked is not a window that failed to maximise, it is a window bigger than the
+screen**, and this morning's fix could not have helped. 6 tests, **1421** in the suite (one skipped).
+Delta: **zero, golden byte-identical**.
+
+### What it actually was, measured rather than guessed
+
+Read off the operator's own `~/.config/nanoscope/settings.json` and their live display:
+
+```
+screen (logical)                 2048 x 1152   (4096x2304 at a device pixel ratio of 2)
+window.geometry as stored        1025 x 1797   frame 1047x1857 at (-11, -49), maximized flag 0
+window minimumSizeHint, restored  883 x 1785
+window minimumSizeHint, default   883 x  811
+```
+
+Two findings in those four lines, and the first one was a false lead. The stored *geometry* is
+1797 px tall on a 1152 px screen — but Qt 6's `restoreGeometry` already clamps a stored size to the
+available screen, which a test proved by refusing to fail. **The real cause is the stored dock
+layout.** `restoreState` puts the docks back exactly as they were, *including untabbed*, and the five
+right-hand panels side by side vertically ask for 1 464 px of minimum height before the canvas has
+any: 216 + 242 + 328 + 454 + 224. A window is never smaller than its layout's minimum, so **no size
+and no maximise could help** — the bottom of it, with the status bar, a running job's progress and
+three docks in it, sat below the edge of the monitor.
+
+`_build_docks` tabifies those five and the tabbed group asks for the tallest of them instead of the
+sum, which is why the shipped layout needs 811 and fits. The operator's stored state did not have
+them tabbed.
+
+### The rule
+
+**A stored layout that cannot be reached with a mouse is not restored.** Both halves, one rule,
+checked after both are back — because it is the restored dock *state* that decides the minimum:
+
+- the layout's minimum does not fit → `apply_default_layout()`, the tabbed one this application
+  ships;
+- the window is bigger than the screen → resize it and drop `restored_geometry`, so the launcher
+  maximises.
+
+Neither is a corruption and neither is an error: `save_layout` writes the working layout back on
+close, so the next launch restores *that*. Verified end to end against the real settings — first
+launch 2048x1085 maximised with a minimum of 835, second launch the same from the healed file.
+
+The placement and tabification moved out of `_build_docks` into `apply_default_layout()`, which is
+what makes "put it back" possible at all. It is called twice and constructs nothing.
+
+### Three tests that had to be rewritten to mean anything
+
+**The offscreen platform's screen is 800x800 and this window's minimum is taller than that** once
+`gui/launcher.py` has applied the theme — which `tests/gui/test_launcher.py` does, to the shared
+`QApplication`, for every test that runs after it. So a guard test taking its numbers from the real
+screen could stage one outcome and not the other, and did: three tests passed alone and failed in
+`tests/gui`. The guard now takes the available size as an argument defaulting to the screen's, and
+the tests state **883x1785 against 2048x1152** — the operator's numbers, written out.
+
+The pre-existing `test_a_new_window_restores_what_the_last_one_saved` now **skips** when the window
+does not fit, rather than asserting conditionally: an assertion that cannot fail is worse than one
+that does not run, and its subject is covered with explicit sizes elsewhere. Its docstring already
+listed two clamps and warned that they make absolute assertions order-dependent; this is the third.
+
+And a helper written *this morning* was wrong: `_launched_window` told windows apart by `id()`, and
+CPython reuses an address once the object at it is collected, so a genuinely new window could be
+"seen before". It holds the widgets now, which also keeps them alive — which is what makes the
+comparison mean anything.
+
+### What this says about the gate
+
+Third time today, and the sharpest. **Every GUI test constructs a `MainWindow` and none of them asks
+whether it fits on anything.** The suite has no notion of a screen, so a layout that needs 1 785 px
+was not a failing test — it was not a test at all. The one guard that now exists came from reading
+an operator's settings file, not from the suite.
+
+### Next
+
+`M8-T02` — the dataset builder.
+
+---
+
 ## 2026-08-30 — the folder off the microscope would not open
 
 Third session of the day on `fix/first-run-usability`, same shape as the second: the operator ran
