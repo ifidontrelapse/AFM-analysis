@@ -219,6 +219,23 @@ class TestTheLayoutIsRemembered:
         assert window.statusBar().currentMessage() == "No project open"
         assert len(window.findChildren(QDockWidget)) == 9
 
+    def test_a_first_run_has_no_geometry_to_restore(self, app: Nanoscope) -> None:
+        """The flag the launcher reads to decide whether to maximise."""
+        assert not MainWindow(app).restored_geometry
+
+    def test_a_window_that_restored_a_size_says_so(self, app: Nanoscope) -> None:
+        first = MainWindow(app)
+        first.save_layout()
+
+        assert MainWindow(app).restored_geometry
+
+    def test_an_unreadable_geometry_is_not_a_restored_one(self, app: Nanoscope) -> None:
+        """Unreadable is not "stored": the fallback is the default layout, which
+        the launcher then maximises."""
+        app.application_settings.set_setting(GEOMETRY_SETTING, "not base64 at all!!")
+
+        assert not MainWindow(app).restored_geometry
+
     def test_closing_the_window_saves_the_layout(self, app: Nanoscope) -> None:
         window = MainWindow(app)
         window.resize(800, 600)

@@ -47,6 +47,15 @@ def run(app: Nanoscope, project: Path | str | None = None, argv: Sequence[str] =
     if project is not None:
         window.open_project(project)
 
-    window.show()
+    #: A first run has no stored geometry, and Qt would then size the window
+    #: from its `sizeHint` — a viewer surrounded by nine docks, which hints at a
+    #: window too small to work in. Every later launch restores what
+    #: `save_layout` wrote, so this decides the first impression and nothing
+    #: else: an operator who sizes the window and closes it gets that size back,
+    #: because a window layout is a preference (ADR-0047).
+    if window.restored_geometry:
+        window.show()
+    else:
+        window.showMaximized()
     logger.info("window shown")
     return int(qt.exec())

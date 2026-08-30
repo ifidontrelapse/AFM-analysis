@@ -124,6 +124,9 @@ class MainWindow(QMainWindow):
         #: project open until a test asked (M6-T08).
         self._update_actions()
 
+        #: Whether this window came back to a size the operator chose. Read by
+        #: the launcher, which maximises when it did not (`gui/launcher.py`).
+        self.restored_geometry = False
         self._restore_layout()
 
     # ── Building ──────────────────────────────────────────────────────────────
@@ -494,14 +497,24 @@ class MainWindow(QMainWindow):
         A layout from an older version can be unreadable — Qt says so by
         returning `False` — and the answer is the default layout, not a refusal
         to start.
+
+        Sets `restored_geometry`, which the launcher reads: with nothing stored
+        Qt sizes the window from its `sizeHint`, and this one is a viewer
+        surrounded by nine docks — the hint is a window too small to work in.
+        **The decision to maximise instead is the launcher's**, because it is a
+        decision about *showing* the window, and a constructor that shows itself
+        is one a test cannot build offscreen without one appearing.
         """
         for key, restore in (
             (GEOMETRY_SETTING, self.restoreGeometry),
             (STATE_SETTING, self.restoreState),
         ):
             stored = self._app.settings.get(key)
-            if isinstance(stored, str) and stored and not restore(_decode(stored)):
-                logger.info("ignoring an unreadable stored %s", key)
+            if isinstance(stored, str) and stored:
+                if restore(_decode(stored)):
+                    self.restored_geometry = self.restored_geometry or key == GEOMETRY_SETTING
+                else:
+                    logger.info("ignoring an unreadable stored %s", key)
 
     def save_layout(self) -> None:
         """Remember where things are, in the operator's settings and not the project's.

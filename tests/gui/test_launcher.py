@@ -17,12 +17,13 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication
 
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
 from nanoscope.gui.launcher import run
+from nanoscope.gui.main_window import MainWindow
 from nanoscope.infrastructure.storage import SqliteProjectRepository
 
 pytestmark = pytest.mark.usefixtures("qt_app")
@@ -77,3 +78,56 @@ def test_a_refused_project_does_not_stop_the_window_opening(
 
     assert run(app, tmp_path / "not-a-project") == 0
     assert app.repository is None
+
+
+def _launched_window(before: set[int]) -> MainWindow:
+    """The window `run` just made, told apart from any left over by an earlier test.
+
+    Not `QApplication.activeWindow()`: offscreen keeps previous tests' windows
+    alive and one of them answers that question, which made this assertion read
+    a different window's state.
+    """
+    fresh = [
+        widget
+        for widget in QApplication.topLevelWidgets()
+        if isinstance(widget, MainWindow) and id(widget) not in before
+    ]
+    assert len(fresh) == 1, fresh
+    return fresh[0]
+
+
+def _maximised_during_run(app: Nanoscope) -> bool:
+    """Run the loop, and report whether the window it showed came up maximised."""
+    before = {id(widget) for widget in QApplication.topLevelWidgets()}
+    seen: list[bool] = []
+    QTimer.singleShot(
+        50,
+        lambda: seen.append(
+            bool(_launched_window(before).windowState() & Qt.WindowState.WindowMaximized)
+        ),
+    )
+    quit_soon(100)
+
+    assert run(app) == 0
+    assert len(seen) == 1
+    return seen[0]
+
+
+def test_a_first_run_is_maximised(app: Nanoscope) -> None:
+    """The window an operator sees the first time they start the application.
+
+    With nothing stored, Qt sizes it from its `sizeHint` — a viewer surrounded
+    by nine docks — and the hint is a window too small to work in. The decision
+    lives here rather than in the constructor because it is a decision about
+    *showing* the window.
+    """
+    assert _maximised_during_run(app)
+
+
+def test_a_stored_size_is_not_overridden(app: Nanoscope) -> None:
+    """A window layout is a preference (ADR-0047): an operator who sized the
+    window and closed it gets that size back, not a window that maximises
+    itself every launch."""
+    MainWindow(app).save_layout()
+
+    assert not _maximised_during_run(app)
