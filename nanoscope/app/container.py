@@ -105,6 +105,38 @@ class Nanoscope:
             )
         return opened
 
+    def create(self, project_dir: Path | str, name: str) -> OpenedProject:
+        """Make a new project and open it.
+
+        The last unwired half of M4-T04: `SqliteProjectRepository.create` has
+        existed since that task and, until now, was called only by tests — so an
+        operator could open a project and never make one, and `Import Images…`
+        stays disabled until a project is open. The application could not be
+        started from an empty machine.
+
+        Creating and opening are one call because they are one intention. It
+        costs opening the database twice — `create` hands back an open
+        repository, which this closes and `open` reopens — which is one SQLite
+        handshake on a directory that was just made, against duplicating every
+        line of `open`: closing the previous project, attaching the log,
+        reading the integrity report.
+
+        Args:
+            project_dir: where to put it. Must not exist, or must be empty.
+            name: the display name, which the directory's name need not match.
+
+        Returns:
+            What `open` returns for it: an empty project, and a clean report.
+
+        Raises:
+            InvalidParameterError: there is already something in that directory.
+                Writing a manifest into somebody's folder turns it into a
+                project (M4-T04).
+        """
+        SqliteProjectRepository.create(project_dir, name).close()
+        logger.info("created project %r", name, extra={"project": str(Path(project_dir))})
+        return self.open(project_dir)
+
     def close_project(self) -> None:
         """Close the open project, if there is one. Idempotent."""
         if self.repository is None:

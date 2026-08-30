@@ -765,6 +765,7 @@ Also enforced, and each proven to fail on a real violation:
 | `core` imports nothing from an outer layer; the domain loads no torch/matplotlib/Qt | `tests/unit/test_import_graph.py` |
 | No `print` in library code | `tests/unit/test_logging.py` |
 | Both detectors satisfy the `Detector` port | `tests/unit/test_ports.py` |
+| A project can be made from the window, and a non-empty directory is refused | `tests/gui/test_main_window.py` |
 | Every `TrainingProvider` behaves the same, and a run that claims weights has them | `tests/contract/training_provider.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |

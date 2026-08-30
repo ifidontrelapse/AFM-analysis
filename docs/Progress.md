@@ -7,6 +7,73 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-30 — two things an operator hit on the first launch
+
+Not a task. The operator started the application built at the end of M8-T01 and asked two questions,
+and both had the same answer: *the code is there and nothing calls it.* Own branch,
+`fix/first-run-usability`, one commit per intent (PROJECT_RULES §7). 9 tests, **1400** in the suite.
+Delta: **zero** — neither commit is near a number.
+
+### "It only lets me open a project, and I want to start from an image"
+
+There was no way in. `Import Images…` is disabled until a project is open (`main_window.py:227`,
+and `_update_actions` keeps it that way), and **there was no `New Project`** — anywhere.
+`SqliteProjectRepository.create` has existed since **M4-T04** and, until today, was called by
+**tests and nothing else**: `grep` over `nanoscope/` found one mention, in a docstring. So an
+operator on an empty machine could open a project they had no way to make.
+
+The fix is three small pieces, and the layering is why it is three rather than one: `Nanoscope.create`
+in the composition root (PROJECT_RULES §2.7 — only `app/` constructs adapters),
+`SessionViewModel.create_project` beside `open_project`, and a `&New Project…` action on `Ctrl+N`.
+The container's method is `create(...).close()` then `self.open(...)`: it costs one extra SQLite
+handshake on a directory that was just made, against duplicating every line of `open` — closing the
+previous project, attaching the log, reading the integrity report.
+
+**One dialog, not two.** Qt's directory chooser already offers *New Folder*, and the display name
+defaults to the directory's — an operator who names a folder has named the project, and a second
+dialog asking them to say it again is the one they close without reading. The name and the directory
+are still allowed to differ; nothing forces them together. **A directory with files in it is refused
+by the repository, not re-checked in the widget** — the sentence already exists (*"is not empty; a
+project is created in a new or empty directory"*), and a second copy of the rule in a widget is the
+copy that goes stale. It reaches the status bar unchanged, which a test asserts.
+
+### "Why doesn't it open full screen?"
+
+`launcher.py` called a plain `window.show()`, and `_restore_layout` restored geometry **only if the
+operator had left some**. On a first run there is none, so Qt sized the window from its `sizeHint` —
+a viewer surrounded by nine docks — which hints at a window too small to work in. Every launch after
+the first was fine, because `save_layout` writes the geometry on close; it was only ever the first
+impression, which is the one that matters most and the one nobody testing the application ever sees
+again.
+
+**The decision went in the launcher, not the constructor**, and the first attempt put it in the
+constructor and had to be moved. `MainWindow.__init__` setting `WindowMaximized` broke
+`test_a_new_window_restores_what_the_last_one_saved`: a maximised window's saved geometry sits at
+y=2 with a height the offscreen screen cannot hold, so `restoreGeometry` clamped it and the second
+window came back 14 px shorter. Chasing that with `setWindowState(NoState)` and `show()` inside the
+test was fixing the test to protect the wrong design. Deciding to *show* a window is the launcher's
+job; `MainWindow` now only reports `restored_geometry`, and `run` shows or maximises on it. The
+existing test was left exactly as it was, which is the sign the second design was right.
+
+**Only the first run.** A layout is a preference (ADR-0047), so an operator who sizes the window and
+closes it gets that size back — and an *unreadable* stored value falls back to maximised rather than
+to a refusal to start, which is what `_restore_layout` already promised.
+
+### What this says about the gate
+
+Both of these are invisible to `make check`, and would have stayed invisible: 373 GUI tests, all
+building a `MainWindow` directly and none of them starting the application the way a person does.
+A test suite that constructs the window can never ask *how do I get a window with something in it?*
+`tests/gui/test_launcher.py` was the one file that runs `run()` for real, and it is where the
+maximise assertions went — using the top-level-widget diff, because `QApplication.activeWindow()`
+answers with an earlier test's leftover window offscreen and read the wrong state.
+
+### Next
+
+`M8-T02` — the dataset builder, unchanged.
+
+---
+
 ## 2026-08-30 — M8-T01: what a training run is, before anything trains
 
 **`TrainingProvider`, the entities it speaks in, a contract suite two providers must pass, and

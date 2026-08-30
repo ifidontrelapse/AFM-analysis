@@ -20,7 +20,14 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QApplication, QDockWidget, QMenu, QMessageBox, QToolBar
+from PySide6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QFileDialog,
+    QMenu,
+    QMessageBox,
+    QToolBar,
+)
 
 from nanoscope.app.container import Nanoscope
 from nanoscope.core.values import Modality
@@ -361,3 +368,71 @@ class TestWhileAJobRuns:
         window.open_project(project)
 
         assert window.import_action.isEnabled()
+
+
+class TestAProjectCanBeMade:
+    """The gap an operator hits on an empty machine.
+
+    `SqliteProjectRepository.create` has existed since M4-T04 and was called
+    only by tests, while `Import Images…` stays disabled until a project is
+    open — so there was no way in: no project could be made, and therefore no
+    image could be imported.
+    """
+
+    def test_new_project_makes_one_and_opens_it(
+        self, app: Nanoscope, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        window = MainWindow(app)
+        root = tmp_path / "Gold on mica"
+        monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(root))
+
+        window.new_action.trigger()
+
+        assert app.repository is not None
+        assert app.repository.name == "Gold on mica"
+        assert (root / "images").is_dir()
+        assert (root / "project.json").is_file()
+
+    def test_the_new_project_can_take_images(
+        self, app: Nanoscope, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The point of the action: the import that was disabled is now live."""
+        window = MainWindow(app)
+        monkeypatch.setattr(
+            QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(tmp_path / "New")
+        )
+
+        window.new_action.trigger()
+
+        assert window.import_action.isEnabled()
+
+    def test_a_directory_with_files_in_it_is_refused_with_a_sentence(
+        self, app: Nanoscope, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Writing a manifest into somebody's folder turns it into a project.
+
+        The refusal is the repository's and reaches the status bar unchanged —
+        a second copy of the rule in the widget is the copy that goes stale.
+        """
+        occupied = tmp_path / "Photos"
+        occupied.mkdir()
+        (occupied / "holiday.jpg").write_bytes(b"not a scan")
+        window = MainWindow(app)
+        monkeypatch.setattr(
+            QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(occupied)
+        )
+
+        window.new_action.trigger()
+
+        assert app.repository is None
+        assert "not empty" in window.statusBar().currentMessage()
+
+    def test_a_cancelled_dialog_makes_nothing(
+        self, app: Nanoscope, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        window = MainWindow(app)
+        monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: "")
+
+        window.new_action.trigger()
+
+        assert app.repository is None

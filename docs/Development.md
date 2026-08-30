@@ -61,9 +61,16 @@ print(res.measurements.head())
 ### After M5 (application)
 
 ```bash
-nanoscope                 # launch the desktop application
-nanoscope --project PATH  # open a project directory
+nanoscope --gui                 # launch the desktop application
+nanoscope --gui --project PATH  # launch it with a project already open
+nanoscope --project PATH        # print what is in a project, headless
+nanoscope --devices             # what hardware exists, and what would be used
 ```
+
+**Starting from nothing:** `Ctrl+N` (*File → New Project…*) makes a project in a new or empty
+directory; the display name defaults to the directory's. `Ctrl+I` (*Import Images…*) is enabled
+once a project is open, and asks the modality and the pixel scale it cannot know. A project is a
+plain directory the operator owns (ADR-0003) — copy it, back it up, put it in version control.
 
 ---
 

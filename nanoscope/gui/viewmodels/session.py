@@ -1099,6 +1099,29 @@ class SessionViewModel(QObject):
         self.history_changed.emit()
         return opened
 
+    def create_project(self, project_dir: Path | str, name: str) -> OpenedProject | None:
+        """Make a project through the container, and announce it like an open.
+
+        The same four steps as `open_project` and not a shared helper: two
+        methods differing by one call are two methods, and the wrapper that
+        would unify them takes a callable to tell them apart (ADR-0041's rule).
+
+        Returns:
+            What was created, or `None` if it was refused — in which case
+            `failed` has already carried the reason, which for the common case
+            is *"that directory is not empty"*.
+        """
+        try:
+            opened = self._app.create(project_dir, name)
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return None
+
+        self._clear_image()
+        self._set_project(opened)
+        self.history_changed.emit()
+        return opened
+
     def close_project(self) -> None:
         self._app.close_project()
         self._set_project(None)

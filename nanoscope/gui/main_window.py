@@ -220,6 +220,10 @@ class MainWindow(QMainWindow):
         toolbar = self.addToolBar("Main")
         toolbar.setObjectName("toolbar.main")
 
+        self.new_action = QAction("&New Project…", self)
+        self.new_action.setShortcut("Ctrl+N")
+        self.new_action.triggered.connect(self.create_project)
+
         self.open_action = QAction("&Open Project…", self)
         self.open_action.setShortcut("Ctrl+O")
         self.open_action.triggered.connect(self.choose_project)
@@ -295,7 +299,7 @@ class MainWindow(QMainWindow):
         quit_action.setShortcut("Ctrl+Q")
         quit_action.triggered.connect(self.close)
 
-        for action in (self.open_action, self.import_action, self.close_action):
+        for action in (self.new_action, self.open_action, self.import_action, self.close_action):
             file_menu.addAction(action)
             toolbar.addAction(action)
         file_menu.addSeparator()
@@ -323,6 +327,23 @@ class MainWindow(QMainWindow):
             view_menu.addAction(dock.toggleViewAction())
 
     # ── What the actions do ───────────────────────────────────────────────────
+
+    def create_project(self) -> None:
+        """Ask where to put a new project, then make it and open it.
+
+        One dialog, not two. Qt's directory chooser already offers *New Folder*,
+        and the project's display name defaults to the directory's — an operator
+        who names a folder has named the project, and a second dialog asking
+        them to say it again is the one they close without reading. The name and
+        the directory are allowed to differ (M4-T04); nothing here forces them to.
+
+        A directory with files in it is **refused by the repository**, not
+        checked for here: the refusal is one sentence, it already exists, and a
+        second copy of the rule in a widget is the copy that goes stale.
+        """
+        directory = QFileDialog.getExistingDirectory(self, "New Project")
+        if directory:
+            self.session.create_project(directory, Path(directory).name)
 
     def choose_project(self) -> None:
         """Ask for a directory, then open it. The dialog is the only thing here."""
@@ -440,6 +461,7 @@ class MainWindow(QMainWindow):
         """
         busy = self.session.is_busy
         has_project = self.session.project is not None
+        self.new_action.setEnabled(not busy)
         self.open_action.setEnabled(not busy)
         self.close_action.setEnabled(not busy and has_project)
         self.import_action.setEnabled(not busy and has_project)

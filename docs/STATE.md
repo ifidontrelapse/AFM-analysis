@@ -1,6 +1,7 @@
 # STATE
 
-**Last updated:** 2026-08-30 · **Branch:** `feat/m8-training` · **Base commit:** `ef94580`
+**Last updated:** 2026-08-30 · **Branch:** `fix/first-run-usability` (off `feat/m8-training`) ·
+**Base commit:** `dcfc8f4`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -86,6 +87,23 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 ## Current task
 
 **`M8-T01` is done (2026-08-30, ADR-0080). `M8-T02` — the dataset builder — is next.**
+
+**Parked in front of it, 2026-08-30: two first-launch defects the operator found by running the
+build.** Branch `fix/first-run-usability`, one commit per intent, no ADR — neither makes a decision
+the project had not already made. **There was no `New Project`.** `SqliteProjectRepository.create`
+has existed since M4-T04 and was called by *tests and nothing else*, while `Import Images…` stays
+disabled until a project is open — so an operator on an empty machine could open a project they had
+no way to make. Now `Nanoscope.create` (the composition root, PROJECT_RULES §2.7),
+`SessionViewModel.create_project`, and `&New Project…` on `Ctrl+N`; one dialog, the display name
+defaults to the directory's, and a non-empty directory is refused by the repository's own sentence
+rather than by a second copy of the rule in a widget. **And the window opened small on a first
+run** — `launcher.run` called a plain `show()` and there was no stored geometry to restore, so Qt
+sized nine docks by `sizeHint`. The decision is the launcher's, not the constructor's: `MainWindow`
+reports `restored_geometry` and `run` shows or maximises on it. *Putting it in the constructor was
+tried first and broke an existing geometry test — a sign the design, not the test, was wrong.*
+**What it says about the gate:** 373 GUI tests, every one of them building a `MainWindow` directly,
+and neither defect was visible to any of them. A suite that constructs the window cannot ask *how do
+I get a window with something in it?* 9 tests, **1400** in the suite.
 M7 was closed by the operator on 2026-08-17, as M3, M4, M5 and M6 were.
 
 **`M8-T01` done 2026-08-30 (ADR-0080) — what a training run is, before anything trains.**
@@ -1726,7 +1744,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **1 391, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **1 400, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |
