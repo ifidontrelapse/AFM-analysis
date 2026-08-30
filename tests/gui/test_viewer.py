@@ -26,7 +26,11 @@ from nanoscope.application.use_cases.display import (
     render,
     value_range,
 )
-from nanoscope.core.errors import InvalidParameterError
+from nanoscope.core.errors import (
+    DataFormatError,
+    InvalidParameterError,
+    UnsupportedRequestError,
+)
 from nanoscope.core.values import Modality
 from nanoscope.gui.panels.viewer import BAR_LENGTHS_NM, MAX_ZOOM, ImageViewer, _bar_length_nm
 from nanoscope.gui.viewmodels import SessionViewModel
@@ -109,6 +113,85 @@ class TestLoadingForDisplay:
 
         assert image.pixel_size_nm is None
         assert image.size_nm is None
+
+
+class TestWhichFilesTheViewerCanOpen:
+    """The defect an operator found on 2026-08-30.
+
+    A Bruker Nanoscope writes `scan.000`, `scan.001`, … and the parser has always
+    read them. `display.py` kept its own copy of the extension map — the one in
+    `preprocessing.py` was already there — and the copy listed only `.spm` and
+    `.npy`, so a folder off the microscope imported, appeared in the explorer,
+    and would not open. Both go through `afm_format` now.
+    """
+
+    def test_a_numbered_file_reaches_the_nanoscope_parser(
+        self, app: Nanoscope, tmp_path: Path
+    ) -> None:
+        """What is asserted is the **dispatch**, so the payload is deliberately
+        not a scan: the parser's own complaint means `.001` got that far, where
+        before it was turned away by the extension and never read at all.
+
+        A real numbered file parsing end to end is
+        `tests/unit/test_afm_io.py::test_a_numbered_nanoscope_file_actually_reads`,
+        which has the synthetic Nanoscope bytes to do it with.
+        """
+        assert app.repository is not None
+        source = tmp_path / "2-2-dmfa-citr-temp.001"
+        source.write_bytes(b"not a Nanoscope file")
+        record = app.repository.import_image(source, modality=Modality.AFM)
+
+        with pytest.raises(DataFormatError, match="Ciao"):
+            load_for_display(app.repository, record.id)
+
+    def test_a_jpeg_imported_as_afm_says_what_it_supports(
+        self, app: Nanoscope, tmp_path: Path
+    ) -> None:
+        """The other half of what the operator hit, and this one is a correct
+        refusal: a JPEG is a SEM/TEM image, and the modality is the question the
+        import dialog asks (M5-T07). What was wrong was that nobody saw it."""
+        assert app.repository is not None
+        source = tmp_path / "particles.jpg"
+        source.write_bytes(b"not really a jpeg")
+        record = app.repository.import_image(source, modality=Modality.AFM)
+
+        with pytest.raises(UnsupportedRequestError) as refusal:
+            load_for_display(app.repository, record.id)
+
+        assert ".000" in str(refusal.value)
+
+
+class TestTheViewerSaysWhyItIsEmpty:
+    """A blank canvas with the reason in the status bar reads as a broken
+    application. The reason belongs beside the thing that is missing."""
+
+    def test_a_refusal_lands_on_the_panel(self, viewer: ImageViewer) -> None:
+        viewer.show_image(None)
+
+        viewer._show_failure("no AFM reader for particles.jpg")
+
+        assert "no AFM reader" in viewer.failure_label.text()
+
+    def test_an_image_clears_it(self, viewer: ImageViewer, app: Nanoscope) -> None:
+        assert app.repository is not None
+        viewer.show_image(None)
+        viewer._show_failure("no AFM reader for particles.jpg")
+
+        viewer.show_image(load_for_display(app.repository, image_ids(app)[0]))
+
+        assert viewer.failure_label.text() == ""
+
+    def test_a_refusal_about_something_else_is_not_shown_here(
+        self, viewer: ImageViewer, app: Nanoscope
+    ) -> None:
+        """`failed` carries every refusal the session makes — an export, a
+        removal. This panel speaks only when it has nothing to draw."""
+        assert app.repository is not None
+        viewer.show_image(load_for_display(app.repository, image_ids(app)[0]))
+
+        viewer._show_failure("nothing to export: no annotation of that kind exists")
+
+        assert viewer.failure_label.text() == ""
 
 
 class TestRendering:

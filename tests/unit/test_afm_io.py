@@ -17,9 +17,13 @@ Zsens 11.43219 nm/V) — read locally, not committed. No binary fixture enters g
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+from nanoscope.application.use_cases.preprocessing import afm_format
+from nanoscope.core.errors import UnsupportedRequestError
 from nanoscope.infrastructure.storage import load_afm, load_microscopy_image
 
 # The real header puts the payload at 40960. Any fixed offset larger than the
@@ -407,3 +411,75 @@ def test_microscopy_image_missing_file_raises_filenotfound(tmp_path) -> None:
     """cv2.imread returns None rather than raising; the wrapper must translate."""
     with pytest.raises(FileNotFoundError, match="Could not read image"):
         load_microscopy_image(str(tmp_path / "absent.png"), modality="sem")
+
+
+# ── Which files are AFM files (2026-08-30) ───────────────────────────────────
+#
+# A Bruker Nanoscope does not write `.spm`. It writes `scan.000`, `scan.001`,
+# `scan.002` — the number is the acquisition, not the format — and this parser
+# has read them since it was written; the docstring of `_read_nanoscope_z` says
+# "`.spm` / `.000`-style" in as many words.
+#
+# The extension map in front of it did not, and it was written **twice**: once
+# in `use_cases/preprocessing.py` and once, copied, in `use_cases/display.py`.
+# So a folder straight off the microscope imported fine, appeared in the project
+# explorer, and refused to open. Found by an operator, not by 1400 tests.
+
+
+@pytest.mark.parametrize(
+    ("name", "fmt"),
+    [
+        ("scan.spm", "spm"),
+        ("scan.SPM", "spm"),
+        ("scan.npy", "npy"),
+        ("scan.000", "spm"),
+        ("scan.001", "spm"),
+        ("scan.017", "spm"),
+        ("scan.3", "spm"),
+        # The instrument's own naming: dots in the stem, the number last.
+        ("2-2-dmfa-citr-temp.014", "spm"),
+    ],
+)
+def test_an_afm_extension_names_its_reader(name: str, fmt: str) -> None:
+    assert afm_format(Path(name)) == fmt
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "scan.jpg",
+        "scan.tif",
+        "scan.png",
+        # A JPEG *export* of an acquisition — the number is in the stem and the
+        # extension is what it is. Refusing this is the whole point of looking.
+        "2-2-dmfa-citr-temp.000.jpg",
+        "scan",
+        "scan.",
+        # `str.isdigit` is true of Arabic-Indic digits; this is not a Nanoscope
+        # acquisition number. Escaped rather than written, because ruff is right
+        # that the literal is unreadable (RUF001).
+        "scan.\u0660\u0660\u0661",
+    ],
+)
+def test_a_file_with_no_afm_reader_is_refused_by_name(name: str) -> None:
+    with pytest.raises(UnsupportedRequestError) as refusal:
+        afm_format(Path(name))
+
+    # The message has to name the numbered form, or an operator holding `.003`
+    # reads "supported extensions are .npy, .spm" as "yours is not supported".
+    assert ".000" in str(refusal.value)
+
+
+def test_a_numbered_nanoscope_file_actually_reads(tmp_path, z_lsb) -> None:
+    """The half a name check cannot make: the bytes go through the parser.
+
+    Same synthetic file as every test above, under the name the instrument
+    would have given it.
+    """
+    path = tmp_path / "2-2-dmfa-citr-temp.001"
+    path.write_bytes(_spm_bytes(z_lsb))
+
+    raw = load_afm(str(path), fmt=afm_format(path))
+
+    assert raw.z_raw.shape == (LINES, SAMPS)
+    assert raw.pixel_size_nm is not None

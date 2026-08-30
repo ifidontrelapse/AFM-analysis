@@ -103,7 +103,24 @@ reports `restored_geometry` and `run` shows or maximises on it. *Putting it in t
 tried first and broke an existing geometry test — a sign the design, not the test, was wrong.*
 **What it says about the gate:** 373 GUI tests, every one of them building a `MainWindow` directly,
 and neither defect was visible to any of them. A suite that constructs the window cannot ask *how do
-I get a window with something in it?* 9 tests, **1400** in the suite.
+I get a window with something in it?*
+
+**Then the scans would not open either.** A Bruker Nanoscope writes `scan.000`, `scan.001` — *the
+number is the acquisition, not the format* — and `_read_nanoscope_z` has read them since M2-T03; its
+docstring says *"`.spm` / `.000`-style"*. What refused them was the extension map in front of it,
+**written twice**: `preprocessing.py` (whose own comment predicted the copy) and `display.py`, which
+copied it instead of calling `afm_format` three lines below. So the files imported, showed in the
+explorer, and would not display — the row was real and the reader was reachable, and only the list in
+the middle said no. Both callers go through `afm_format` now, and it takes an all-digit extension:
+the Ciao header decides the format and the parser already checks it, so refusing on the extension is
+a *dispatch*, not a validation, and should be as wide as the reader. **The `.jpg` half was a correct
+refusal nobody could see** — a JPEG imported as AFM (the dialog's default modality) is right to be
+refused and loads fine as SEM, but the reason went to the status bar while the canvas just went
+blank, which reads as a broken application. A label beside the empty canvas now says why, and only
+when there is nothing to draw. **The gate's blind spot, again:** nothing tested `afm_format` at all,
+so no test could notice two modules answering one question differently, and every fixture in the
+suite is `.npy` or synthetic `.spm` — the two extensions the map already knew. 21 tests, **1421** in
+the suite.
 M7 was closed by the operator on 2026-08-17, as M3, M4, M5 and M6 were.
 
 **`M8-T01` done 2026-08-30 (ADR-0080) — what a training run is, before anything trains.**
@@ -1744,7 +1761,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **1 400, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **1 421, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

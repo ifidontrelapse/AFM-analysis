@@ -344,7 +344,7 @@ load_afm
 
 `load_afm(file_path, fmt, pixel_size_nm=None, scan_size_nm=None)` supports only:
 
-- `fmt="spm"`: custom Bruker Nanoscope parser.
+- `fmt="spm"`: custom Bruker Nanoscope parser. **The extension is not `.spm` in practice** — the instrument writes `scan.000`, `scan.001`, …, where the number is the acquisition rather than the format, and the parser has always read them. `afm_format(path)` in `application/use_cases/preprocessing.py` is the **one** place that maps an extension to a `fmt`, and it takes any all-digit one; `display.py` kept a second copy of that map until 2026-08-30, when a folder off the microscope imported and would not open.
 - `fmt="npy"`: `np.load`, converted to `float32`; metadata is supplied by the caller or is **unknown**, which is `None` through to the entity. Since M3-T20 (ADR-0025) nothing is fabricated — the old `pixel_size_nm or 1.0` / `scan_size_nm or float(z.shape[0])` made every downstream `_nm` a pixel count wearing nanometre units. A scale that *is* given must be positive: `0.0`, a negative number and `nan` raise instead of being swallowed.
 
 For SPM, `_read_nanoscope_z`:
@@ -766,6 +766,7 @@ Also enforced, and each proven to fail on a real violation:
 | No `print` in library code | `tests/unit/test_logging.py` |
 | Both detectors satisfy the `Detector` port | `tests/unit/test_ports.py` |
 | A project can be made from the window, and a non-empty directory is refused | `tests/gui/test_main_window.py` |
+| Nanoscope's numbered files (`scan.000`, …) dispatch to the AFM reader | `tests/unit/test_afm_io.py` |
 | Every `TrainingProvider` behaves the same, and a run that claims weights has them | `tests/contract/training_provider.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |

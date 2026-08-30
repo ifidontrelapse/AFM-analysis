@@ -619,6 +619,14 @@ class ImageViewer(QWidget):
         #: survives M6-T01 having something else to show.
         self.stage_label = QLabel("", self)
         self.scale_label = QLabel("", self)
+        #: Why the canvas is empty, beside the empty canvas. The reason already
+        #: reached the status bar — one transient line, under a readout that
+        #: overwrites it — and an operator whose folder of scans would not open
+        #: read a blank viewer as "the application is broken" rather than as
+        #: "this file has no reader" (2026-08-30).
+        self.failure_label = QLabel("", self)
+        self.failure_label.setWordWrap(True)
+        session.failed.connect(self._show_failure)
 
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Colormap", self))
@@ -631,6 +639,9 @@ class ImageViewer(QWidget):
         #: "result (flatte…" when it competed with the scale bar for the end of
         #: the row, and a label nobody can finish reading is not a statement.
         controls.addWidget(self.stage_label)
+        #: Where the stage and the scale bar are not, because it only ever has
+        #: text when there is no image and those two are empty.
+        controls.addWidget(self.failure_label)
         controls.addStretch(1)
         controls.addWidget(self.scale_label)
 
@@ -641,6 +652,16 @@ class ImageViewer(QWidget):
 
         self.show_image(session.image)
         self._draw_overlay()
+
+    def _show_failure(self, message: str) -> None:
+        """Say why there is nothing to look at — and only then.
+
+        `failed` carries every refusal the session makes, including exports and
+        removals, and those have nothing to do with the canvas. The guard is
+        that this panel speaks only when it has nothing to draw.
+        """
+        if self._image is None:
+            self.failure_label.setText(message)
 
     def _annotation_picked(self, index: int | None) -> None:
         """A position in the layer becomes the id the session speaks in."""
@@ -719,6 +740,10 @@ class ImageViewer(QWidget):
             self.scale_label.setText("")
             self.stage_label.setText("")
             return
+
+        #: An image arrived, so whatever the last refusal was, it is not what is
+        #: on screen any more.
+        self.failure_label.setText("")
 
         #: The stage alone, not "showing: raw" — six widgets share this row and
         #: the words that carry no information are the ones that clip the ones

@@ -53,6 +53,9 @@ class PreprocessingParams:
 #: What each AFM extension is called on the way into `load_afm`. Here rather
 #: than in `analysis.py`, which owned it until M6-T01: this is the module that
 #: loads AFM files, and a second caller was about to copy the mapping.
+#:
+#: It then did anyway — `display.py` kept its own copy until an operator found
+#: what the two disagreeing costs. Both go through `afm_format` now.
 AFM_FORMATS = {".spm": "spm", ".npy": "npy"}
 
 
@@ -132,17 +135,42 @@ def run_preprocessing(
 def afm_format(path: Path) -> str:
     """The `fmt` string `load_afm` expects, from the file's own extension.
 
+    **A Bruker Nanoscope file is usually not called `.spm`.** The instrument
+    writes `scan.000`, `scan.001`, `scan.002` — the number is the acquisition,
+    not the format — and `_read_nanoscope_z` has read them since M2-T03; its own
+    docstring says *"path to the `.spm` / `.000`-style file"*. Only this map did
+    not, so a folder straight off the microscope produced *"no AFM reader"* for
+    every file in it. Found by an operator importing one (2026-08-30).
+
+    The digits are the whole rule. What actually decides the format is the Ciao
+    header inside the file, and the reader checks it — refusing on the extension
+    is a dispatch, not a validation, so it should be as wide as the reader is.
+
     Raises:
         UnsupportedRequestError: an extension with no AFM reader. Nothing about
             the request is malformed — this version has no path for that file.
     """
-    fmt = AFM_FORMATS.get(path.suffix.lower())
+    suffix = path.suffix.lower()
+    fmt = AFM_FORMATS.get(suffix)
+    if fmt is None and _is_numbered(suffix):
+        fmt = "spm"
     if fmt is None:
         raise UnsupportedRequestError(
             f"no AFM reader for {path.name}; supported extensions are "
-            f"{', '.join(sorted(AFM_FORMATS))}"
+            f"{', '.join(sorted(AFM_FORMATS))} and Nanoscope's numbered ones (.000, .001, …)"
         )
     return fmt
+
+
+def _is_numbered(suffix: str) -> bool:
+    """`.000`, `.017`, `.3` — a Nanoscope acquisition number.
+
+    `isascii` as well as `isdigit`, because `str.isdigit` is true of Arabic-Indic
+    digits too, and a file whose extension is three Arabic-Indic digits is not a
+    Nanoscope acquisition.
+    """
+    digits = suffix[1:]
+    return bool(digits) and digits.isascii() and digits.isdigit()
 
 
 def preprocess_image(

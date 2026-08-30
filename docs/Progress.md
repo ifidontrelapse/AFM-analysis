@@ -7,6 +7,74 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-30 — the folder off the microscope would not open
+
+Third session of the day on `fix/first-run-usability`, same shape as the second: the operator ran
+the build, imported their own scans, and the application refused work it has been able to do since
+M2-T03. 12 tests, **1421** in the suite. Delta: **zero, golden byte-identical**.
+
+### A Bruker Nanoscope does not write `.spm`
+
+It writes `scan.000`, `scan.001`, `scan.002` — **the number is the acquisition, not the format**.
+`_read_nanoscope_z` has read them since it was written, and its own docstring says so in as many
+words: *"path to the `.spm` / `.000`-style file"*. Checked against the real files in `data/pvp8k/`:
+`2-2-dmfa-citr-temp.001` reads as 512×512 at 9.77 nm/px over a 5 µm scan, and always would have.
+
+What refused them was the extension map in front of the reader — **and it was written twice**:
+
+```
+use_cases/preprocessing.py:56   AFM_FORMATS  = {".spm": "spm", ".npy": "npy"}
+use_cases/display.py:38        _AFM_FORMATS  = {".spm": "spm", ".npy": "npy"}
+```
+
+`preprocessing.py` even carries the comment predicting it — *"Here rather than in `analysis.py` …
+a second caller was about to copy the mapping."* It then did. `display.py` copied the map instead
+of calling `afm_format`, which was sitting three lines below it.
+
+So the files imported, appeared in the project explorer, and would not open: **the row was real and
+the reader was reachable, and only the list in the middle said no.** `display.py` now calls
+`afm_format` like `analysis.py` does, and `afm_format` accepts an all-digit extension. The digits
+are the whole rule, because what actually decides the format is the Ciao header inside the file and
+the parser already checks it — refusing on the extension is a *dispatch*, not a validation, so it
+should be as wide as the reader is. `isascii()` beside `isdigit()`, because `str.isdigit` is true of
+Arabic-Indic digits.
+
+### The other half was a correct refusal nobody could see
+
+The `.jpg` files were imported as **AFM**, and `Modality.AFM` is first in the enum so it is what the
+import dialog offers by default. That refusal is right — a JPEG is a SEM/TEM image, and M5-T07 built
+the dialog precisely because *nothing in a filename says which* — and imported as SEM it loads fine,
+which is what the reproduction showed.
+
+What was wrong is that **the operator saw a blank canvas**. `select_image` emits `image_changed(None)`
+and then `_refuse`, and the reason went to the status bar: one transient line, in a bar that the
+viewer's own readout also writes to. The viewer cleared itself and said nothing. A blank canvas with
+the reason somewhere else reads as *the application is broken*, not as *this file has no reader*.
+
+There is now a label beside the empty canvas, and it speaks **only when there is nothing to draw** —
+`failed` carries every refusal the session makes, including exports and removals, and those are not
+the canvas's business. Three tests pin the three cases: it appears, an image clears it, an unrelated
+refusal does not touch it.
+
+### What this one says about the gate
+
+The same lesson as this morning, sharper. 1400 tests, and the bug lived in a **copy** of a four-entry
+dictionary. Nothing tested `afm_format` at all — not its old behaviour, not its new — so there was no
+test to notice that two modules answered the same question differently. And no test opens a file
+named the way the instrument names them: every fixture in the suite is `.npy` or synthetic `.spm`,
+which are the two extensions the map already knew.
+
+`data/pvp8k/` has held real `.000`-style files for the whole project. PROJECT_RULES §7 keeps them out
+of the tests, correctly — so the regression test is the synthetic Nanoscope byte stream
+`tests/unit/test_afm_io.py` has built since M1-T06, written out under the name the instrument would
+have given it.
+
+### Next
+
+`M8-T02` — the dataset builder, still.
+
+---
+
 ## 2026-08-30 — two things an operator hit on the first launch
 
 Not a task. The operator started the application built at the end of M8-T01 and asked two questions,

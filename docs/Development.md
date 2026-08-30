@@ -72,6 +72,19 @@ directory; the display name defaults to the directory's. `Ctrl+I` (*Import Image
 once a project is open, and asks the modality and the pixel scale it cannot know. A project is a
 plain directory the operator owns (ADR-0003) — copy it, back it up, put it in version control.
 
+**Which files go in as which modality.** The import dialog asks because nothing in a filename says
+it, and the answer decides which reader runs:
+
+| Modality | Reads | Scale |
+|---|---|---|
+| **AFM** | `.spm`, and Nanoscope's numbered files — `scan.000`, `scan.001`, … | from the file's own header; leave the dialog at *unknown* |
+| **AFM** | `.npy` | nobody records one, so state it in the dialog or it stays unknown |
+| **SEM / TEM** | `.jpg`, `.png`, `.tif` — anything OpenCV reads | state it in the dialog, or it stays unknown |
+
+A JPEG imported as **AFM** is refused: it has no height data, and the viewer says so beside the
+empty canvas. Re-import it as SEM or TEM. Physical values are absent rather than wrong when the
+scale is unknown (ADR-0025) — `unknown` is a legitimate answer, `0` is not.
+
 ---
 
 ## 4. Quality gate

@@ -19,6 +19,7 @@ from enum import StrEnum
 
 import numpy as np
 
+from nanoscope.application.use_cases.preprocessing import afm_format
 from nanoscope.core.entities import PreprocessingResult
 from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.ports import ProjectRepository
@@ -34,8 +35,6 @@ COLORMAPS: tuple[str, ...] = ("afmhot", "gray", "viridis", "magma", "cividis", "
 #: The default window: a single hot pixel otherwise flattens the whole image to
 #: grey, and percentiles are what every SPM tool does.
 DEFAULT_PERCENTILES = (2.0, 98.0)
-
-_AFM_FORMATS = {".spm": "spm", ".npy": "npy"}
 
 
 @dataclass(frozen=True)
@@ -74,8 +73,13 @@ def load_for_display(repository: ProjectRepository, image_id: int) -> DisplayIma
     """Read one of the project's images off the disk, as it is.
 
     Raises:
-        InvalidParameterError: no image has that id, or its extension has no
-            reader here.
+        InvalidParameterError: no image has that id.
+        UnsupportedRequestError: its extension has no AFM reader. **Through
+            `afm_format`, not a copy of it** — this module kept its own map of
+            extensions until an operator imported a folder of `scan.000` files
+            and watched the viewer refuse every one, while the analysis path
+            beside it would have read them. Two lists of the same thing are one
+            list and one bug.
         MissingFileError: the file is gone — the dangling row `check_integrity`
             reports (ADR-0040), met from the viewer's side.
     """
@@ -83,14 +87,9 @@ def load_for_display(repository: ProjectRepository, image_id: int) -> DisplayIma
     path = repository.path_of(record)
 
     if record.modality is Modality.AFM:
-        suffix = path.suffix.lower()
-        if suffix not in _AFM_FORMATS:
-            raise InvalidParameterError(
-                f"no reader for {path.name}; AFM files are {', '.join(sorted(_AFM_FORMATS))}"
-            )
         #: The project's recorded scale, not the file's — an `.npy` has none,
         #: and M4-T05 was the task that learned to pass it through.
-        raw = load_afm(str(path), fmt=_AFM_FORMATS[suffix], pixel_size_nm=record.pixel_size_nm)
+        raw = load_afm(str(path), fmt=afm_format(path), pixel_size_nm=record.pixel_size_nm)
         return DisplayImage(
             name=record.display_name,
             data=raw.z_raw,
