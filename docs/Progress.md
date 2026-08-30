@@ -7,6 +7,87 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-30 — M8-T02: annotations become a dataset, prepared the way inference prepares
+
+**The builder, `as_network_input` shared with the detector, two cache writers on the port, and
+ADR-0081.** 19 tests, **1442** in the suite. mypy unchanged at 6. Delta: **zero, golden
+byte-identical** — which mattered here, because this task moved code the golden covers.
+
+### The task turns on something not in its title
+
+Its title says *"annotations → YOLO dataset with a train/val split"*, and the split is the easy half.
+**A height map is not an image.** The scans in a project are 2-D `float32` arrays in nanometres,
+often negative, with a range that depends on the sample; ultralytics reads PNG. Something has to make
+a picture, and **what makes it decides what the model learns.**
+
+There was exactly one right answer and it was already written down three times: make a training
+picture the way `YoloDetector._prepare_image` makes an inference one. ADR-0015's normalise-in-float-
+then-cast (the one whose violation produced an image *anti-correlated* with the correct one),
+ADR-0023's polarity inversion, and — importantly — **not** ADR-0016's letterbox, because ultralytics
+letterboxes to `imgsz` itself and transforms the labels with it, so doing it here is padding inside
+padding.
+
+**One function, called by both.** `infrastructure/imaging/network_input.py`, on neutral ground
+between the two sides of ADR-0006's separation. Not a copy — this repository lost a morning today to
+a second copy of a four-entry extension map, and that one at least produced an error message. A
+copy here produces a model that is quietly worse for a reason nobody can see. The test asserts
+`yolo.as_network_input is as_network_input`: the same function, not two that currently agree.
+
+**And the array is `z_above`.** `detect` is handed `z_flat - substrate`; a dataset built from raw
+height maps would teach a model the tilt and the substrate that inference has already removed. It
+costs a `run_preprocessing` per scan, which is the expensive path and the correct one.
+
+### The split is by image, never by box
+
+Two boxes off one scan, one in each half, is leakage: the validation score stops measuring
+generalisation and starts measuring how well the model memorised that scan's substrate, its
+instrument noise and its particle population. **Every number M8-T08 reports would be inflated by
+it**, and it is the one decision in this task that a reviewer cannot see from the output — so it has
+a test of its own, and the determinism test has a guard on it (six seeds do not all give one split,
+so a "seeded" split that ignored the seed would not pass).
+
+Rounded **down and then not up**: a fifth of four scans is 0.8, and holding out one of four is a 25%
+validation set reported as 20%. Zero is the honest answer, and `val_images == 0` already means
+something specific — ADR-0080 made the `validation` metric block *absent* rather than `NaN`.
+
+### Where it goes, and what that costs
+
+`cache/`, because PROJECT_RULES §5 says what goes there is safely deletable and a dataset built from
+annotations still in the database is re-creatable by definition. `exports/` is what an operator takes
+away (ADR-0067); this is what the application feeds itself.
+
+The consequence is stated rather than discovered: **deleting `cache/` leaves a finished run's
+`DatasetSpec.root` pointing at nothing** — which is exactly why M8-T01 put `classes` and both counts
+*on the spec*, having written at the time that *"a run has to be readable a month later, when the
+directory may be gone"*. That sentence paid out one task later.
+
+Two port methods came with it, `write_cache_text` and `write_cache_image`, because `application` may
+not touch the filesystem and encoding a PNG is `cv2`. Neither is `@_serialised`: they write files and
+touch no row, and holding the repository lock across a directory of a hundred scans would make the
+builder the one thing in the project that stops every other job.
+
+### The golden, and why it was the real risk
+
+Extracting `as_network_input` moved code the characterization golden covers as
+`yolo_input_preparation`. Checked before running the suite, against a literal copy of the
+pre-extraction code, on three shapes and both polarities: byte-identical. Then the golden agreed.
+Reordering `normalize` and `astype` is precisely what ADR-0015 was written about, so this was the one
+extraction in the project where "it looks the same" was not good enough.
+
+### Named, not fixed
+
+**Building a dataset preprocesses every scan and is not a job.** Seconds per scan, minutes for a real
+project, blocking its caller. The runner has existed since ADR-0043; the caller that needs it is
+M8-T05's UI, and wrapping this in a job before there is a progress bar to show would be a thread
+policy with no reader.
+
+### Next
+
+`M8-T03` — `LocalTrainingProvider`. It implements M8-T01's port against the suite that already
+exists, trains from what M8-T02 builds, and brings ultralytics with it.
+
+---
+
 ## 2026-08-30 — the window was never the problem; the stored dock layout was
 
 The operator came back with *"still not maximised, and the bottom of the application is off-screen —

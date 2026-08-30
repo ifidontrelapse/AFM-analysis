@@ -219,6 +219,29 @@ class ProjectRepository(Protocol):
         """
         ...
 
+    def write_cache_text(self, relative_name: str, text: str) -> str:
+        """Write one text file into `cache/`, returning its path from the root.
+
+        `cache/` rather than `exports/`, and the difference is the rule
+        PROJECT_RULES §5 states: *anything under `cache/` must be safely
+        deletable at any time without data loss.* An export is what an operator
+        takes away (ADR-0067); a built training dataset is derived from
+        annotations that are still in the database, so it is re-creatable by
+        definition — which is what `cache/` means (M8-T02).
+        """
+        ...
+
+    def write_cache_image(self, relative_name: str, image: np.ndarray) -> str:
+        """Write one `uint8` image into `cache/`, returning its path from the root.
+
+        Beside `write_cache_text` for the reason `write_export_text` sits beside
+        `write_export`: a dataset is a directory of pictures *and* a directory of
+        small text files, and `application` may encode neither — writing a PNG is
+        `cv2` (Architecture §3.2, and the division ADR-0073 already made for a
+        painted mask).
+        """
+        ...
+
     def register_model(self, descriptor: ModelDescriptor) -> ModelDescriptor:
         """Record a model this project can use."""
         ...

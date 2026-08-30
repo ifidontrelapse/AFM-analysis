@@ -28,6 +28,7 @@ from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.science.detection import BaseDetector
 from nanoscope.core.validation import ensure_height_map, ensure_positive
 from nanoscope.core.values import Polarity
+from nanoscope.infrastructure.imaging.network_input import as_network_input
 
 logger = logging.getLogger(__name__)
 
@@ -127,12 +128,11 @@ class YoloDetector(BaseDetector):
         scale, pad_x, pad_y = self._letterbox(z_above.shape)
         h, w = z_above.shape
         img = cv2.resize(z_above, (round(w * scale), round(h * scale)))
-        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        if self.polarity is Polarity.BRIGHT_ON_DARK:
-            # The weights were trained on inverted AFM height maps, so the model
-            # looks for *dark* particles. Inverting a TEM image, where they are
-            # already dark, hands it the background (D-12, ADR-0023).
-            img = cv2.bitwise_not(img)
+        # The normalise-then-cast and the polarity inversion moved out in M8-T02,
+        # unchanged and in the same order: the dataset builder has to make the
+        # *same* picture, and a second copy of this is a model trained on one
+        # distribution and used on another, silently (ADR-0081).
+        img = as_network_input(img, polarity=self.polarity)
         # 255 is what a minimum height looks like after the inversion, so the
         # border reads as more substrate rather than as an edge (ADR-0016).
         img = cv2.copyMakeBorder(

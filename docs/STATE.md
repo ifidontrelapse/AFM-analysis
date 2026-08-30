@@ -1,7 +1,7 @@
 # STATE
 
-**Last updated:** 2026-08-30 · **Branch:** `fix/first-run-usability` (off `feat/m8-training`) ·
-**Base commit:** `dcfc8f4`
+**Last updated:** 2026-08-30 · **Branch:** `feat/m8-training` (pushed; the three usability fixes are
+folded in) · **Base commit:** `d89e303`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -86,7 +86,29 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01` is done (2026-08-30, ADR-0080). `M8-T02` — the dataset builder — is next.**
+**`M8-T01` and `M8-T02` are done (2026-08-30, ADR-0080 and ADR-0081). `M8-T03` —
+`LocalTrainingProvider` — is next.**
+
+**`M8-T02` done 2026-08-30 (ADR-0081) — annotations become a dataset, prepared the way inference
+prepares.** The task's title says *split*, and the split is the easy half: **a height map is not an
+image.** The scans are `float32` arrays in nanometres and a trainer reads PNG, so something has to
+make a picture and *what makes it decides what the model learns*. One right answer, already written
+down three times: prepare a training picture the way `_prepare_image` prepares an inference one —
+ADR-0015's normalise-then-cast, ADR-0023's polarity inversion, and **not** ADR-0016's letterbox,
+because ultralytics letterboxes to `imgsz` itself and transforms the labels with it. **One function,
+called by both** (`infrastructure/imaging/network_input.py`, neutral ground between ADR-0006's two
+sides), and the test asserts the function **identity** rather than that two copies agree — a morning
+was lost today to a second copy of a four-entry map, and that one at least produced an error message.
+**From `z_above`**, the array `detect` is handed, not the raw file. **The split is by image, never by
+box:** boxes off one scan in opposite halves is leakage and would inflate every number M8-T08
+reports; seeded, seed in `data.yaml`, and rounded **down and then not up** because one of four scans
+is 25% reported as 20%. **In `cache/`** (§5: safely deletable, and a dataset is re-creatable), with
+`write_cache_text`/`write_cache_image` on the port, neither serialised — and the stated consequence,
+that deleting `cache/` leaves a run's `root` pointing at nothing, is exactly why M8-T01 put the
+counts on the spec. **The golden was the real risk** and was checked against a literal copy of the
+pre-extraction code before the suite ran: byte-identical on three shapes and both polarities.
+**Named, not fixed:** building preprocesses every scan and is not a job — the runner exists, the
+caller that needs it is M8-T05. 19 tests, **1442** in the suite.
 
 **Parked in front of it, 2026-08-30: two first-launch defects the operator found by running the
 build.** Branch `fix/first-run-usability`, one commit per intent, no ADR — neither makes a decision
@@ -1782,7 +1804,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **1 421, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **1 442, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

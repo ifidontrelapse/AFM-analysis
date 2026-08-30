@@ -21,6 +21,7 @@ from nanoscope.application.use_cases.annotations import (
     parse_labels,
     read_labels,
 )
+from nanoscope.application.use_cases.dataset import DatasetReport, build_dataset
 from nanoscope.application.use_cases.export import export_measurements
 from nanoscope.application.use_cases.metrology import ruler_length, ruler_profile
 from nanoscope.application.use_cases.pipeline import run_pipeline
@@ -39,8 +40,10 @@ from nanoscope.application.use_cases.statistics import (
 
 __all__ = [
     "AnnotationExport",
+    "DatasetReport",
     "PreprocessingParams",
     "Summary",
+    "build_dataset",
     "export_annotations",
     "export_measurements",
     "histogram",

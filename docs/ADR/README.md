@@ -88,6 +88,7 @@ Use `TEMPLATE.md` for new records.
 | [0078](ADR-0078-the-export-is-lossy-and-the-lossy-part-is-the-decision.md) | The export is lossy, and the lossy part is the decision | Accepted | 2026-08-17 |
 | [0079](ADR-0079-the-measurement-vocabulary-is-a-contract-and-a-test-holds-it.md) | The measurement vocabulary is a contract, and a test holds it | Accepted | 2026-08-17 |
 | [0080](ADR-0080-a-training-run-is-its-own-handle-and-a-contract-holds-it.md) | A training run is its own handle, and a contract test holds the port | Accepted | 2026-08-30 |
+| [0081](ADR-0081-a-training-picture-is-made-the-way-an-inference-picture-is.md) | A training picture is made the way an inference picture is | Accepted | 2026-08-30 |
 
 ## When to write one
 

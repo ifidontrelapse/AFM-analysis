@@ -59,6 +59,7 @@ from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage.database import open_database
 from nanoscope.infrastructure.storage.masks import read_mask, write_mask
 from nanoscope.infrastructure.storage.project_format import (
+    CACHE_DIRECTORY,
     DIRECTORIES,
     ProjectManifest,
     new_manifest,
@@ -894,6 +895,53 @@ class SqliteProjectRepository:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return path.relative_to(self._root).as_posix()
+
+    def write_cache_text(self, relative_name: str, text: str) -> str:
+        """Write one text file under `cache/`, and return its path from the root.
+
+        `cache/` because what goes there is re-creatable and therefore safely
+        deletable (PROJECT_RULES §5) — a built training dataset is derived from
+        annotations that are still in the database. `exports/` is what an
+        operator takes away.
+
+        Not `@_serialised`: this writes a file and touches neither the
+        connection nor a row, and holding the repository lock across a directory
+        of a hundred images would make the dataset builder the one thing in the
+        project that stops every other job.
+        """
+        path = self._cache_path(relative_name, "dataset.txt")
+        path.write_text(text, encoding="utf-8")
+        return path.relative_to(self._root).as_posix()
+
+    def write_cache_image(self, relative_name: str, image: np.ndarray) -> str:
+        """Write one `uint8` image under `cache/`, and return its path from the root.
+
+        PNG: lossless, because a JPEG artefact on a 5 nm height range is a
+        feature the model would learn (ADR-0015's argument about grey levels,
+        one step later in the same pipeline).
+        """
+        import cv2
+
+        path = self._cache_path(relative_name, "image.png")
+        if not cv2.imwrite(str(path), image):
+            raise InvalidParameterError(f"could not write {path}")
+        return path.relative_to(self._root).as_posix()
+
+    def _cache_path(self, relative_name: str, fallback: str) -> Path:
+        """A writable path inside `cache/`, with its directory made.
+
+        The same per-component flattening `write_export_text` does, for the same
+        reason: a `..` or an absolute path from a caller must not write outside
+        the project, and a dataset is a directory rather than a file.
+        """
+        parts = [
+            re.sub(r"[^\w.\- ]+", "_", part).strip(" .") or "_"
+            for part in PurePosixPath(relative_name).parts
+            if part not in ("", ".", "/")
+        ]
+        path = self._root / CACHE_DIRECTORY / PurePosixPath(*(parts or [fallback]))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     @_serialised
     def get_setting(self, key: str, default: object = None) -> object:
