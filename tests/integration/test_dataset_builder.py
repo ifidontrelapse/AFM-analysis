@@ -117,6 +117,26 @@ class TestWhatItBuilds:
         # makes two runs incomparable, and a person has to be able to check.
         assert "seed: 7" in manifest
 
+    def test_with_nothing_held_out_val_still_resolves(self, app: Nanoscope, project: Path) -> None:
+        """Found by M8-T03's contract suite, not by this file.
+
+        A dataset built with `val_fraction=0.0` never creates `images/val`, and
+        ultralytics **refuses the manifest** before the first epoch — measured:
+        *"Dataset error"*. It also validates the final epoch whether or not it
+        was asked to, so the directory has to exist and be readable.
+
+        `val` therefore points at the training split, and the file says so. The
+        numbers that come out of it are the model scored on what it trained on,
+        and `LocalTrainingProvider` is what refuses to report them as validation
+        (ADR-0081) — because ADR-0080's block means *a held-out set existed*.
+        """
+        report = build_dataset(repo_of(app), val_fraction=0.0, directory_name="none-held-out")
+
+        manifest = (project / report.spec.root / DATASET_FILE).read_text()
+        assert f"val: {IMAGES_DIRECTORY}/{TRAIN}" in manifest
+        assert "not validation" in manifest
+        assert (project / report.spec.root / IMAGES_DIRECTORY / TRAIN).is_dir()
+
     def test_two_builds_do_not_overwrite_each_other(self, app: Nanoscope) -> None:
         first = build_dataset(repo_of(app), directory_name="one")
         second = build_dataset(repo_of(app), directory_name="two")

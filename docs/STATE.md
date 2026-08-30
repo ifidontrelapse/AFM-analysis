@@ -86,8 +86,30 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01` and `M8-T02` are done (2026-08-30, ADR-0080 and ADR-0081). `M8-T03` —
-`LocalTrainingProvider` — is next.**
+**`M8-T01`, `M8-T02` and `M8-T03` are done (2026-08-30, ADR-0080…ADR-0082). `M8-T04` —
+persisting a run — is next.**
+
+**`M8-T03` done 2026-08-30 (ADR-0082) — the first thing in this project that produces a model, and
+the task that settles ADR-0080 §1 rather than arguing it.** M8-T01 wrote a port before its adapter
+and justified it with fourteen assertions a second implementation would have to satisfy *unchanged*;
+`TrainingProviderContract` ran against a real trainer with **three fixtures and no edits**, twice.
+**Everything was measured first**, against ultralytics 8.4.41: `on_fit_epoch_end` is the epoch
+boundary and `trainer.stop = True` inside it ends the run (8 asked, 2 done, `best.pt` still there);
+that callback **fires four times for three epochs** (`[0, 1, 2, 2]` — the final validation again), so
+the reporter deduplicates or every chart ships an off-by-one; and a contract-sized run costs
+**2.7 s**, which is why the subclass is `slow` **and in the gate** rather than behind a variable
+nobody sets. **The contract found a real defect on the seam with M8-T02:** a dataset built with
+`val_fraction=0.0` **could not be trained at all** — the trainer refuses a manifest whose `val` does
+not resolve, and `images/val` was never created. Fixed on both sides, and the second half is the
+ADR's title: `val` points at the training split when nothing is held out (the trainer also
+**validates the final epoch whether or not it was asked to**), and **the provider refuses to report
+those numbers as validation** — a precision on the training set is ADR-0044's self-confirmation
+dressed as a metric, and ADR-0080's block means *a held-out set existed*. **Cancellation sets the
+flag, never raises**, and it is `JobRunner`'s flag (ADR-0080 §2, no second thread policy); a race
+between `submit` returning and the handle being registered is remembered rather than dropped.
+**ADR-0006's separation guard is non-vacuous in both directions for the first time** — six cases
+where there were four, exactly as M8-T01 predicted. Not wired into the container (ADR-0041, sixth
+application). 26 tests, **1478** in the suite.
 
 **`M8-T02` done 2026-08-30 (ADR-0081) — annotations become a dataset, prepared the way inference
 prepares.** The task's title says *split*, and the split is the easy half: **a height map is not an
@@ -1804,7 +1826,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **1 442, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **1 478, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

@@ -84,6 +84,8 @@ AFM-analysis/
 │   │   ├── storage/app_settings.py     # ~/.config/nanoscope/settings.json (M4-T10)
 │   │   ├── device/manager.py           # the only place that asks torch about hardware (M4-T12)
 │   │   ├── models/                     # yolo.py, sam2.py, registry.py (M4-T13) — heavy imports
+│   │   ├── training/                   # local.py (M8-T03) — LocalTrainingProvider. Walled off
+│   │   │                               #   from models/ in both directions (ADR-0006, guarded)
 │   │                                   #   are function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib),
 │   │                                   #   network_input.py (M8-T02) — the one picture both
@@ -771,6 +773,7 @@ Also enforced, and each proven to fail on a real violation:
 | Nanoscope's numbered files (`scan.000`, …) dispatch to the AFM reader | `tests/unit/test_afm_io.py` |
 | A stored window layout that does not fit the screen is not restored | `tests/gui/test_main_window.py` |
 | A training picture equals the inference picture, and the split leaks no scan | `tests/integration/test_dataset_builder.py` |
+| Both `TrainingProvider`s pass one suite; training and inference cannot import each other | `tests/contract/`, `tests/unit/test_import_graph.py` |
 | Every `TrainingProvider` behaves the same, and a run that claims weights has them | `tests/contract/training_provider.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |

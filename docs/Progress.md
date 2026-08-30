@@ -7,6 +7,88 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-30 — M8-T03: the first thing in this project that produces a model
+
+**`LocalTrainingProvider`, and ADR-0080 §1 settled rather than argued.** 26 tests, **1478** in the
+suite. mypy unchanged at 6. Delta: **zero, golden byte-identical**.
+
+### The deliverable was not new tests
+
+M8-T01 wrote a port before its adapter — which is the rule `core/ports/__init__.py` wrote for itself
+— and justified it with fourteen assertions a second implementation would have to satisfy
+*unchanged*. The argument was that an unimplemented port is not merely empty but **unfalsifiable**.
+
+It was falsifiable. `TrainingProviderContract` ran against a real trainer with **three fixtures and
+no edits**, twice — with a held-out set and without — and one of its assertions failed, for a real
+reason, on the first run.
+
+### Everything was measured before anything was written
+
+Against ultralytics 8.4.41, on this machine:
+
+| What | Measured |
+|---|---|
+| Where an epoch ends | `on_fit_epoch_end`, with `if self.stop: break` right after it |
+| Whether `trainer.stop = True` works | Asked for 8 epochs, stopped after 2, `best.pt` still on disk |
+| How often that callback fires | **Four times for three epochs** — `[0, 1, 2, 2]` |
+| Epoch numbering | 0-based; `EpochMetrics.epoch` is 1-based |
+| Cost of a contract-sized run | **2.7 s** — 3 epochs, 2 images, 32 px, CPU |
+
+The duplicate callback is the kind of thing that ships. The port promises one entry per epoch, in
+order, never sparse (M8-T01 asserted it), and the final validation fires the callback again for an
+epoch already reported — an off-by-one in every chart, avoided by running the thing instead of
+reading about it. And 2.7 s is why the contract subclass is **`slow` and in the gate** rather than
+behind an environment variable: a test nobody runs by default is a test that rots, and PROJECT_RULES
+§6 keeps *inference* out of the gate because it is not reproducible, not because it is slow.
+
+### What the contract found
+
+**A dataset M8-T02 builds with `val_fraction=0.0` could not be trained at all.** Ultralytics refuses
+a manifest whose `val` does not resolve, and a split that held nothing out never created
+`images/val`. It failed with *"Dataset error"* before the first epoch. Written yesterday afternoon,
+found this evening, by a suite written the day before that against a fake — which is the whole
+argument for writing contracts early.
+
+The fix has two halves and the second one is the ADR's title.
+
+`val` now points at the training split when nothing is held out, because the trainer needs it to
+resolve **and validates the final epoch whether or not it was asked to**:
+`if self.args.val or final_epoch: self.metrics = self.validate()`. So numbers appear.
+
+**And the provider refuses to report them as validation.** A precision computed on the training set
+is the model scored on what it trained on — the self-confirmation ADR-0044 named one level down,
+dressed as a metric. ADR-0080's `validation` block means *a held-out set existed*, not *a validation
+pass ran*, and that distinction is now a line of code with a test on it. Without it, a run with
+nothing held out reports five epochs of loss and then a sixth carrying a precision, a recall and two
+mAPs out of nowhere — every one of them wrong in the direction of looking better, and a chart would
+have shown them as the result.
+
+### The rest
+
+**Cancellation sets the flag, never raises.** It is `JobRunner`'s flag, read at the epoch boundary —
+ADR-0080 §2 said no second thread policy and there is none — and `trainer.stop = True` rather than an
+exception, because raising out of a framework callback abandons the checkpoint ADR-0080 promised a
+cancelled run would keep. Progress goes through `JobContext.report(epoch, epochs)`, so M5-T07's
+status widget will show a training run without knowing what one is.
+
+**A race worth closing:** `submit` returns after the work may already be running, so there is a
+window between *the run exists* and *there is a handle to stop it* — and the contract's own first
+test cancels immediately. A cancel that silently does nothing is the class of bug ADR-0043 exists
+for, so a cancel arriving in that window is remembered and applied.
+
+**ADR-0006's separation guard is non-vacuous in both directions for the first time.** M8-T01 wrote
+it while half of it could not fail and said so: *"the pair below is built from whichever directories
+exist, so it starts checking the second direction the day there is one."* Six cases now, where there
+were four.
+
+### Next
+
+`M8-T04` — persisting a run: config, metrics, artifacts, provenance, and registering the
+`ModelDescriptor` that ADR-0006's compliance clause requires. It is what makes a finished run
+survive a restart, and what `DatasetSpec` carrying its counts was for.
+
+---
+
 ## 2026-08-30 — M8-T02: annotations become a dataset, prepared the way inference prepares
 
 **The builder, `as_network_input` shared with the detector, two cache writers on the port, and

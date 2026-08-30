@@ -1,98 +1,101 @@
 # CURRENT TASK
 
-**ID:** `M8-T02`
-**Title:** The dataset builder: annotations become something a trainer can read
-**Milestone:** M8 — Training module, second task
-**Defect:** — · **ADR:** **ADR-0081** (to be written)
+**ID:** `M8-T03`
+**Title:** `LocalTrainingProvider` — the first thing in this project that produces a model
+**Milestone:** M8 — Training module, third task
+**Defect:** — · **ADR:** **ADR-0082** (to be written)
 **Branch:** `feat/m8-training`
 **Status:** **planning 2026-08-30.** Not started.
 
 ---
 
-## Why this task is second
+## Why this task is third
 
-M8-T01 declared what a training run consumes: a `DatasetSpec` — a directory, class names, and how
-many images are in each half. Nothing produces one. M8-T03 trains from one and cannot be written
-until something does.
+M8-T01 wrote the port and, with it, **fourteen assertions a second implementation must satisfy** —
+`tests/contract/training_provider.py`, run against a fake. M8-T02 built the dataset the port
+consumes. This is the task those two were written for, and the deliverable that judges it is not new
+tests: it is **the existing suite passing with three new fixtures and no new assertions.** If it
+does not, ADR-0080 §1 was wrong and says so itself.
 
-M7-T09 built half of it and **said which half it was not building**: it writes
-`labels/<stem>.txt` in the trainer's own format and a `classes.txt` whose line numbers are the
-indices, and ADR-0078 stopped there on purpose — *"a split is a dataset decision — how much to hold
-out, stratified by what — and it belongs to M8-T02 rather than to the task that happened to write
-the labels first."* This is that task.
-
----
-
-## The decision this task actually turns on
-
-**A height map is not an image, and a trainer only reads images.**
-
-The scans in a project are `.spm` and `scan.000`: 2-D `float32` arrays in nanometres, sometimes
-negative, with a range that depends on the sample. Ultralytics reads PNG and JPEG. So the builder
-has to *make a picture*, and every choice in doing so decides what the model learns.
-
-There is exactly one right answer available and it is already written down: **prepare a training
-image the way `YoloDetector._prepare_image` prepares an inference input.** A model trained on one
-distribution and used on another is a model measured on a question nobody asked, and three ADRs
-already settled what that preparation is:
-
-- **ADR-0015** — normalise in floating point, *then* cast to `uint8`. Casting first keeps only the
-  integers inside the map's range and wraps the rest; on `afm_sparse_low_snr` the result was
-  **anti-correlated (r = −0.499)** with the correct image.
-- **ADR-0023** — invert for `BRIGHT_ON_DARK`, which is AFM's convention, and not for TEM where the
-  particles are already dark.
-- **ADR-0016** — letterbox isotropically. **Which this builder must *not* do**, because ultralytics
-  letterboxes to `imgsz` itself at train time and transforms the labels with it. Doing it here
-  would letterbox twice and squeeze every particle into the middle of a doubly-padded frame.
-
-So: **native resolution, min-max to `uint8`, invert by polarity, PNG.** The geometry stays the
-trainer's.
-
-**And the array is `z_above`, not the file.** `detect()` is handed `z_flat - substrate` — that is
-what `PipelineResult` computes and what every detection in this project was ever made from. A
-dataset built from raw height maps would train a model on tilt and substrate that inference has
-already removed. It costs a `run_preprocessing` per image, which is the expensive path and the
-correct one.
+ADR-0006 chose this seam in M0: *"`LocalTrainingProvider` — trains on this machine (ultralytics),
+device resolved by the Device Manager."*
 
 ---
 
-## The other decisions
+## What was measured before planning
 
-**1. The split is by image, never by box.**
+Not assumed — run, on this machine, against ultralytics 8.4.41:
 
-Two boxes from one scan, one in train and one in val, is leakage: the val score then measures how
-well the model memorised that scan's substrate, instrument noise and particle population. Every box
-of a scan goes to the same side. This is the one thing in the task that a reviewer cannot see from
-the output and that quietly inflates every number M8-T08 will report.
+**1. `on_fit_epoch_end` is the epoch boundary, and `trainer.stop = True` inside it stops the run.**
+The trainer's loop reads `if self.stop: break` immediately after firing that callback. Asked for 8
+epochs, stopped after 2, and `best.pt` was still on disk — which is exactly ADR-0043's *stop at the
+next checkpoint* and ADR-0080's *a cancelled run keeps the epochs it completed*.
 
-**2. The split is deterministic, and the seed is recorded.**
+**2. The callback fires twice for the last epoch.** Three epochs reported `[0, 1, 2, 2]`: the final
+`val` after the loop fires it again. **The port promises one entry per epoch, in order, never
+sparse** (M8-T01's contract asserts it), so the adapter deduplicates by epoch number. A trap that
+would have shipped as an off-by-one in every chart.
 
-A rebuild that shuffles differently makes two runs incomparable. Seeded, and the seed goes in
-`data.yaml` where a person can read it.
+**3. The metric names, read off a real run:**
 
-**3. Where it goes: `cache/`.**
+```
+trainer.metrics            metrics/precision(B)  metrics/recall(B)  metrics/mAP50(B)
+                           metrics/mAP50-95(B)   val/box_loss  val/cls_loss  val/dfl_loss
+trainer.label_loss_items() train/box_loss  train/cls_loss  train/dfl_loss
+```
 
-PROJECT_RULES §5 fixes the layout and says *anything under `cache/` must be safely deletable at any
-time without data loss*. A built dataset is derived from annotations that are still in the database
-— it is re-creatable by definition, which is exactly what `cache/` means. `exports/` is what an
-operator takes away (ADR-0067); a dataset is what the application feeds itself.
+Ultralytics epochs are **0-based**; `EpochMetrics.epoch` is 1-based (M8-T01), so `+ 1`.
 
-The consequence, stated rather than discovered: **deleting `cache/` after a run leaves the run's
-`DatasetSpec.root` pointing at nothing.** That is why `DatasetSpec` carries `classes` and both
-counts — M8-T01 wrote *"a run has to be readable a month later, when the directory may be gone"* —
-and M8-T04 persists them.
+**4. A model builds from a YAML that ships with the package** — `yolo11n.yaml` resolves inside
+ultralytics' own `cfg/models/11/`, so a contract run needs no download and no checkpoint.
 
-**4. Which annotations, and the caller says.**
+**5. It costs 2.7 s.** Three epochs, two training images, one held out, 32 px, CPU. So the contract
+subclass is **`slow` and in the gate**, not hidden behind an environment variable — a test nobody
+runs by default is a test that rots, and this one is affordable.
 
-ADR-0044's `source` is load-bearing: *a model trained on its own output is confirming itself.*
-M7-T09 made the caller name the scope rather than defaulting to one that hides the question, and
-this builder takes the same argument for the same reason.
+---
 
-**5. `_to_label` is reused, not copied.**
+## The decisions
 
-The one thing today already cost: `display.py` kept a second copy of a four-entry extension map and
-an operator's folder of scans would not open. The normalisation, the clamping and the six decimal
-places live in `use_cases/annotations.py`; this builder imports them.
+**1. The job runner underneath, exactly as ADR-0080 §2 said.**
+
+*"The local provider drives it with the `JobRunner` underneath; a remote one polls. What must not
+happen is a second thread policy in the layer ADR-0043 already settled."* So `start` submits to the
+runner, the run's body reports progress through `JobContext.report(epoch, epochs)` — which makes
+M5-T07's job status widget work for training with no new code — and cancellation is the runner's
+flag, **read at the trainer's epoch boundary** rather than raised. Raised would abandon the
+checkpoint; ADR-0080 promised it is kept.
+
+**2. Metrics are mapped, not forwarded.**
+
+`metrics/mAP50-95(B)` is ultralytics' name for a quantity ADR-0080 calls `map50_95`. The port
+declared the vocabulary once so two providers cannot spell one quantity two ways (ADR-0031's rule),
+and the adapter is where the translation belongs. `train_loss` and `val_loss` are the **sums** of the
+three components ultralytics reports — a total is what a chart plots, and the split is a
+framework's internal, not a quantity this project has named.
+
+The `validation` block is present only when it is all there, which is what `val_images == 0` means:
+the run is started with `val=False` and none of the five keys exist.
+
+**3. The device is the manager's answer, and the run records what it got.**
+
+`DeviceProvider.select(config.device)` (ADR-0004, PROJECT_RULES §2.6 — nothing else asks torch), and
+`Device.torch_name` is what ultralytics is handed. `TrainingRun.device` carries the resolved one, not
+the requested one, because a run that fell back to CPU took forty times as long for a reason that
+must be in the record (ADR-0049).
+
+**4. Artifacts land where the configuration said, and the path is read back.**
+
+`TrainingConfig.output_directory` under the project root, ultralytics' `project` / `name` split
+across it. The path on the run is `trainer.best` **relative to the project root**, read back rather
+than assembled: ultralytics increments the directory name on collision, and a path this adapter
+composed would name a directory the trainer did not use.
+
+**5. Nothing is wired into the container.**
+
+ADR-0041's rule, sixth application: the composition root gains a `TrainingProvider` when M8-T05 has
+a window that asks for one. It needs the runner and the device manager, both of which the container
+already holds, so the wiring is five lines whenever it is earned.
 
 ---
 
@@ -100,28 +103,27 @@ places live in `use_cases/annotations.py`; this builder imports them.
 
 **In scope**
 
-1. `application/use_cases/dataset.py` — `build_dataset(repository, *, sources, val_fraction, seed)`
-   returning `DatasetSpec`
-2. The image preparation shared with inference, in **one** place both call
-3. `data.yaml`, the split, and the `images/{train,val}` + `labels/{train,val}` layout
-4. **ADR-0081**
-5. Tests: the split is by image, deterministic, and the prepared image matches inference's
+1. `infrastructure/training/local.py` — `LocalTrainingProvider`
+2. `tests/contract/test_local_training_provider.py` — three fixtures, no new assertions
+3. **ADR-0082**
+4. The import guard from M8-T01 stops being half-vacuous: `infrastructure/training/` now exists
 
 **Out of scope**
 
-- **Training anything** — M8-T03, and it brings ultralytics with it
-- **Any UI** — M8-T05. The builder is a use case with no dialog in front of it yet
-- **Persisting the dataset in the database** — M8-T04 persists the *run*, which carries the spec
-- **Augmentation** — ultralytics does its own, and a second source of it is two policies
+- **Registering the produced model** — M8-T04 persists the run and registers the `ModelDescriptor`
+- **Any UI** — M8-T05
+- **Resumption** — named in ADR-0080's negatives; it needs a stored checkpoint path, which is
+  M8-T04's record
+- **The remote protocol** — M8-T07
 
 ---
 
 ## Definition of done
 
-- [ ] `build_dataset` returns a `DatasetSpec` that `FakeTrainingProvider` accepts
-- [ ] One image preparation, called by both the detector and the builder, and a test that says so
-- [ ] The split is by image and deterministic, both asserted
-- [ ] ADR-0081 + the ADR index
-- [ ] `make check` green, golden byte-identical — moving `_prepare_image` must move no number
+- [ ] `LocalTrainingProvider` passes `TrainingProviderContract` unchanged
+- [ ] Every epoch reported once, in order, with the vocabulary the port declared
+- [ ] Cancel stops at an epoch boundary and keeps what was trained
+- [ ] ADR-0082 + the ADR index
+- [ ] `make check` green, golden byte-identical
 - [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M8-T02: annotations become a dataset, prepared the way inference prepares`
+- [ ] Commit: `M8-T03: the first thing in this project that produces a model`

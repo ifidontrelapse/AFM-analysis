@@ -169,7 +169,8 @@ def build_dataset(
         )
 
     written = repository.write_cache_text(
-        f"{root}/{DATASET_FILE}", _manifest(classes, seed=seed, val_fraction=val_fraction)
+        f"{root}/{DATASET_FILE}",
+        _manifest(classes, seed=seed, val_fraction=val_fraction, held_out=bool(counts[VAL])),
     )
     spec = DatasetSpec(
         #: Read back off the path the adapter chose rather than assembled here:
@@ -240,7 +241,7 @@ def _picture_of(repository: ProjectRepository, record: ImageRecord) -> np.ndarra
     return as_network_input(z, polarity=default_polarity(record.modality))
 
 
-def _manifest(classes: tuple[str, ...], *, seed: int, val_fraction: float) -> str:
+def _manifest(classes: tuple[str, ...], *, seed: int, val_fraction: float, held_out: bool) -> str:
     """`data.yaml`, written by hand rather than with a YAML library.
 
     Four keys and a list of short names: a dependency to emit that is a
@@ -251,15 +252,38 @@ def _manifest(classes: tuple[str, ...], *, seed: int, val_fraction: float) -> st
     `path: .` and relative halves, so the directory can be moved or copied and
     still resolves — the same property that makes a project a plain directory
     (ADR-0003).
+
+    **When nothing is held out, `val` points at the training split**, and that is
+    a compromise with the trainer rather than a claim. Ultralytics refuses a
+    manifest whose `val` does not resolve — measured: a dataset built with
+    `val_fraction=0.0` failed with *"Dataset error"* before the first epoch, and
+    it was M8-T03's contract suite that found it — and it validates the final
+    epoch whatever `val` is set to. So the directory has to exist, and the
+    numbers computed from it are the model scored on what it trained on.
+
+    **They are not reported as validation.** `LocalTrainingProvider` knows
+    `val_images == 0` and omits the block, because a precision measured on the
+    training set is the self-confirmation ADR-0044 named one level down, and
+    ADR-0080's `validation` block means *a held-out set existed* rather than *a
+    validation pass ran*.
     """
     names = "\n".join(f"  {index}: {_quoted(name)}" for index, name in enumerate(classes))
+    validation = f"{IMAGES_DIRECTORY}/{VAL if held_out else TRAIN}"
+    note = (
+        ""
+        if held_out
+        else "# Nothing was held out: 'val' points at the training split because the\n"
+        "# trainer requires one to resolve. Scores from it are not validation\n"
+        "# scores, and the provider does not report them as any (ADR-0081).\n"
+    )
     return (
         "# Written by nanoscope (M8-T02). Rebuilt from the project's annotations;\n"
         "# safely deletable, like everything under cache/ (PROJECT_RULES §5).\n"
         f"# seed: {seed}  val_fraction: {val_fraction}\n"
+        f"{note}"
         "path: .\n"
         f"train: {IMAGES_DIRECTORY}/{TRAIN}\n"
-        f"val: {IMAGES_DIRECTORY}/{VAL}\n"
+        f"val: {validation}\n"
         f"nc: {len(classes)}\n"
         f"names:\n{names}\n"
     )
