@@ -238,3 +238,55 @@ def test_no_two_test_modules_share_a_basename() -> None:
     assert not clashes, "pytest imports test modules by basename: " + "; ".join(
         f"{a.relative_to(ROOT)} and {b.relative_to(ROOT)}" for a, b in clashes
     )
+
+
+# ── Training and inference do not import each other (M8-T01) ─────────────────
+#
+# ADR-0006's compliance clause, verbatim: *"No module under `infrastructure/models/`
+# (inference) imports `infrastructure/training/`, and vice versa."* It is the
+# structural half of the decision the ADR opens with — training is not a `train()`
+# method next to `detect()` — and without a check it is a sentence in a document
+# that the first convenient import quietly repeals.
+#
+# Written in the task that defined the port, while it is trivially true, and for
+# the reason the Qt guard above gives: a guard added after the first violation is
+# a guard that has already failed once. `infrastructure/training/` arrives in
+# M8-T03; the pair below is built from whichever directories exist, so it starts
+# checking the second direction the day there is one.
+
+INFERENCE = PACKAGE / "infrastructure" / "models"
+TRAINING = PACKAGE / "infrastructure" / "training"
+
+SEPARATED = (
+    (INFERENCE, "nanoscope.infrastructure.training"),
+    (TRAINING, "nanoscope.infrastructure.models"),
+)
+
+CROSSINGS = [
+    (path, forbidden)
+    for directory, forbidden in SEPARATED
+    for path in sorted(directory.rglob("*.py"))
+]
+
+
+def test_the_inference_package_is_not_empty() -> None:
+    """A glob that matches nothing passes vacuously, and one half of this pair
+    matches nothing until M8-T03 writes it."""
+    assert any(path.is_relative_to(INFERENCE) for path, _ in CROSSINGS), CROSSINGS
+
+
+@pytest.mark.parametrize(
+    ("path", "forbidden"), CROSSINGS, ids=lambda value: str(value).rsplit("/", 2)[-1]
+)
+def test_training_and_inference_stay_apart(path: pathlib.Path, forbidden: str) -> None:
+    offenders = {
+        name
+        for name in _imported_modules(path)
+        if name == forbidden or name.startswith(forbidden + ".")
+    }
+    assert not offenders, (
+        f"{path.relative_to(ROOT)} imports {sorted(offenders)}. Training is a separate "
+        "module behind `TrainingProvider`, not a branch inside detection: it runs for "
+        "hours, consumes a dataset and produces artifacts, and the seam is what makes "
+        "remote training a configuration choice instead of a rewrite (ADR-0006)."
+    )

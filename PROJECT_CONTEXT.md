@@ -48,9 +48,13 @@ AFM-analysis/
 │   ├── app/                            # composition root (empty until M5)
 │   ├── core/                           # DOMAIN. No Qt, no torch, no matplotlib, no I/O
 │   │   ├── entities/                   # AFMRawData, MicroscopyData, PreprocessingResult,
-│   │   │                               #   Detection, PipelineConfig, PipelineResult
+│   │   │                               #   Detection, PipelineConfig, PipelineResult,
+│   │   │                               #   training.py (M8-T01): DatasetSpec, TrainingConfig,
+│   │   │                               #   EpochMetrics, TrainingRun, TrainingStatus
 │   │   ├── values/                     # Modality, Polarity, PixelScale, DeviceKind
-│   │   ├── ports/                      # Detector (the only port with implementations)
+│   │   ├── ports/                      # Detector, DeviceProvider, ProjectRepository,
+│   │   │                               #   SettingsStore, TrainingProvider (M8-T01 — the one
+│   │   │                               #   port written ahead of its adapter, ADR-0080)
 │   │   └── science/                    # the preserved numerical core
 │   │       ├── io/nanoscope_spm.py     # SPM header parsing and calibration
 │   │       ├── preprocessing/          # flatten.py (levelling), substrate.py (opening/Otsu)
@@ -107,12 +111,16 @@ AFM-analysis/
 │   ├── unit/                           # afm_io, values, ports, capabilities, logging,
 │   │                                   #   import_graph, project_format, database, jobs,
 │   │                                   #   commands, settings, device, log sinks,
-│   │                                   #   measurement docs vs schema (M7-T10) — 804 tests
+│   │                                   #   measurement docs vs schema (M7-T10),
+│   │                                   #   training entities (M8-T01) — 866 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
 │   │                                   #   walkthrough and the entry point
 │   ├── gui/                            # headless Qt tests (M5-T02…M7-T09) — 368 tests
+│   ├── contract/                       # the suite every TrainingProvider passes, plus the fake
+│   │                                   #   that satisfies it (M8-T01, ADR-0080) — M8-T03 adds
+│   │                                   #   one file with three fixtures and no new assertions
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat,
 │                                       #   Measurements (M7-T10), ADR/, audit/
@@ -757,6 +765,8 @@ Also enforced, and each proven to fail on a real violation:
 | `core` imports nothing from an outer layer; the domain loads no torch/matplotlib/Qt | `tests/unit/test_import_graph.py` |
 | No `print` in library code | `tests/unit/test_logging.py` |
 | Both detectors satisfy the `Detector` port | `tests/unit/test_ports.py` |
+| Every `TrainingProvider` behaves the same, and a run that claims weights has them | `tests/contract/training_provider.py` |
+| Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
 
 Nine pre-commit hooks run on every commit (M1-T07); `pytest` and mypy are deliberately not

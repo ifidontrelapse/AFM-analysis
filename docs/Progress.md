@@ -7,6 +7,91 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-08-30 — M8-T01: what a training run is, before anything trains
+
+**`TrainingProvider`, the entities it speaks in, a contract suite two providers must pass, and
+ADR-0080.** 53 new tests, **1391** in the suite. mypy unchanged at 6. Delta: **zero, golden
+byte-identical** — nothing in this task computes a number.
+
+### The rule this task broke, and what it put in its place
+
+`core/ports/__init__.py` wrote a rule into its own docstring in M2-T08, after defining seven ports
+and shipping one: *the rest ship with their first adapter*. ADR-0041 sharpened it into the project's
+most-applied rule and four tasks have applied it since. **This task writes a port with no adapter**,
+and the docstring now records the exception rather than quietly having one.
+
+The argument is that the objection to an unimplemented port is not that it is empty. It is that it is
+**unfalsifiable** — nothing can disagree with it, so it survives untouched until real code has to fit
+through it, and by then it is quoted in a document and looks decided. That is exactly what happened
+to M2-T08's six.
+
+So the deliverable is not the `Protocol`. It is `tests/contract/training_provider.py`: fourteen
+assertions a `FakeTrainingProvider` satisfies today and `LocalTrainingProvider` must satisfy in
+M8-T03 with three new fixtures and **no new assertions**. ADR-0006 wrote that requirement in M0 —
+*both providers pass the same contract test suite* — and it has been a sentence in a document since.
+It is now a test. **One test proves the suite can fail**, and the failure it catches is the one
+ADR-0006's compliance clause names: a provider that reports success and leaves no weights on disk.
+
+### The decisions
+
+**A run is not a `Job`, and the five duplicated state names are the decision.** `TrainingStatus` has
+the same five values as `JobState` in a different enum in a different layer. A `Job` is in-process and
+dies with the process; a training run has to be findable after a restart (M8-T04) and may be executing
+on a machine this application did not start (M8-T07). And `core` may not import `application` at all,
+so moving the job runner inward to share an enum would put a thread pool in the pure layer to save
+five strings. What must not happen — a second thread policy — does not: the local provider drives its
+run with ADR-0043's `JobRunner` underneath, and a remote one polls.
+
+**`TrainingRun` is the handle.** `start` returns one, `status(run_id)` returns a fresh one, and there
+is no separate handle class. A live view of a running object cannot describe a run on another machine
+and cannot be stored; a frozen snapshot is both, which is what lets M8-T04 persist the record it was
+handed and M8-T05 draw a chart from a list of them.
+
+**A metric is an epoch and named scalars — ADR-0031's rule for the second time, and the first time it
+arrives before the producer rather than after four of them.** Two blocks: `loss` (`train_loss`) always,
+`validation` (`val_loss`, precision, recall, map50, map50_95) only when something was held out. **A
+block is present in full or absent in full**, and the check runs in `EpochMetrics.__post_init__` rather
+than in a validator a caller must remember — the caller is a framework callback firing once a minute
+for six hours, and the first wrong name should fail on epoch 1, not on the chart. `val_images == 0` is
+a legal dataset and it means the validation block is *absent*, not `NaN`: a run that held nothing out
+did not measure a precision and lose it.
+
+**There is no `collect_artifacts()`.** `TrainingConfig.output_directory` says where the weights land
+and a succeeded run carries a path to a file that exists, so *the run succeeded* and *the file is here*
+are one fact rather than two that can disagree — and the disagreement would have surfaced in M8-T04,
+when registering a model fails for a run reported green. ADR-0006's *no silent artifacts on disk* is
+now an assertion the contract makes on both providers, against a real file in a real directory.
+
+**`core` names no framework.** A `DatasetSpec` is a directory, class names and two counts. What file
+lives inside that directory is M8-T02's decision and the provider's to read; naming a manifest here
+would decide for the second provider what the first happened to use.
+
+### Found
+
+**The fake deadlocked its own cancellation test.** The epoch loop read the cancel flag under the
+provider's lock and called `_publish` — which takes the same lock — from inside that block, and
+`threading.Lock` is not reentrant. The whole contract run hung rather than failed, which is the
+worse symptom: a test that hangs looks like a slow machine. Read the flag under the lock, publish
+outside it. The same shape is waiting for M8-T03, where the lock will be around a real run's state.
+
+### Named, not missed
+
+**No `resume`.** ADR-0006 lists resumption as a requirement and this port does not serve it: a
+multi-hour run interrupted by a crash starts again. Serving it needs a stored checkpoint path, which
+is M8-T04's record rather than this task's port — written into ADR-0080's negatives so the next
+person does not think it was overlooked.
+
+**`METRIC_BLOCKS` will need a block it does not have** the first time a trainer reports something real
+that is not in it — a learning rate, a per-class mAP. Adding one is a one-line change plus an
+ADR-0031-style argument; guessing them now is the thing ADR-0031 says not to do.
+
+### Next
+
+`M8-T02` — the dataset builder: the project's annotations become a directory a trainer can read,
+with the train/val split M7-T09 deliberately refused to decide. `DatasetSpec` is what it produces.
+
+---
+
 ## 2026-08-17 — **M7 closed**, and M8 opened
 
 **All ten tasks done. ADR-0070 through ADR-0079 — ten decisions in one milestone. All four exit

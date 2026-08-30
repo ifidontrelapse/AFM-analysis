@@ -3,9 +3,9 @@
 **ID:** `M8-T01`
 **Title:** The `TrainingProvider` port: what a training run is, before anything trains
 **Milestone:** M8 — Training module, first task
-**Defect:** — · **ADR:** **ADR-0080** (to be written)
-**Branch:** `feat/m8-training` (to be created from the M7 close)
-**Status:** **planning 2026-08-17.** Not started.
+**Defect:** — · **ADR:** **ADR-0080** ✅
+**Branch:** `feat/m8-training`
+**Status:** **done 2026-08-30.** ADR-0080 accepted; `make check` green, golden byte-identical.
 
 ---
 
@@ -90,9 +90,45 @@ artifacts on disk.* This task declares that contract; M8-T04 persists it.
 
 ## Definition of done
 
-- [ ] `TrainingProvider` and its entities, with every method named by a caller M8 will actually write
-- [ ] A contract suite a second implementation can be handed
-- [ ] ADR-0080 + the ADR index
-- [ ] `make check` green, golden byte-identical (nothing here computes a number)
-- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M8-T01: what a training run is, before anything trains`
+- [x] `TrainingProvider` and its entities, with every method named by a caller M8 will actually write
+- [x] A contract suite a second implementation can be handed
+- [x] ADR-0080 + the ADR index
+- [x] `make check` green, golden byte-identical (nothing here computes a number)
+- [x] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
+- [x] Commit: `M8-T01: what a training run is, before anything trains`
+
+---
+
+## What the answers turned out to be
+
+**1. The port is written first, and the contract suite is what makes that legitimate.** Not a
+promise in a docstring — `tests/contract/training_provider.py`, fourteen assertions the fake
+satisfies today and `LocalTrainingProvider` must satisfy in M8-T03 with three fixtures and no new
+assertions. One test proves the suite can fail, catching ADR-0006's own named failure: success
+reported with no weights on disk.
+
+**2. A run is not a `Job`.** `TrainingStatus` duplicates `JobState`'s five names deliberately —
+`core` may not import `application`, a `Job` dies with the process, and a remote run was never
+submitted to a thread pool here. The thread *policy* is not duplicated: the local provider runs on
+ADR-0043's runner.
+
+**3. A metric is an epoch and a mapping of named scalars**, ADR-0031's core-plus-blocks: `loss`
+always, `validation` only when something was held out, present in full or absent in full, refused
+in the constructor.
+
+**4. Cancellation is ADR-0043's**, at an epoch boundary, and M8-T05 must say so.
+
+**5. Artifacts have no fourth method.** `TrainingConfig.output_directory` says where they land and
+a succeeded run points at a file that exists — one fact instead of two that can disagree.
+
+**Named, not missed:** no `resume`. ADR-0006 asks for it; serving it needs a stored checkpoint
+path, which is M8-T04's record rather than this port.
+
+---
+
+## Next
+
+**`M8-T02` — the dataset builder.** The project's annotations become a directory a trainer can
+read, with the train/val split M7-T09 deliberately declined to decide (ADR-0078: *a split is a
+dataset decision — how much to hold out, stratified by what*). `DatasetSpec` is what it produces,
+and `application/use_cases/annotations.py` already writes the labels.

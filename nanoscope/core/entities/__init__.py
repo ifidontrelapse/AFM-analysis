@@ -26,15 +26,28 @@ from nanoscope.core.entities.project import (
     Ruler,
     RulerKind,
 )
+from nanoscope.core.entities.training import (
+    METRIC_BLOCKS,
+    METRIC_NAMES,
+    DatasetSpec,
+    EpochMetrics,
+    TrainingConfig,
+    TrainingRun,
+    TrainingStatus,
+)
 
 __all__ = [
+    "METRIC_BLOCKS",
+    "METRIC_NAMES",
     "AFMRawData",
     "AnalysisRun",
     "Annotation",
     "AnnotationSource",
+    "DatasetSpec",
     "Detection",
     "Device",
     "DeviceSelection",
+    "EpochMetrics",
     "ImageRecord",
     "ImportFailure",
     "ImportReport",
@@ -49,4 +62,7 @@ __all__ = [
     "PreprocessingResult",
     "Ruler",
     "RulerKind",
+    "TrainingConfig",
+    "TrainingRun",
+    "TrainingStatus",
 ]

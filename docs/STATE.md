@@ -1,7 +1,6 @@
 # STATE
 
-**Last updated:** 2026-08-17 · **Branch:** `feat/m7-annotation-tools` (M7 closed here; M8's work
-starts on `feat/m8-training`) · **Base commit:** `f5c93be`
+**Last updated:** 2026-08-30 · **Branch:** `feat/m8-training` · **Base commit:** `ef94580`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -86,8 +85,43 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01` — the `TrainingProvider` port — is planned in `docs/CURRENT_TASK.md` and not started.
-M7 was closed by the operator on 2026-08-17**, as M3, M4, M5 and M6 were.
+**`M8-T01` is done (2026-08-30, ADR-0080). `M8-T02` — the dataset builder — is next.**
+M7 was closed by the operator on 2026-08-17, as M3, M4, M5 and M6 were.
+
+**`M8-T01` done 2026-08-30 (ADR-0080) — what a training run is, before anything trains.**
+`TrainingProvider` is **the first port in this project written before its adapter**, which is the
+rule `core/ports/__init__.py` wrote for itself in M2-T08 after defining seven ports and shipping
+one — and the docstring now records the exception rather than quietly having one. **The argument:
+the objection to an unimplemented port is not that it is empty but that it is *unfalsifiable*.**
+Nothing can disagree with it, so it survives until real code has to fit through it, and by then it
+is quoted in a document and looks decided. That is what happened to M2-T08's six.
+
+So the deliverable is not the `Protocol`. It is **`tests/contract/training_provider.py`** —
+fourteen assertions a `FakeTrainingProvider` satisfies today and `LocalTrainingProvider` must
+satisfy in M8-T03 with three new fixtures and *no new assertions*. ADR-0006 required this in M0
+(*both providers pass the same contract test suite*) and it has been a sentence in a document ever
+since; it is now a test, and **one test proves the suite can fail** — catching exactly ADR-0006's
+named failure, a provider that reports success and leaves no weights on disk.
+
+**A run is not a `Job`, and the five duplicated state names are the decision.** A `Job` is
+in-process and dies with the process; a training run must be findable after a restart (M8-T04) and
+may be executing on a machine this application did not start (M8-T07) — and `core` may not import
+`application` at all, so moving the runner inward to share an enum would put a thread pool in the
+pure layer to save five strings. The thread policy is not duplicated: the local provider drives its
+run with ADR-0043's `JobRunner` underneath. **`TrainingRun` is the handle**, and every observation
+is a frozen snapshot — a live view cannot describe a remote run and cannot be stored; a snapshot is
+both. **A metric is an epoch and named scalars** (ADR-0031's rule, second application, and the
+first time it lands *before* the producers rather than after four of them): `loss` always,
+`validation` only when something was held out, a block **present in full or absent in full**, and
+`val_images == 0` means the block is *absent* rather than `NaN`. **There is no
+`collect_artifacts()`** — `output_directory` says where the weights go and a succeeded run carries
+a path to a file that exists, so *the run succeeded* and *the file is here* are one fact instead of
+two that disagree in M8-T04. **`core` names no framework:** a `DatasetSpec` is a directory, class
+names and two counts. **Found:** the fake deadlocked its own cancellation test — the cancel flag
+was read and `_publish` called under one non-reentrant lock, so the contract run *hung* rather than
+failed, which is the worse symptom. **Named, not missed: no `resume`**, which ADR-0006 asks for and
+this port does not serve; it needs a stored checkpoint path, which is M8-T04's record. 53 tests,
+**1391** in the suite. Delta: **zero, golden byte-identical**.
 
 **CI, 2026-08-17 (operator's call after M7-T10): the branch is pushed and the run is read.** M5's
 *"GUI smoke tests pass headless in CI"* had been carried as **unverified** for two milestones, and
@@ -1692,7 +1726,7 @@ None of the remaining questions blocks M1 or M2.
 | Tracked model weights | **0** ✅ (was 1) | 0 | `git ls-files '*.pt'` |
 | `.git` size | 81 MB | — | `du -sh .git` — history unchanged, see B-040 |
 | Library LOC | 2 021 | — | `wc -l nanoscope/**/*.py` |
-| Meaningful tests | **926, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
+| Meaningful tests | **1 391, all passing** ✅ (was 1, failing) | ≥ 80% of core | `pytest -q` |
 | Golden enforced automatically | **yes** ✅ (was: by discipline) | yes | `pytest` |
 | `src/` modules moved into `nanoscope/` | **12 of 12** ✅ — `src/` deleted | 12 | `git ls-files` |
 | ruff findings, declared-and-owned | **14** in `nanoscope/` (was 109 in `src/`) | 0 | `make lint-legacy` |

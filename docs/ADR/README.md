@@ -87,6 +87,7 @@ Use `TEMPLATE.md` for new records.
 | [0077](ADR-0077-one-gesture-is-one-undo-and-the-history-says-it-moved.md) | One gesture is one undo, and the history says it moved | Accepted | 2026-08-17 |
 | [0078](ADR-0078-the-export-is-lossy-and-the-lossy-part-is-the-decision.md) | The export is lossy, and the lossy part is the decision | Accepted | 2026-08-17 |
 | [0079](ADR-0079-the-measurement-vocabulary-is-a-contract-and-a-test-holds-it.md) | The measurement vocabulary is a contract, and a test holds it | Accepted | 2026-08-17 |
+| [0080](ADR-0080-a-training-run-is-its-own-handle-and-a-contract-holds-it.md) | A training run is its own handle, and a contract test holds the port | Accepted | 2026-08-30 |
 
 ## When to write one
 

@@ -6,7 +6,7 @@ from `application`, `infrastructure` or `gui`.
 
 ## What is here, and what deliberately is not
 
-Two ports live here, and the ones that do not are a decision rather than an
+Five ports live here, and the ones that do not are a decision rather than an
 unfinished job. M2-T08 was written to define seven at once — `Detector`,
 `Segmenter`, `ImageLoader`, `ProjectRepository`, `TrainingProvider`,
 `DeviceProvider`, `LogSink` — and defined one, because the other six had no
@@ -27,17 +27,33 @@ The rest ship with their first adapter, each with the task that brings one:
 | `Segmenter` | the first SAM2 wrapper that is a class rather than a function | M4 |
 | `DeviceProvider` | ✅ **arrived** with `DeviceManager` | M4-T12 |
 | `SettingsStore` | ✅ **arrived** with `JsonSettings` and the repository | M4-T10 |
-| `TrainingProvider` | local and remote training | M7 |
+| `TrainingProvider` | ✅ **arrived** ahead of its adapter, under a contract suite | M8-T01 |
 
 This table is the commitment; an empty `Protocol` would only have been the
 appearance of one. `ProjectRepository` is the first row it has paid out: the port
 landed in the same commit as the adapter, and one layer up `application` needs it
 to talk about a project without importing `sqlite3` (M4-T04).
+
+**`TrainingProvider` is the one exception, and it is written down as one.** It
+arrived in M8-T01 with no adapter at all, which is the thing this docstring was
+written to refuse. The argument is ADR-0080 §1: the objection above is that an
+unimplemented port is *unfalsifiable* — nothing can disagree with it — and the
+answer is not a promise but `tests/contract/training_provider.py`, a suite a fake
+provider passes today and `LocalTrainingProvider` must pass in M8-T03. A port
+with a suite behind it can be wrong, and being wrong is what the six deleted
+ports could not be.
 """
 
 from nanoscope.core.ports.detector import Detector
 from nanoscope.core.ports.device import DeviceProvider
 from nanoscope.core.ports.project_repository import ProjectRepository
 from nanoscope.core.ports.settings import SettingsStore
+from nanoscope.core.ports.training import TrainingProvider
 
-__all__ = ["Detector", "DeviceProvider", "ProjectRepository", "SettingsStore"]
+__all__ = [
+    "Detector",
+    "DeviceProvider",
+    "ProjectRepository",
+    "SettingsStore",
+    "TrainingProvider",
+]
