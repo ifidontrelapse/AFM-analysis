@@ -676,7 +676,7 @@ with SqliteProjectRepository.open("~/Nanoparticles") as repo:
     opened = open_project(repo)          # name, images, and the integrity report
 ```
 
-`create` and `open` are the composition root's to call (PROJECT_RULES §2.7). `import_images` never aborts the batch: `report.failed` carries the files that did not make it, with reasons.
+`create` and `open` are the composition root's to call (PROJECT_RULES §2.7). `import_images` never aborts the batch: `report.failed` carries the files that did not make it, with reasons. **Since ADR-0083 the scale it records is the file's own**: each AFM source is asked through `stated_pixel_size_nm(path)` — the header's `Scan Size / Samps/line` for a Nanoscope file, `None` for anything that states nothing or cannot be read — and the caller's `pixel_size_nm` is used only where the file states none. The lookup never raises, so it can never cost a file its place in the batch.
 
 Analysing one of its images and keeping the result (M4-T05):
 

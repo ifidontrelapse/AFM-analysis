@@ -30,6 +30,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from nanoscope.application.jobs import JobContext
+from nanoscope.application.use_cases.preprocessing import stated_pixel_size_nm
 from nanoscope.core.entities.project import (
     ImageRecord,
     ImportFailure,
@@ -62,6 +63,26 @@ def open_project(repository: ProjectRepository) -> OpenedProject:
     )
 
 
+def _scale_to_record(source: Path, modality: Modality, answered: float | None) -> float | None:
+    """What goes in the row: the file's own scale, or the operator's answer.
+
+    **The file wins where it has one** (ADR-0083). Not a preference between two
+    opinions — for an SPM the two are not equal in standing: `load_afm` reads the
+    header and ignores what it is handed, so every height, radius and area
+    already comes from the header. Recording the dialog's number instead would
+    put a scale in the project that nothing computes with, and then show it in
+    the explorer, in the properties panel and beside a ruler's length.
+
+    A non-AFM modality is not asked at all: a JPEG's reader states nothing, and
+    reading a scale out of an image the operator called SEM is not something
+    this project can do.
+    """
+    if modality is not Modality.AFM:
+        return answered
+    stated = stated_pixel_size_nm(source)
+    return answered if stated is None else stated
+
+
 def import_images(
     repository: ProjectRepository,
     sources: Iterable[Path | str],
@@ -89,8 +110,14 @@ def import_images(
         modality: which instrument produced them. One value for the batch,
             because a folder of scans comes off one instrument; a mixed import
             is two calls.
-        pixel_size_nm: nm per pixel, or `None` when the scale is unknown — which
-            is a state, not a reason to invent 1.0 (ADR-0025).
+        pixel_size_nm: nm per pixel for the files that state none, or `None`
+            when the scale is unknown — which is a state, not a reason to invent
+            1.0 (ADR-0025). **A file that states its own scale is recorded with
+            it and this value is not used for that file** (ADR-0083): a
+            Nanoscope header carries the scan size, the analysis reads it
+            whatever the row says, and a row that disagrees with the header is a
+            row that will be quoted in a table beside numbers computed from the
+            other one.
         progress: when this runs as a job (M4-T06), where to report "12 of 40"
             and where to notice that somebody pressed cancel. **Between files**,
             which is the only point in this loop where stopping is clean: a
@@ -116,7 +143,10 @@ def import_images(
                 repository.import_image(
                     source,
                     modality=modality,
-                    pixel_size_nm=pixel_size_nm,
+                    #: Asked per file, because the answer is per file: two scans
+                    #: in one folder can be a 3 µm and a 500 nm frame, and one
+                    #: dialog cannot be right about both (ADR-0083).
+                    pixel_size_nm=_scale_to_record(source, modality, pixel_size_nm),
                 )
             )
         except NanoscopeError as exc:

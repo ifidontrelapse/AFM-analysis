@@ -11,6 +11,7 @@ surface that produces a physical number instead of reading one.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -26,6 +27,10 @@ from nanoscope.gui.main_window import MainWindow
 from nanoscope.gui.panels import AnnotatePanel, ImageViewer
 from nanoscope.gui.viewmodels import SessionViewModel
 from nanoscope.infrastructure.storage import SqliteProjectRepository
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from synthetic_spm import SAMPS, write_spm, z_field
 
 pytestmark = pytest.mark.usefixtures("qt_app")
 
@@ -114,6 +119,32 @@ class TestWhatIsStored:
         assert session.ruler_length(session.rulers[0])[1] is None
         assert "scale unknown" in panel.lengths.text()
         assert "5.0 px" in panel.lengths.text()
+
+    def test_a_scan_whose_header_carries_the_scale_is_measured_in_nanometres(
+        self, tmp_path: Path, app: Nanoscope
+    ) -> None:
+        """ADR-0083, from the side that made it worth fixing.
+
+        The row is deliberately written the way an import before ADR-0083 wrote
+        it: `pixel_size_nm` unknown, over a file whose header states 750 nm/px.
+        Every drawn pixel, every height and the properties panel already used
+        the header; the ruler read the row, so it answered *"5 px, scale
+        unknown"* beside a panel showing the scale it could not find.
+        """
+        root = tmp_path / "Before ADR-0083"
+        with SqliteProjectRepository.create(root, "Before ADR-0083") as repo:
+            source = write_spm(tmp_path, z_field(), name="scan.000")
+            repo.import_image(source, modality=Modality.AFM, pixel_size_nm=None)
+
+        session = SessionViewModel(app)
+        session.open_project(root)
+        assert session.project is not None
+        assert session.project.images[0].pixel_size_nm is None
+        session.select_image(session.project.images[0].id)
+
+        session.add_ruler(START, END, label="gap")
+
+        assert session.ruler_length(session.rulers[0])[1] == pytest.approx(5.0 * 3000.0 / SAMPS)
 
     def test_a_zero_length_line_is_discarded_quietly(self, session: SessionViewModel) -> None:
         said: list[str] = []

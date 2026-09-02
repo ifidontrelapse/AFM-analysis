@@ -11,11 +11,12 @@ M2-T13 kept it deliberately.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from nanoscope.core.entities import ImageRecord, PreprocessingResult
-from nanoscope.core.errors import UnsupportedRequestError
+from nanoscope.core.errors import NanoscopeError, UnsupportedRequestError
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.science.preprocessing import (
     DEFAULT_OPENING_SCALE,
@@ -25,6 +26,8 @@ from nanoscope.core.science.preprocessing import (
 )
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage import load_afm
+
+logger = logging.getLogger(__name__)
 
 #: The defaults this module passes on, named so a caller — a panel, in M6-T01 —
 #: can show the value it will actually get instead of repeating the number. The
@@ -160,6 +163,54 @@ def afm_format(path: Path) -> str:
             f"{', '.join(sorted(AFM_FORMATS))} and Nanoscope's numbered ones (.000, .001, …)"
         )
     return fmt
+
+
+def stated_pixel_size_nm(path: Path) -> float | None:
+    """The scale the file itself states, or `None` when nothing states one.
+
+    **The question an import has to ask before it records a scale** (ADR-0083).
+    A Nanoscope header carries `Scan Size`, and `Samps/line` turns it into
+    nm/pixel — so for the files that come straight off the instrument, the
+    operator answering *"pixel size?"* in a dialog is being asked something the
+    file already knows, and any answer that differs from the header is one the
+    analysis will ignore anyway (`load_afm` reads the header for an SPM and
+    ignores its argument).
+
+    Nothing here raises. A file this cannot read is **not** refused an import:
+    reading it is the viewer's job and refusing it is the viewer's message
+    (ADR-0030), and an import that dropped a file because a *scale* lookup
+    failed would be a new refusal invented in a lookup.
+
+    Args:
+        path: the file, before or after it is copied into a project.
+
+    Returns:
+        nm per pixel, or `None` — the format carries no scale, the header states
+        none, or the file could not be read at all.
+    """
+    try:
+        fmt = afm_format(path)
+    except UnsupportedRequestError:
+        #: A JPEG states no scale this project can read. Not an error: nobody
+        #: claimed it would.
+        return None
+
+    if fmt != "spm":
+        #: An `.npy` is an array and nothing else — M4-T05's reason for the
+        #: dialog field in the first place.
+        return None
+
+    try:
+        return load_afm(str(path), fmt=fmt).pixel_size_nm
+    except (NanoscopeError, OSError) as unreadable:
+        #: `OSError` as well, because a missing `.spm` still leaves the reader's
+        #: own `FileNotFoundError` (`open` in `_read_nanoscope_z`, which the npy
+        #: branch of `load_afm` wraps and this one does not — PROJECT_RULES §3,
+        #: pinned by `test_spm_missing_file_raises_filenotfound` and not this
+        #: task's to flip). The import then fails that file where it always
+        #: did, with the message it always had.
+        logger.info("no scale read from %s: %s", path.name, unreadable)
+        return None
 
 
 def _is_numbered(suffix: str) -> bool:

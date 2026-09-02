@@ -13,8 +13,10 @@ driven through the port, exactly as `app/` will drive them.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from nanoscope.application.jobs import JobContext, JobRunner, JobState
@@ -27,6 +29,10 @@ from nanoscope.infrastructure.storage import (
     SqliteProjectRepository,
     sha256_of,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from synthetic_spm import SAMPS, write_spm, z_field
 
 
 @pytest.fixture
@@ -177,6 +183,77 @@ class TestImportingIntoTheProject:
 
             assert list((repo.root / "images").iterdir()) == []
             assert repo.check_integrity().is_clean
+
+
+class TestTheScaleThatGetsRecorded:
+    """ADR-0083 — the file's own scale wins over the dialog's answer.
+
+    The operator's report that opened this: *"why does it ask for the scale, it
+    should be pulled out while parsing the `.00*` files"*. It was — by
+    `load_afm`, every time an image was drawn or analysed — and thrown away by
+    the import, which recorded the dialog's answer instead. So a project full of
+    Nanoscope scans said *scale unknown* in the explorer while the properties
+    panel beside it read 750 nm/px off the same file.
+    """
+
+    def test_a_nanoscope_file_is_recorded_with_the_scale_its_header_states(
+        self, tmp_path: Path
+    ) -> None:
+        source = write_spm(tmp_path, z_field(), name="scan.000")
+
+        with SqliteProjectRepository.create(tmp_path / "P", "P") as repo:
+            report = import_images(repo, [source], modality=Modality.AFM)
+
+            assert report.imported[0].pixel_size_nm == pytest.approx(3000.0 / SAMPS)
+
+    def test_the_header_wins_over_what_the_operator_answered(self, tmp_path: Path) -> None:
+        """Not a preference between two opinions: `load_afm` reads the header
+        and ignores its argument, so a row carrying the answer would be a number
+        nothing in the project computes with."""
+        source = write_spm(tmp_path, z_field(), name="scan.001")
+
+        with SqliteProjectRepository.create(tmp_path / "P", "P") as repo:
+            report = import_images(repo, [source], modality=Modality.AFM, pixel_size_nm=1.95)
+
+            assert report.imported[0].pixel_size_nm == pytest.approx(3000.0 / SAMPS)
+
+    def test_the_answer_is_used_where_the_file_states_nothing(self, tmp_path: Path) -> None:
+        """An `.npy` is an array and nothing else — the field's whole reason."""
+        source = tmp_path / "flat.npy"
+        np.save(source, np.zeros((4, 4), dtype=np.float32))
+
+        with SqliteProjectRepository.create(tmp_path / "P", "P") as repo:
+            report = import_images(repo, [source], modality=Modality.AFM, pixel_size_nm=1.95)
+
+            assert report.imported[0].pixel_size_nm == 1.95
+
+    def test_two_files_in_one_batch_keep_their_own_scales(self, tmp_path: Path) -> None:
+        """One dialog cannot be right about a 3 µm frame and a 500 nm one."""
+        wide = write_spm(tmp_path, z_field(), name="wide.000")
+        narrow = write_spm(
+            tmp_path, z_field(), name="narrow.001", scan_size_line=r"\Scan Size: 500 500 nm"
+        )
+
+        with SqliteProjectRepository.create(tmp_path / "P", "P") as repo:
+            report = import_images(repo, [wide, narrow], modality=Modality.AFM)
+
+            assert [image.pixel_size_nm for image in report.imported] == [
+                pytest.approx(3000.0 / SAMPS),
+                pytest.approx(500.0 / SAMPS),
+            ]
+
+    def test_a_sem_image_is_recorded_with_the_answer_and_nothing_is_read(
+        self, tmp_path: Path
+    ) -> None:
+        """No header reader is run over a JPEG: the modality decides that, and
+        the operator is the only one who can state a scale for it."""
+        source = tmp_path / "grid.jpg"
+        source.write_bytes(b"not an image, and never opened")
+
+        with SqliteProjectRepository.create(tmp_path / "P", "P") as repo:
+            report = import_images(repo, [source], modality=Modality.SEM, pixel_size_nm=4.0)
+
+            assert report.imported[0].pixel_size_nm == 4.0
 
 
 class TestImportingAsAJob:

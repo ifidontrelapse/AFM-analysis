@@ -90,6 +90,7 @@ Use `TEMPLATE.md` for new records.
 | [0080](ADR-0080-a-training-run-is-its-own-handle-and-a-contract-holds-it.md) | A training run is its own handle, and a contract test holds the port | Accepted | 2026-08-30 |
 | [0081](ADR-0081-a-training-picture-is-made-the-way-an-inference-picture-is.md) | A training picture is made the way an inference picture is | Accepted | 2026-08-30 |
 | [0082](ADR-0082-a-validation-block-means-a-held-out-set-existed.md) | A validation block means a held-out set existed, not that a validation pass ran | Accepted | 2026-08-30 |
+| [0083](ADR-0083-the-scale-a-file-states-is-the-scale-the-project-records.md) | The scale a file states is the scale the project records | Accepted | 2026-09-02 |
 
 ## When to write one
 

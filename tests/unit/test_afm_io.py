@@ -9,144 +9,49 @@ today's behaviour is a known defect the assertion says so and names the task tha
 fixes it; the fix then flips a documented assertion instead of breaking a
 surprise. Nothing here edits `src/`.
 
-The fixture is a synthetic SPM byte stream built by `_spm_bytes`, derived from a
-real Bruker Nanoscope header (`data/pvp8k/2-6-dmfa-pvp.039`, 512x512, 3 um,
-Zsens 11.43219 nm/V) — read locally, not committed. No binary fixture enters git
-(PROJECT_RULES §7) and no test touches `data/`.
+The fixture is a synthetic SPM byte stream built by `tests/synthetic_spm.py`,
+derived from a real Bruker Nanoscope header (`data/pvp8k/2-6-dmfa-pvp.039`,
+512x512, 3 um, Zsens 11.43219 nm/V) — read locally, not committed. It lived in
+this file until an import, a preview and a thumbnail needed the same header
+(ADR-0083). No binary fixture enters git (PROJECT_RULES §7) and no test touches
+`data/`.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from nanoscope.application.use_cases.preprocessing import afm_format
+from nanoscope.application.use_cases.preprocessing import afm_format, stated_pixel_size_nm
 from nanoscope.core.errors import UnsupportedRequestError
 from nanoscope.infrastructure.storage import load_afm, load_microscopy_image
 
-# The real header puts the payload at 40960. Any fixed offset larger than the
-# synthetic header works; the parser seeks to whatever the header declares.
-DATA_OFFSET = 4096
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-# Taken verbatim from the reference file's Height block.
-Z_SCALE_V = 6.498924
-NM_PER_V = 11.43219
-LSB_TO_NM = Z_SCALE_V * NM_PER_V / 65536  # the parser's own arithmetic
-
-# Deliberately non-square: a transposed read cannot survive `reshape`, and a
-# lines/samps mix-up in the calibration shows up as a wrong pixel size.
-LINES = 6
-SAMPS = 4
-
-
-def _height_block(
-    *,
-    samps: int = SAMPS,
-    lines: int = LINES,
-    data_length: int,
-    bytes_per_pixel: int = 2,
-    scan_size_line: str | None = r"\Scan Size: 3 3 ~m",
-    z_scale_line: str | None = (rf"\@2:Z scale: V [Sens. Zsens] (0.006713765 V/LSB) {Z_SCALE_V} V"),
-    samps_line: bool = True,
-) -> str:
-    lines_out = [
-        r"\*Ciao image list",
-        rf"\Data offset: {DATA_OFFSET}",
-        rf"\Data length: {data_length}",
-        rf"\Bytes/pixel: {bytes_per_pixel}",
-        r"\Data type: AFM",
-        rf"\Number of lines: {lines}",
-        r"\Aspect Ratio: 1:1",
-        r"\@2:Image Data: S [Height] " + '"Height"',
-    ]
-    if samps_line:
-        lines_out.insert(5, rf"\Samps/line: {samps}")
-    if scan_size_line is not None:
-        lines_out.append(scan_size_line)
-    if z_scale_line is not None:
-        lines_out.append(z_scale_line)
-    return "\n".join(lines_out)
-
-
-def _spm_bytes(
-    z_lsb: np.ndarray,
-    *,
-    bytes_per_pixel: int = 2,
-    nm_per_v_line: str | None = rf"\@Sens. Zsens: V {NM_PER_V} nm/V",
-    truncate_payload: int = 0,
-    ciao_blocks: bool = True,
-    **block_kwargs: object,
-) -> bytes:
-    """Build a minimal Nanoscope SPM file around a known integer Z field.
-
-    The parser reads the header as everything before the first ``0x1A`` byte,
-    then seeks to the declared data offset. The gap between the two is padded, as
-    it is in a real file.
-
-    Args:
-        z_lsb: raw integer Z values, shape ``(lines, samps)``, index order
-            ``[y, x]``.
-        bytes_per_pixel: 2 writes ``int16``, anything else writes ``int32`` —
-            the parser's own rule.
-        nm_per_v_line: the ``@Sens. Zsens`` line, or None to omit it.
-        truncate_payload: drop this many bytes from the end of the payload while
-            leaving ``Data length`` claiming the full size.
-        ciao_blocks: False strips the image-list markers entirely.
-        **block_kwargs: forwarded to `_height_block`.
-
-    Returns:
-        The complete file contents.
-    """
-    dtype = "<i2" if bytes_per_pixel == 2 else "<i4"
-    payload = np.asarray(z_lsb, dtype=dtype).tobytes()
-
-    # A decoy block first: if block selection ever stops looking for "Height",
-    # the shape and the values it reads change, and these tests go red.
-    decoy = "\n".join(
-        [
-            r"\*Ciao image list",
-            r"\Data offset: 999999",
-            r"\Data length: 8",
-            r"\Bytes/pixel: 2",
-            r"\Samps/line: 2",
-            r"\Number of lines: 2",
-            r"\Scan Size: 1 1 nm",
-            r"\@2:Image Data: S [ZSensor] " + '"Deflection Error"',
-            r"\@2:Z scale: V [Sens. Zsens] (0.1 V/LSB) 1.0 V",
-        ]
-    )
-    block = _height_block(data_length=len(payload), bytes_per_pixel=bytes_per_pixel, **block_kwargs)
-
-    preamble = [r"\*File list", r"\Version: 0x09400202"]
-    if nm_per_v_line is not None:
-        preamble.append(nm_per_v_line)
-    # Always present, exactly as in a real header: a second sensitivity 30x the
-    # first, one character away from matching the Zsens pattern. It stays in the
-    # file even when the real Zsens line is dropped — that is the case where a
-    # loosened regex would silently substitute it.
-    preamble.append(r"\@Sens. ZsensSens: V 351.8693 nm/V")
-
-    header = "\n".join([*preamble, decoy, block, r"\*File list end", ""])
-    if not ciao_blocks:
-        header = header.replace(r"\*Ciao image list", r"\*Some other list")
-
-    raw = header.encode("latin-1") + b"\x1a"
-    assert len(raw) < DATA_OFFSET, "synthetic header outgrew the declared data offset"
-    return raw + b"\x00" * (DATA_OFFSET - len(raw)) + payload[: len(payload) - truncate_payload]
+from synthetic_spm import (
+    LINES,
+    LSB_TO_NM,
+    NM_PER_V,
+    SAMPS,
+    Z_SCALE_V,
+    spm_bytes,
+    z_field,
+)
 
 
 def _write_spm(tmp_path, z_lsb: np.ndarray, **kwargs: object):
     path = tmp_path / "synthetic.spm"
-    path.write_bytes(_spm_bytes(z_lsb, **kwargs))
+    path.write_bytes(spm_bytes(z_lsb, **kwargs))
     return path
 
 
 @pytest.fixture
 def z_lsb() -> np.ndarray:
     """A field whose every element is unique, so orientation is observable."""
-    return np.arange(LINES * SAMPS, dtype=np.int32).reshape(LINES, SAMPS) * 100 - 500
+    return z_field()
 
 
 # ── the round trip ────────────────────────────────────────────────────────────
@@ -477,9 +382,65 @@ def test_a_numbered_nanoscope_file_actually_reads(tmp_path, z_lsb) -> None:
     would have given it.
     """
     path = tmp_path / "2-2-dmfa-citr-temp.001"
-    path.write_bytes(_spm_bytes(z_lsb))
+    path.write_bytes(spm_bytes(z_lsb))
 
     raw = load_afm(str(path), fmt=afm_format(path))
 
     assert raw.z_raw.shape == (LINES, SAMPS)
     assert raw.pixel_size_nm is not None
+
+
+# ── the scale a file states, asked for on its own (ADR-0083) ──────────────────
+
+
+def test_the_stated_scale_is_the_one_the_header_carries(tmp_path, z_lsb) -> None:
+    """What an import records for a Nanoscope file, and where it comes from."""
+    path = tmp_path / "scan.000"
+    path.write_bytes(spm_bytes(z_lsb))
+
+    assert stated_pixel_size_nm(path) == pytest.approx(3000.0 / SAMPS)
+
+
+def test_a_header_that_states_no_scan_size_states_no_scale(tmp_path, z_lsb) -> None:
+    """ADR-0026's header, from the import's side: unknown, not zero."""
+    path = _write_spm(tmp_path, z_lsb, scan_size_line=None)
+
+    assert stated_pixel_size_nm(path) is None
+
+
+def test_an_npy_states_nothing_because_it_carries_nothing(tmp_path) -> None:
+    """The reason the dialog has the field at all (M5-T07)."""
+    path = tmp_path / "scan.npy"
+    np.save(path, np.zeros((4, 4), dtype=np.float32))
+
+    assert stated_pixel_size_nm(path) is None
+
+
+def test_a_file_with_no_afm_reader_states_nothing_rather_than_raising(tmp_path) -> None:
+    """A JPEG is imported as SEM and states no scale this project reads.
+
+    `afm_format` refuses it, and that refusal is the viewer's message to make —
+    an import must not lose a file because a *scale* lookup had an opinion.
+    """
+    path = tmp_path / "scan.jpg"
+    path.write_bytes(b"not an image")
+
+    assert stated_pixel_size_nm(path) is None
+
+
+def test_an_unreadable_nanoscope_file_states_nothing_rather_than_raising(tmp_path) -> None:
+    """A truncated download keeps its place in the batch (ADR-0041)."""
+    path = tmp_path / "half-a-scan.000"
+    path.write_bytes(b"\x1a" * 64)
+
+    assert stated_pixel_size_nm(path) is None
+
+
+def test_a_missing_file_states_nothing_rather_than_raising(tmp_path) -> None:
+    """The reader's own `FileNotFoundError`, which is not a `NanoscopeError`.
+
+    The import still fails that file — `import_image` raises `MissingFileError`
+    a moment later, with the message it always had. What must not happen is a
+    *scale lookup* becoming a new way for a batch to die.
+    """
+    assert stated_pixel_size_nm(tmp_path / "nowhere.000") is None

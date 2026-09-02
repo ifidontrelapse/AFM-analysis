@@ -77,9 +77,15 @@ it, and the answer decides which reader runs:
 
 | Modality | Reads | Scale |
 |---|---|---|
-| **AFM** | `.spm`, and Nanoscope's numbered files — `scan.000`, `scan.001`, … | from the file's own header; leave the dialog at *unknown* |
+| **AFM** | `.spm`, and Nanoscope's numbered files — `scan.000`, `scan.001`, … | **read from the file's header and recorded** — the dialog's answer is not used for these (ADR-0083) |
 | **AFM** | `.npy` | nobody records one, so state it in the dialog or it stays unknown |
 | **SEM / TEM** | `.jpg`, `.png`, `.tif` — anything OpenCV reads | state it in the dialog, or it stays unknown |
+
+The scale is asked **per batch** and resolved **per file**: a folder holding a 3 µm frame and a
+500 nm one records both correctly, because each file's own header wins over the dialog. Rows
+written before this (projects imported before 2026-09-02) keep their `unknown` — measurements read
+the scale of the loaded scan, so a ruler over them still reads nanometres, but the explorer's
+*Scale* column still says unknown until **B-073** backfills them.
 
 **If the window comes up in a bad shape**, the layout is a preference stored in
 `~/.config/nanoscope/settings.json` under `window.geometry` and `window.state` (ADR-0047). Delete

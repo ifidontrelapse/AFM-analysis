@@ -685,11 +685,8 @@ class SessionViewModel(QObject):
         if image is None:
             return None
         array = stage_image(self._stage, image, self._preview).data
-        record = None if self._image_id is None else self.image_record(self._image_id)
         try:
-            return use_cases.ruler_profile(
-                array, ruler, None if record is None else record.pixel_size_nm
-            )
+            return use_cases.ruler_profile(array, ruler, self._scale_nm)
         except NanoscopeError as refusal:
             self._refuse(str(refusal))
             return None
@@ -700,8 +697,25 @@ class SessionViewModel(QObject):
         Computed, never read from a row: the length and the endpoints cannot
         disagree if only one of them is stored (ADR-0074).
         """
+        return use_cases.ruler_length(ruler, self._scale_nm)
+
+    @property
+    def _scale_nm(self) -> float | None:
+        """The scale of the array a measurement is taken over.
+
+        **The loaded image's, not the row's** (ADR-0083). They agree for
+        anything imported since — the row records what the file states — and
+        they do not for a project imported before it: a `scan.000` whose header
+        says 5.86 nm/px sat in the database as *unknown*, so a ruler dragged
+        across it read "412 px" and no nanometres, beside a properties panel
+        that had the scale and a height profile computed from the same file.
+        A measurement is taken over an array, and the scale of that array is the
+        one the loader read out of the file it came from.
+        """
+        if self._image is not None:
+            return self._image.pixel_size_nm
         record = None if self._image_id is None else self.image_record(self._image_id)
-        return use_cases.ruler_length(ruler, None if record is None else record.pixel_size_nm)
+        return None if record is None else record.pixel_size_nm
 
     def reload_annotations(self) -> None:
         """Re-read them from the project — on selection, and after an edit.
