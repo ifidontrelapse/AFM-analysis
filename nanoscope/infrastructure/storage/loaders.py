@@ -90,6 +90,16 @@ def load_afm(
             z = np.load(file_path).astype(np.float32)
         except OSError as missing:
             raise MissingFileError(f"no AFM file at {file_path}: {missing}") from missing
+        except ValueError as malformed:
+            # The other half of the same rule, found in 2026-09-02's thumbnails:
+            # a file that is *there* and is not an `.npy` — a renamed scan, a
+            # partial download, a text file — reaches `np.load`, which raises its
+            # own `ValueError` about pickled data. No caller catching
+            # `NanoscopeError` sees it, so the panel that read it crashed instead
+            # of skipping a row.
+            raise DataFormatError(
+                f"not a readable .npy array: {file_path}: {malformed}"
+            ) from malformed
         return AFMRawData(
             z_raw=z,
             pixel_size_nm=_given_and_positive(pixel_size_nm, "pixel_size_nm"),

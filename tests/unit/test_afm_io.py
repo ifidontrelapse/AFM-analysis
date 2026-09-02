@@ -26,7 +26,7 @@ import numpy as np
 import pytest
 
 from nanoscope.application.use_cases.preprocessing import afm_format, stated_pixel_size_nm
-from nanoscope.core.errors import UnsupportedRequestError
+from nanoscope.core.errors import DataFormatError, UnsupportedRequestError
 from nanoscope.infrastructure.storage import load_afm, load_microscopy_image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -444,3 +444,19 @@ def test_a_missing_file_states_nothing_rather_than_raising(tmp_path) -> None:
     *scale lookup* becoming a new way for a batch to die.
     """
     assert stated_pixel_size_nm(tmp_path / "nowhere.000") is None
+
+
+def test_a_file_that_is_not_an_npy_is_refused_with_a_sentence(tmp_path) -> None:
+    """PROJECT_RULES §3: never let a NumPy internal error escape as the contract.
+
+    The `OSError` half has been wrapped since M5-T05 (a *missing* file). This is
+    the other half — a file that is there and is not an array, which `np.load`
+    reports as *"This file contains pickled (object) data"*. Found by the
+    explorer's thumbnails, which read every file in a project and crashed on a
+    row instead of skipping it.
+    """
+    path = tmp_path / "renamed.npy"
+    path.write_bytes(b"AFM")
+
+    with pytest.raises(DataFormatError, match="not a readable .npy array"):
+        load_afm(str(path), fmt="npy")
