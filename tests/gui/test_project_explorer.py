@@ -14,17 +14,24 @@ a confirmation that always appears is one nobody reads by the third time.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PySide6.QtWidgets import QMessageBox
 
 from nanoscope.app.container import Nanoscope
+from nanoscope.application.settings import COLORMAP_SETTING
 from nanoscope.core.values import Modality
 from nanoscope.gui.panels import ProjectExplorer
 from nanoscope.gui.viewmodels import SessionViewModel
 from nanoscope.infrastructure.storage import SqliteProjectRepository
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from synthetic_spm import write_spm, z_field
 
 pytestmark = pytest.mark.usefixtures("qt_app")
 
@@ -209,3 +216,121 @@ class TestRemovingAnImage:
         assert rows(explorer) == ["tuesday.npy"]
         assert app.repository is not None
         assert app.repository.check_integrity().untracked_files == ("images/monday.spm",)
+
+
+# ── the pictures (2026-09-02) ─────────────────────────────────────────────────
+
+
+@pytest.fixture
+def readable(tmp_path: Path) -> Path:
+    """A project whose files are real: a Nanoscope scan, an array, and a stub.
+
+    The fixture above writes `b"AFM"` into `images/`, which is enough for every
+    test about *rows* and nothing at all for a test about *pictures*.
+    """
+    root = tmp_path / "Readable"
+    with SqliteProjectRepository.create(root, "Readable") as repo:
+        repo.import_image(write_spm(tmp_path, z_field(), name="scan.000"), modality=Modality.AFM)
+        flat = tmp_path / "flat.npy"
+        np.save(flat, np.linspace(0, 1, 256).reshape(16, 16).astype(np.float32))
+        repo.import_image(flat, modality=Modality.AFM, pixel_size_nm=2.0)
+        broken = tmp_path / "half-a-scan.001"
+        broken.write_bytes(b"\x1a" * 32)
+        repo.import_image(broken, modality=Modality.AFM)
+    return root
+
+
+@pytest.fixture
+def pictures(app: Nanoscope, readable: Path) -> ProjectExplorer:
+    model = SessionViewModel(app)
+    model.open_project(readable)
+    return ProjectExplorer(model)
+
+
+def drain(panel: ProjectExplorer) -> int:
+    """Draw every queued thumbnail, and say how many turns it took.
+
+    The panel schedules itself through `QTimer.singleShot(0, …)`, which needs an
+    event loop; a test that wants the end state steps the pump instead of
+    running one.
+    """
+    turns = 1
+    while panel.draw_next_thumbnail():
+        turns += 1
+    return turns
+
+
+class TestTheThumbnails:
+    def test_every_readable_row_gets_a_picture(self, pictures: ProjectExplorer) -> None:
+        drain(pictures)
+
+        icons = [pictures.tree.topLevelItem(i).icon(0) for i in range(3)]
+        assert [icon.isNull() for icon in icons] == [False, False, True]
+
+    def test_a_file_that_cannot_be_read_keeps_its_row(self, pictures: ProjectExplorer) -> None:
+        """Unreadable is not empty: the name, the scale and the tooltip stay,
+        and the refusal is the viewer's sentence to say (ADR-0030)."""
+        drain(pictures)
+
+        row = pictures.tree.topLevelItem(2)
+        assert row.text(0) == "half-a-scan.001"
+        assert row.icon(0).isNull()
+
+    def test_they_are_drawn_one_per_turn_and_not_all_at_once(
+        self, pictures: ProjectExplorer
+    ) -> None:
+        """The whole reason there is a queue: a list that reads forty files
+        before it appears is a window that hangs on open."""
+        assert pictures.tree.topLevelItem(0).icon(0).isNull()
+
+        pictures.draw_next_thumbnail()
+
+        assert not pictures.tree.topLevelItem(0).icon(0).isNull()
+        assert pictures.tree.topLevelItem(1).icon(0).isNull()
+
+    def test_the_queue_ends(self, pictures: ProjectExplorer) -> None:
+        assert drain(pictures) == 3
+        assert pictures.draw_next_thumbnail() is False
+
+    def test_a_new_project_abandons_the_old_queue(
+        self, pictures: ProjectExplorer, project: Path
+    ) -> None:
+        """Opening a second project must not finish drawing the first — the
+        rows those ids belong to are gone."""
+        pictures._session.open_project(project)
+
+        drain(pictures)
+
+        assert rows(pictures) == ["monday.spm", "tuesday.npy"]
+        assert all(pictures.tree.topLevelItem(i).icon(0).isNull() for i in range(2))
+
+    def test_a_missing_file_is_never_asked_for(
+        self, pictures: ProjectExplorer, readable: Path
+    ) -> None:
+        """ADR-0040 already reported it; a read per missing row would only
+        rediscover the report one file at a time."""
+        (readable / "images" / "scan.000").unlink()
+        pictures._session.refresh()
+
+        drain(pictures)
+
+        assert "file missing" in pictures.tree.topLevelItem(0).text(0)
+        assert pictures.tree.topLevelItem(0).icon(0).isNull()
+
+    def test_the_picture_uses_the_operators_default_colormap(
+        self, pictures: ProjectExplorer
+    ) -> None:
+        """The same preference the viewer opens a scan with (M5-T09), so a row
+        and the canvas above it are the same picture."""
+        pictures._session.remember(COLORMAP_SETTING, "gray")
+
+        assert pictures._colormap() == "gray"
+
+    def test_a_stored_colormap_this_version_does_not_offer_is_ignored(
+        self, pictures: ProjectExplorer
+    ) -> None:
+        """`render` would refuse it, and a hand-edited settings file is not
+        worth an empty list."""
+        pictures._session.remember(COLORMAP_SETTING, "chartreuse")
+
+        assert pictures._colormap() == "afmhot"

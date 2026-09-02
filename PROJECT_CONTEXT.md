@@ -106,7 +106,8 @@ AFM-analysis/
 │   │   ├── dialogs/                    # import_options.py (M5-T07), settings.py (M5-T09),
 │   │   │                               #   label_source.py: where labels came from (M7-T09),
 │   │   │                               #   choose_images.py: the file dialog with a preview pane
-│   │   └── panels/                     # project_explorer.py (M5-T04), viewer.py (M5-T05),
+│   │   └── panels/                     # project_explorer.py (M5-T04, thumbnails 2026-09-02),
+│   │                                   #   viewer.py (M5-T05),
 │   │                                   #   properties.py (M5-T06), job_status.py (M5-T07),
 │   │                                   #   log_panel.py (M5-T08), preprocessing.py (M6-T01),
 │   │                                   #   detection.py (M6-T02), measurements.py (M6-T05),

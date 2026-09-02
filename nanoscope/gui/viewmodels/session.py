@@ -248,6 +248,33 @@ class SessionViewModel(QObject):
             return False
         return self.select_image(self._project.images[index].id)
 
+    def read_image(self, image_id: int) -> DisplayImage | None:
+        """Read one of the project's images **without selecting it**.
+
+        For a panel that shows all of them at once — the explorer's thumbnails,
+        so far. Deliberately not `select_image`: that one loads *the* image,
+        emits `image_changed`, clears the preview and reloads the annotations,
+        and a list drawing forty rows would do all of it forty times and leave
+        the last row selected.
+
+        Quiet on failure, too. A file that is gone is already marked in the row
+        (ADR-0040) and the viewer says so when the operator opens it; a list
+        that raised a dialog per unreadable file would be a list nobody can
+        scroll.
+
+        Returns:
+            The image, or `None` when there is no project, no such row, or the
+            file cannot be read.
+        """
+        repository = self._app.repository
+        if repository is None:
+            return None
+        try:
+            return load_for_display(repository, image_id)
+        except NanoscopeError as unreadable:
+            logger.debug("no picture for image %d: %s", image_id, unreadable)
+            return None
+
     def annotation_count(self, image_id: int) -> int:
         """How much hand work removing this image would destroy (ADR-0044)."""
         repository = self._app.repository

@@ -94,6 +94,11 @@ written before this (projects imported before 2026-09-02) keep their `unknown` â
 the scale of the loaded scan, so a ruler over them still reads nanometres, but the explorer's
 *Scale* column still says unknown until **B-073** backfills them.
 
+**The Project Explorer draws a thumbnail per row**, in the operator's default colormap, one row per
+turn of the event loop â€” so a project of forty scans opens immediately and fills in, rather than
+reading forty files before the panel appears. A row whose file is missing or unreadable keeps its
+name and gets no picture.
+
 **If the window comes up in a bad shape**, the layout is a preference stored in
 `~/.config/nanoscope/settings.json` under `window.geometry` and `window.state` (ADR-0047). Delete
 those two keys and the application starts from its own layout; it also does that for you when a
