@@ -41,9 +41,7 @@ class TestThePaneExistsAtAll:
         is a child of Qt's grid layout and a native dialog has none."""
         assert chooser.testOption(QFileDialog.Option.DontUseNativeDialog)
 
-    def test_the_pane_is_in_the_layout_beside_the_file_list(
-        self, chooser: ImageChooser
-    ) -> None:
+    def test_the_pane_is_in_the_layout_beside_the_file_list(self, chooser: ImageChooser) -> None:
         layout = chooser.layout()
         assert layout is not None
         assert chooser.picture.parentWidget() is not None
@@ -124,9 +122,7 @@ class TestWhatItShows:
         assert chooser.picture.pixmap().isNull()
         assert chooser.facts.text() == NOTHING_SELECTED
 
-    def test_nothing_highlighted_clears_it_too(
-        self, chooser: ImageChooser, tmp_path: Path
-    ) -> None:
+    def test_nothing_highlighted_clears_it_too(self, chooser: ImageChooser, tmp_path: Path) -> None:
         chooser.show_preview(str(write_spm(tmp_path, z_field())))
         chooser.show_preview("")
 

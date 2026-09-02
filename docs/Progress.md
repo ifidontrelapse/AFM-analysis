@@ -7,6 +7,101 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-09-02 — two operator requests, one ADR, and the defect the first request exposed
+
+**A preview where an image is chosen, thumbnails where the project is listed, and the scale a
+Nanoscope file states recorded instead of discarded.** Five commits, **ADR-0083**, 36 tests,
+**1478 → 1514** in the suite. mypy unchanged at 6. Delta: **zero, golden byte-identical**.
+
+### The request that turned out to be a defect
+
+> *"It asks for the image scale, though during parsing of the `.00*` files it should be pulled out
+> automatically."*
+
+It is pulled out. `_read_nanoscope_z` has divided `Scan Size` by `Samps/line` since M2-T04, and
+`load_afm(fmt="spm")` **ignores the `pixel_size_nm` it is handed** and returns the header's. What
+was missing is that nothing recorded it. For a `scan.000` imported with the dialog left at
+*unknown*:
+
+| Consumer | Scale it used | What it showed |
+|---|---|---|
+| viewer, properties panel | the loaded image's | **750 nm/px** |
+| `run_analysis`, `run_preprocessing` | the row's, which `load_afm` then ignores | **750 nm/px** |
+| explorer's Scale column | the row's | *scale unknown* |
+| `ruler_length`, `ruler_profile` | the row's | **no nanometres at all** |
+
+Two of four wrong, and the fourth is the one an operator drags across a particle. **The row was the
+only copy that could disagree with the file, so it did.**
+
+ADR-0083 has three parts and the third is the one that fixes yesterday's projects: the import
+records what the file states (per file — a folder can hold a 3 µm frame and a 500 nm one), the
+header wins over the answer (not a preference between opinions: the analysis already reads the
+header whatever the row says), and **a measurement uses the scale of the array it is taken over**,
+not the row's. Rows written before today keep their `unknown`; backfilling them is **B-073**,
+because *when* to write is a decision and a write nobody asked for on every project open is not it.
+
+**The existing suite caught the mistake in the first draft.** `stated_pixel_size_nm` swallowed
+`NanoscopeError`, and two import tests went red on a missing file: `_read_nanoscope_z` opens the
+file directly, so the reader's own `FileNotFoundError` escapes — PROJECT_RULES §3's rule, pinned by
+a characterization test that documents today's behaviour, and not this task's to flip. Catching
+`OSError` too was the fix; a batch losing a file to a *scale lookup* would be a refusal invented in
+a lookup.
+
+### The two requests, and why they are the same request
+
+A Bruker writes `2-6-dmfa-pvp.039`. The number is the acquisition, not the sample, so a folder of
+forty is a list of numbers — and so is the project made from it. Both surfaces needed a picture.
+
+**`ImageChooser` is Qt's file dialog with a pane added**, not a chooser this project wrote. A file
+dialog is places, filters, keyboard navigation, typing a path, sorting by date; reimplementing it to
+gain a preview trades all of that for one label. The cost is `DontUseNativeDialog` — the pane can
+only be a child of Qt's own grid layout — which on a window carrying one dark theme of its own
+(ADR-0002) is a small price, and the same trade every SPM tool with a preview makes.
+
+The pane reads the file **through the loader the viewer uses**, so what is on screen is what lands
+in the project, and it names the scale *and where it came from*: `46.875 nm/px, from the file's
+header`. That is the operator's other question answered one dialog earlier. What it cannot read it
+says — *"no preview: Ciao image list blocks not found"* — which is a truncated download found in a
+pane instead of after importing forty files.
+
+**The explorer draws one thumbnail per turn of the event loop.** Forty rows is forty file reads, and
+a panel that reads them all before it appears is the first thing an operator meets in the window and
+the first thing that hangs. `draw_next_thumbnail` does exactly one and says whether more are
+waiting; the pump reschedules itself with `singleShot(0, …)` and a test steps it instead of running
+an event loop. Opening a second project abandons the first one's queue. `SessionViewModel.read_image`
+exists because `select_image` is the wrong tool for a list: it emits `image_changed`, clears the
+preview and reloads the annotations, and forty rows would do that forty times and leave the last one
+selected.
+
+### What the thumbnails found on their first run
+
+`load_afm(fmt="npy")` let **numpy's own `ValueError` escape** for a file that is there and is not an
+array — the exact thing PROJECT_RULES §3 forbids, with the `OSError` half wrapped since M5-T05 and
+this half never covered. An existing fixture writes `b"AFM"` into `tuesday.npy`; the panel crashed
+on that row instead of skipping it. **A panel that reads every file in a project is a new kind of
+test for the loaders**, and it is worth remembering that it is: the suite's fixtures are mostly
+plausible-but-fake bytes, which is precisely the input a real reader has to refuse politely.
+
+### Learned
+
+- **A value read on every load and recorded on none is not "already handled".** Three panels quoted
+  the row and the row was the one copy nobody maintained. The question to ask of any derived fact is
+  not *"is it computed?"* but *"which copy does each consumer read?"* — the table above took ten
+  minutes to build and it is the whole diagnosis.
+- **The gate's blind spot has a shape.** 2026-08-30 found three defects no GUI test could see because
+  every test constructs a `MainWindow` directly. Today's came from the same place: nothing read a
+  project's files *in bulk*, so nothing met the fixture that is not an array.
+- **Two builders of one fixture would have been two headers.** `tests/synthetic_spm.py` is
+  `test_afm_io.py`'s builder moved out, because a test asserting that an import reads a header
+  nobody else writes proves less than it looks like.
+
+### Next
+
+`M8-T04` — persisting a training run — is still the next scheduled task. **B-073** (backfill the
+scales of rows imported before ADR-0083) is filed and unscheduled.
+
+---
+
 ## 2026-08-30 — M8-T03: the first thing in this project that produces a model
 
 **`LocalTrainingProvider`, and ADR-0080 §1 settled rather than argued.** 26 tests, **1478** in the

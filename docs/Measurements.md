@@ -224,6 +224,11 @@ nanometres. Without a scale the panel says **"scale unknown"** and shows pixels;
 number that implies a scale nobody recorded. A non-positive scale *raises*, because absent and wrong
 are different (ADR-0025). Two clicks in the same place measure 0, which is an answer.
 
+**The scale is the loaded scan's, not the row's** (ADR-0083). They agree for anything imported since
+that decision, because the import records what the file states; for a project imported before it,
+the row can say *unknown* about a Nanoscope file whose header states a scale — and a ruler is drawn
+over the array, so it is the array's scale that converts it.
+
 **Height profile** (`kind = "profile"`) — the heights under the line, **one sample per pixel of
 length plus the far end** (a line from x=10 to x=14 crosses five pixels, not four), sampled
 **bilinearly**, clamped at the array's edges rather than extrapolated. For a horizontal line with

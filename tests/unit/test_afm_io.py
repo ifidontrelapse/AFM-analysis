@@ -458,5 +458,5 @@ def test_a_file_that_is_not_an_npy_is_refused_with_a_sentence(tmp_path) -> None:
     path = tmp_path / "renamed.npy"
     path.write_bytes(b"AFM")
 
-    with pytest.raises(DataFormatError, match="not a readable .npy array"):
+    with pytest.raises(DataFormatError, match=r"not a readable \.npy array"):
         load_afm(str(path), fmt="npy")

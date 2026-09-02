@@ -1,7 +1,7 @@
 # STATE
 
-**Last updated:** 2026-08-30 · **Branch:** `feat/m8-training` (pushed; the three usability fixes are
-folded in) · **Base commit:** `d89e303`
+**Last updated:** 2026-09-02 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
+and five commits from 2026-09-02 folded in) · **Base commit:** `8804d77`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -131,6 +131,46 @@ counts on the spec. **The golden was the real risk** and was checked against a l
 pre-extraction code before the suite ran: byte-identical on three shapes and both polarities.
 **Named, not fixed:** building preprocesses every scan and is not a job — the runner exists, the
 caller that needs it is M8-T05. 19 tests, **1442** in the suite.
+
+**Parked in front of it, 2026-09-02: two things the operator asked for after using it, and the
+defect the first of them exposed.** Five commits, one ADR (**ADR-0083**), 36 tests, **1514** in the
+suite, mypy unchanged at 6, **the golden byte-identical**.
+
+**"Why is it asking me for the scale? It should be pulled out while parsing the `.00*` files."** It
+was — and the import threw it away. `load_afm(fmt="spm")` **ignores** the `pixel_size_nm` it is
+handed and returns the header's, so the file's scale reached the viewer, the properties panel and
+every analysis, while the *row* recorded whatever the dialog said. Four consumers, two of them
+reading the row: the explorer's Scale column said **unknown**, and `ruler_length` returned **no
+nanometres at all** — a ruler dragged across a scan whose header says 750 nm/px answered "412 px",
+beside a panel showing the scale it could not find. **ADR-0083:** the import asks each AFM file what
+it states (`stated_pixel_size_nm`) and records that, **per file** because a folder can hold a 3 µm
+frame and a 500 nm one; the dialog's answer is for the files that state nothing. **The header wins
+over the answer** — not a preference between opinions, since the analysis already reads the header
+whatever the row says. **And the lookup never refuses a file:** it returns `None` for anything it
+cannot read, `OSError` included, because the parser's own `FileNotFoundError` is not a
+`NanoscopeError` — which the existing suite caught on the first run. Measurements now use the scale
+of the array they are taken over rather than the row's, which fixes the projects imported before
+today without touching their database; backfilling the rows themselves is **B-073**.
+
+**A preview when picking a file, and thumbnails in the project list.** Both answer the same thing: a
+Bruker names its files by acquisition number, so `2-6-dmfa-pvp.039` in a folder of forty says
+nothing about what was scanned. `ImageChooser` is **Qt's own file dialog with a pane added**, not a
+chooser this project wrote — a file dialog is places, filters, keyboard navigation and typing a
+path, and reimplementing it to gain a preview trades all of that for one label; the cost is
+`DontUseNativeDialog`, because the pane can only be a child of Qt's grid layout. The pane reads the
+file **the way the viewer will**, so what is on screen is what lands in the project, and it shows the
+scale the header states — the same answer to the same question, one dialog earlier. What it cannot
+read it says: *"no preview: Ciao image list blocks not found"*, found in a pane instead of after
+importing forty files. The explorer's rows carry a 32-pixel thumbnail in the operator's default
+colormap, **drawn one per turn of the event loop** — forty rows is forty file reads, and a panel
+that reads them all before it appears is the first thing an operator meets and the first thing that
+hangs.
+
+**What the thumbnails found:** `load_afm(fmt="npy")` let numpy's own `ValueError` escape for a file
+that is *there* and is not an array (PROJECT_RULES §3 forbids exactly that; the `OSError` half has
+been wrapped since M5-T05). An existing fixture writes `b"AFM"` into `tuesday.npy`, and the panel
+crashed on that row instead of skipping it. **A panel that reads every file in a project is a new
+kind of test for the loaders**, and it found this on its first run.
 
 **Parked in front of it, 2026-08-30: two first-launch defects the operator found by running the
 build.** Branch `fix/first-run-usability`, one commit per intent, no ADR — neither makes a decision
