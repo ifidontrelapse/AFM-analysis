@@ -28,7 +28,7 @@ from PySide6.QtWidgets import QDockWidget, QFileDialog, QLabel, QMainWindow, QMe
 
 from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.gui.dialogs import ImportOptions, LabelSource, SettingsDialog
+from nanoscope.gui.dialogs import ImageChooser, ImportOptions, LabelSource, SettingsDialog
 from nanoscope.gui.panels import (
     AnnotatePanel,
     DetectionPanel,
@@ -385,8 +385,16 @@ class MainWindow(QMainWindow):
         Two dialogs because they are two questions, and the second one is worth
         asking once for the batch: a folder of scans comes off one instrument
         (ADR-0041's argument for one `modality` per call).
+
+        The first is `ImageChooser` rather than `getOpenFileNames`: the static
+        helper returns a native dialog with nowhere to put a preview, and a scan
+        is chosen by what is in it, not by an acquisition number in its name.
         """
-        files, _ = QFileDialog.getOpenFileNames(self, "Import Images")
+        chooser = ImageChooser(self)
+        if chooser.exec() != ImageChooser.DialogCode.Accepted:
+            return
+
+        files = chooser.chosen()
         if not files:
             return
 

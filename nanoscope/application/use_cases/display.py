@@ -16,12 +16,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from pathlib import Path
 
 import numpy as np
 
 from nanoscope.application.use_cases.preprocessing import afm_format
 from nanoscope.core.entities import PreprocessingResult
-from nanoscope.core.errors import InvalidParameterError
+from nanoscope.core.errors import InvalidParameterError, UnsupportedRequestError
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.imaging.colormap import afm_to_rgb
@@ -84,30 +85,90 @@ def load_for_display(repository: ProjectRepository, image_id: int) -> DisplayIma
             reports (ADR-0040), met from the viewer's side.
     """
     record = repository.get_image(image_id)
-    path = repository.path_of(record)
-
-    if record.modality is Modality.AFM:
+    return load_file_for_display(
+        repository.path_of(record),
+        modality=record.modality,
         #: The project's recorded scale, not the file's — an `.npy` has none,
-        #: and M4-T05 was the task that learned to pass it through.
-        raw = load_afm(str(path), fmt=afm_format(path), pixel_size_nm=record.pixel_size_nm)
+        #: and M4-T05 was the task that learned to pass it through. An SPM
+        #: header wins over it inside `load_afm`, which is the whole of
+        #: ADR-0083 seen from this side.
+        pixel_size_nm=record.pixel_size_nm,
+        name=record.display_name,
+    )
+
+
+def load_file_for_display(
+    path: Path | str,
+    *,
+    modality: Modality | None = None,
+    pixel_size_nm: float | None = None,
+    name: str | None = None,
+) -> DisplayImage:
+    """Read *any* file on disk the way the viewer reads a project's image.
+
+    Split out of `load_for_display` so a file that is **not in a project yet**
+    can be looked at — the import preview, which is the one surface where an
+    operator has a path and no row.
+
+    Args:
+        path: the file, anywhere on disk.
+        modality: which reader to use. `None` means *nobody has said yet*, and
+            then the **extension decides**: what `afm_format` accepts is read as
+            AFM, everything else as an SEM/TEM greyscale. That guess is
+            legitimate for a picture and for nothing else — what a project
+            **records** is what the operator stated in the import dialog, and
+            this function never writes anything.
+        pixel_size_nm: the scale to use where the file carries none. Ignored for
+            an SPM, whose header states its own (ADR-0083).
+        name: what to call it; the file's own name by default.
+
+    Returns:
+        The array, its modality and its scale — `None` when nothing states one.
+
+    Raises:
+        UnsupportedRequestError: `modality` is AFM and the extension has no AFM
+            reader.
+        MissingFileError: there is no readable file there.
+    """
+    file = Path(path)
+    display_name = name or file.name
+    if modality is None:
+        modality = Modality.AFM if _has_afm_reader(file) else Modality.SEM
+
+    if modality is Modality.AFM:
+        raw = load_afm(str(file), fmt=afm_format(file), pixel_size_nm=pixel_size_nm)
         return DisplayImage(
-            name=record.display_name,
+            name=display_name,
             data=raw.z_raw,
-            modality=record.modality,
+            modality=modality,
             pixel_size_nm=raw.pixel_size_nm,
         )
 
     image = load_microscopy_image(
-        str(path),
-        modality=record.modality.value,  # type: ignore[arg-type]  # M2-T10 adopts the enum
-        nm_per_pixel=record.pixel_size_nm,
+        str(file),
+        modality=modality.value,  # type: ignore[arg-type]  # M2-T10 adopts the enum
+        nm_per_pixel=pixel_size_nm,
     )
     return DisplayImage(
-        name=record.display_name,
+        name=display_name,
         data=image.image,
-        modality=record.modality,
+        modality=modality,
         pixel_size_nm=image.nm_per_pixel,
     )
+
+
+def _has_afm_reader(path: Path) -> bool:
+    """Whether `afm_format` would dispatch this extension to an AFM reader.
+
+    Asking the one function that owns the map, rather than keeping a second
+    copy of it — the mistake this module already made once and paid for
+    (`load_for_display`'s docstring says how).
+    """
+    try:
+        afm_format(path)
+    except UnsupportedRequestError:
+        return False
+    return True
 
 
 def value_range(image: DisplayImage, *, full: bool = False) -> tuple[float, float]:
@@ -160,6 +221,43 @@ def render(
     #: `afm_to_rgb` percentile-clips on its own, and this window is already the
     #: decision — so it is handed an array that is exactly its own range.
     return afm_to_rgb(clipped.astype(np.float64), colormap=colormap, clip_percentile=100.0)
+
+
+def thumbnail(
+    image: DisplayImage, *, size_px: int = 64, colormap: str = COLORMAPS[0]
+) -> np.ndarray:
+    """The same picture, small enough for a list row.
+
+    **Subsampled before it is coloured**, not after: a 4096 x 4096 map is 16 M
+    values, and mapping all of them to RGB to then throw 99.99% of them away is
+    a second of matplotlib per row. Striding is the cheapest possible reduction
+    and the honest one for a 48-pixel icon — it is a *look*, not a measurement,
+    and nothing is derived from it.
+
+    The value window is computed on the subsample, so the thumbnail is contrasted
+    the way the full image is (`value_range`'s percentiles), not flattened to
+    grey by one hot pixel it happened to keep.
+
+    Args:
+        image: what to shrink.
+        size_px: the longer side of the result, at most.
+        colormap: one of `COLORMAPS`.
+
+    Returns:
+        `(height, width, 3)` of `uint8`, no side longer than `size_px`.
+
+    Raises:
+        InvalidParameterError: `size_px` is not positive, or a colormap this
+            application does not offer.
+    """
+    if size_px <= 0:
+        raise InvalidParameterError(f"size_px must be positive, got {size_px!r}")
+
+    data = image.data
+    if data.ndim > 2:  # pragma: no cover — every reader returns 2-D today
+        data = data[..., 0]
+    step = max(1, int(np.ceil(max(data.shape) / size_px)))
+    return render(replace(image, data=data[::step, ::step]), colormap=colormap)
 
 
 class Stage(StrEnum):

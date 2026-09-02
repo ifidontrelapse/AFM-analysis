@@ -72,6 +72,13 @@ directory; the display name defaults to the directory's. `Ctrl+I` (*Import Image
 once a project is open, and asks the modality and the pixel scale it cannot know. A project is a
 plain directory the operator owns (ADR-0003) — copy it, back it up, put it in version control.
 
+**Picking the files.** `Ctrl+I` opens a file dialog with a **preview pane**: highlight a file and
+it is drawn beside the list, with its size in pixels and the scale its header states — which is how
+`2-6-dmfa-pvp.039` and the thirty-nine files beside it are told apart before any of them is
+imported. A file this application cannot read says so there (*"no preview: Ciao image list blocks
+not found"*) instead of failing after the import. The dialog is Qt's own rather than the desktop's,
+because a native dialog has nowhere to put the pane.
+
 **Which files go in as which modality.** The import dialog asks because nothing in a filename says
 it, and the answer decides which reader runs:
 

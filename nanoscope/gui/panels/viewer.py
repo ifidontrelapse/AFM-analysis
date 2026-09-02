@@ -23,7 +23,6 @@ import numpy as np
 from PySide6.QtCore import QLineF, QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
-    QImage,
     QMouseEvent,
     QPainter,
     QPainterPath,
@@ -63,6 +62,7 @@ from nanoscope.application.use_cases.display import (
     value_range,
 )
 from nanoscope.core.entities import AnalysisRun, Annotation, AnnotationSource, Detection
+from nanoscope.gui.pixmaps import to_pixmap, to_qimage
 from nanoscope.gui.theme import tokens
 from nanoscope.gui.viewmodels import SessionViewModel
 
@@ -350,9 +350,9 @@ class ImageView(QGraphicsView):
         rgb = np.zeros((*self._stroke.shape, 3), dtype=np.uint8)
         colour = tokens.qcolor(tokens.SUCCESS)
         rgb[self._stroke] = (colour.red(), colour.green(), colour.blue())
-        image = _to_qimage(rgb)
+        image = to_qimage(rgb)
         image.setAlphaChannel(
-            _to_qimage(np.repeat((self._stroke * 160).astype(np.uint8)[..., None], 3, axis=2))
+            to_qimage(np.repeat((self._stroke * 160).astype(np.uint8)[..., None], 3, axis=2))
         )
         if self._stroke_item is None:
             self._stroke_item = QGraphicsPixmapItem()
@@ -759,7 +759,7 @@ class ImageViewer(QWidget):
             return
         limits = value_range(self._image, full=self.full_range.isChecked())
         rgb = render(self._image, colormap=self.colormap.currentText(), limits=limits)
-        self.view.show_pixmap(QPixmap.fromImage(_to_qimage(rgb)))
+        self.view.show_pixmap(to_pixmap(rgb))
         self.scale_label.setText(self._scale_bar_text())
 
     # ── The numbers that make it a measurement ────────────────────────────────
@@ -816,19 +816,6 @@ def _bar_length_nm(image: DisplayImage, zoom: float) -> float:
     quarter_nm = max(width_px * image.pixel_size_nm / 5, 1e-9)
     candidates = [length for length in BAR_LENGTHS_NM if length <= quarter_nm]
     return float(candidates[-1] if candidates else BAR_LENGTHS_NM[0])
-
-
-def _to_qimage(rgb: np.ndarray) -> QImage:
-    """An `(h, w, 3)` uint8 array as a `QImage`, copied.
-
-    Copied on purpose: `QImage` does not own the buffer it is handed, and a view
-    onto a numpy array that Python then frees is a crash that happens later,
-    somewhere else.
-    """
-    height, width, _ = rgb.shape
-    contiguous = np.ascontiguousarray(rgb)
-    image = QImage(contiguous.data, width, height, 3 * width, QImage.Format.Format_RGB888)
-    return image.copy()
 
 
 def _shape(detection: Detection) -> QGraphicsItem:
