@@ -36,6 +36,7 @@ from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QHeaderView,
     QMessageBox,
     QTreeWidget,
     QTreeWidgetItem,
@@ -79,6 +80,13 @@ class ProjectExplorer(QWidget):
         self.tree.setHeaderLabels(["Image", "Scale"])
         self.tree.setRootIsDecorated(False)
         self.tree.setIconSize(QSize(THUMBNAIL_PX, THUMBNAIL_PX))
+        #: The name takes what is left, the scale takes what it needs. Left to
+        #: Qt's defaults the two columns split the dock evenly, and a 32-pixel
+        #: icon then pushes `2-6-dmfa-pvp.039` into `2-6-d…` — the picture and
+        #: the name are both what the row is for.
+        header = self.tree.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tree.itemSelectionChanged.connect(self._selection_changed)
 

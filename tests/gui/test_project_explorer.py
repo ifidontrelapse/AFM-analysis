@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QHeaderView, QMessageBox
 
 from nanoscope.app.container import Nanoscope
 from nanoscope.application.settings import COLORMAP_SETTING
@@ -316,6 +316,15 @@ class TestTheThumbnails:
 
         assert "file missing" in pictures.tree.topLevelItem(0).text(0)
         assert pictures.tree.topLevelItem(0).icon(0).isNull()
+
+    def test_the_name_column_takes_what_the_picture_left(self, pictures: ProjectExplorer) -> None:
+        """A 32-pixel icon in a column Qt split evenly turns
+        `2-6-dmfa-pvp.039` into `2-6-d…`, and the name is half of what the row
+        is for."""
+        header = pictures.tree.header()
+
+        assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Stretch
+        assert header.sectionResizeMode(1) == QHeaderView.ResizeMode.ResizeToContents
 
     def test_the_picture_uses_the_operators_default_colormap(
         self, pictures: ProjectExplorer
