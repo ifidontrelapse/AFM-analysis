@@ -1,7 +1,7 @@
 # STATE
 
-**Last updated:** 2026-09-02 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
-and five commits from 2026-09-02 folded in) · **Base commit:** `8804d77`
+**Last updated:** 2026-09-03 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
+and five commits from 2026-09-02 folded in) · **Base commit:** `f52b9d4`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -86,8 +86,36 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01`, `M8-T02` and `M8-T03` are done (2026-08-30, ADR-0080…ADR-0082). `M8-T04` —
-persisting a run — is next.**
+**`M8-T01`…`M8-T04` are done (ADR-0080…ADR-0082, ADR-0084). `M8-T05` — the training UI — is
+next, and it is the first caller of everything the four built.**
+
+**`M8-T04` done 2026-09-03 (ADR-0084) — a run the project remembers, and the model it produced.**
+M8-T01 wrote the reason into the entity it defined (*"a `Job` dies with the process; a training run
+has to be findable after a restart"*) and M8-T03 left the rest of ADR-0006's compliance clause in its
+own out-of-scope list. Before today, closing the application turned six hours of training into a
+`best.pt` under `models/` with nothing saying what produced it — **the weights on disk and the
+provenance in RAM**. **The project is the memory; the provider only knows the live run:** three
+methods on `ProjectRepository`, schema **v9**, and `TrainingProvider.status` left exactly as it was —
+the split ADR-0080 §2 drew when it refused to make a run a `Job`, and where duplicating five state
+names pays. **An epoch is a row and its numbers are JSON in it**, because `METRIC_BLOCKS` is declared
+once in `core` and ADR-0080 **named its own next change**, which a column per metric would turn into
+a migration; `EpochMetrics` validates on the read, so an unnameable row fails there rather than
+becoming a chart. **The run row is columns** — *which runs used this dataset* is a query — with only
+`classes` and the resolved `device` as JSON, the second because three fields absent **together**
+cannot be three nullable columns. **Persistence is a use case on the listener the port already has**
+(ADR-0041): no repository reaches `infrastructure/training/`, and **the snapshot `start` returns is
+deliberately not written** — a calling-thread write racing the worker's first callback, whose loser
+is a `pending` row over a `succeeded` one. **A succeeded run registers its model**, only with
+weights, closing ADR-0006's compliance clause: annotations → dataset → weights → a registered
+`ModelDescriptor` without leaving the application, and `register_model` **computes** a missing
+checksum (ADR-0040's rule, one `if`). **Measured before planning, and it was a defect:** a run
+cancelled before its job starts stayed `pending` for ever — `JobRunner` **drops** a job cancelled
+before it runs (ADR-0043), so the body that publishes never ran, and the contract's first test
+cancels without waiting. Fixed in the provider, asserted in the **fifteenth** contract assertion,
+which the fake satisfied unchanged. Also measured: **`values` is a reserved word in SQLite**. **A run
+interrupted by a crash stays `running`** — marking it `failed` on read invents an outcome nobody
+observed, and M8-T05's first window has to say something honest about it. Not wired into the
+container (ADR-0041, seventh application). 30 tests, **1544** in the suite.
 
 **`M8-T03` done 2026-08-30 (ADR-0082) — the first thing in this project that produces a model, and
 the task that settles ADR-0080 §1 rather than arguing it.** M8-T01 wrote a port before its adapter

@@ -44,6 +44,7 @@ import numpy as np
 import pandas as pd
 
 from nanoscope.core.entities import Detection, PipelineResult
+from nanoscope.core.entities.device import Device
 from nanoscope.core.entities.model import ModelDescriptor, ModelFramework, ModelTask
 from nanoscope.core.entities.project import (
     AnalysisRun,
@@ -54,8 +55,15 @@ from nanoscope.core.entities.project import (
     Ruler,
     RulerKind,
 )
+from nanoscope.core.entities.training import (
+    DatasetSpec,
+    EpochMetrics,
+    TrainingConfig,
+    TrainingRun,
+    TrainingStatus,
+)
 from nanoscope.core.errors import InvalidParameterError, MissingFileError
-from nanoscope.core.values import Modality
+from nanoscope.core.values import DeviceKind, Modality
 from nanoscope.infrastructure.storage.database import open_database
 from nanoscope.infrastructure.storage.masks import read_mask, write_mask
 from nanoscope.infrastructure.storage.project_format import (
@@ -777,6 +785,79 @@ class SqliteProjectRepository:
             raise InvalidParameterError(f"no annotation with id {annotation_id} in {self._root}")
 
     @_serialised
+    def save_training_run(self, run: TrainingRun) -> None:
+        """Store a run and its epochs, replacing what this project knew (M8-T04).
+
+        The whole snapshot every time, because that is what a provider publishes
+        — a frozen `TrainingRun` complete in itself (ADR-0080 §3) — and because
+        the alternative is this layer deciding which half of it moved.
+
+        The epochs are rewritten rather than appended: a run reports one entry
+        per completed epoch and never a sparse list, so the rows this replaces
+        are the rows it already wrote. Hundreds of them, once an epoch.
+        """
+        device = run.device
+        self._conn.execute(
+            "INSERT INTO training_runs (run_id, status, dataset_root, classes, train_images, "
+            "val_images, base_model, epochs, image_size_px, batch_size, requested_device, seed, "
+            "output_directory, weights_path, device, started_utc, finished_utc, error) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(run_id) DO UPDATE SET status = excluded.status, "
+            "weights_path = excluded.weights_path, device = excluded.device, "
+            "finished_utc = excluded.finished_utc, error = excluded.error",
+            (
+                run.run_id,
+                str(run.status),
+                run.dataset.root,
+                json.dumps(list(run.dataset.classes)),
+                run.dataset.train_images,
+                run.dataset.val_images,
+                run.config.base_model,
+                run.config.epochs,
+                run.config.image_size_px,
+                run.config.batch_size,
+                None if run.config.device is None else str(run.config.device),
+                run.config.seed,
+                run.config.output_directory,
+                run.weights_path,
+                None if device is None else json.dumps(_device_json(device)),
+                run.started_utc,
+                run.finished_utc,
+                run.error,
+            ),
+        )
+        self._conn.executemany(
+            "INSERT INTO training_epochs (run_id, epoch, metrics) VALUES (?, ?, ?) "
+            "ON CONFLICT(run_id, epoch) DO UPDATE SET metrics = excluded.metrics",
+            [(run.run_id, one.epoch, json.dumps(dict(one.values))) for one in run.metrics],
+        )
+        self._conn.commit()
+
+    @_serialised
+    def get_training_run(self, run_id: str) -> TrainingRun:
+        """One stored run, with its epochs.
+
+        Raises:
+            InvalidParameterError: this project has no run by that id. A
+                different question from `TrainingProvider.status`, which knows
+                only the runs this process started (ADR-0084).
+        """
+        row = self._conn.execute(
+            "SELECT * FROM training_runs WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        if row is None:
+            raise InvalidParameterError(f"no training run {run_id!r} recorded in {self._root}")
+        return _training_run(row, self._epochs_of(run_id))
+
+    @_serialised
+    def list_training_runs(self) -> list[TrainingRun]:
+        """Every recorded run, oldest first — the order they were started in."""
+        rows = self._conn.execute(
+            "SELECT * FROM training_runs ORDER BY started_utc, run_id"
+        ).fetchall()
+        return [_training_run(row, self._epochs_of(row["run_id"])) for row in rows]
+
+    @_serialised
     def register_model(self, descriptor: ModelDescriptor) -> ModelDescriptor:
         """Record a model this project can use, replacing one with the same id.
 
@@ -787,7 +868,14 @@ class SqliteProjectRepository:
                 hand over either.
 
         Returns:
-            The stored record, with `registered_utc` filled in.
+            The stored record, with `registered_utc` filled in — and with
+            `sha256` computed when the caller gave none and the weights are
+            there. ADR-0050 left it `None` *"if nobody computed it"*, and the
+            rule for who computes one is this module's oldest: **a checksum
+            describes the file the row points at**, because it is taken here
+            from that file rather than accepted as an argument (ADR-0040).
+            A caller who passed one keeps it; nothing re-reads 137 MB to
+            second-guess them.
         """
         path = descriptor.path
         if Path(path).is_absolute():
@@ -795,9 +883,11 @@ class SqliteProjectRepository:
             # shared checkpoint elsewhere stays as it is (ADR-0050).
             with suppress(ValueError):
                 path = Path(path).relative_to(self._root).as_posix()
+        weights = Path(path) if Path(path).is_absolute() else self._root / path
         stored = replace(
             descriptor,
             path=path,
+            sha256=descriptor.sha256 or (sha256_of(weights) if weights.is_file() else None),
             registered_utc=descriptor.registered_utc
             or datetime.now(UTC).isoformat(timespec="seconds"),
         )
@@ -1009,6 +1099,21 @@ class SqliteProjectRepository:
         )
         return tuple(_detection(row) for row in rows)
 
+    def _epochs_of(self, run_id: str) -> tuple[EpochMetrics, ...]:
+        """One entry per completed epoch, in order — the port's promise, read back.
+
+        `EpochMetrics` validates in its constructor, so a row naming a metric
+        this application does not know fails here rather than becoming a chart
+        (ADR-0080 §4).
+        """
+        rows = self._conn.execute(
+            "SELECT epoch, metrics FROM training_epochs WHERE run_id = ? ORDER BY epoch",
+            (run_id,),
+        ).fetchall()
+        return tuple(
+            EpochMetrics(epoch=int(row["epoch"]), values=json.loads(row["metrics"])) for row in rows
+        )
+
     def _write_measurements(self, run_id: int, result: PipelineResult) -> str | None:
         """The measurement table as a file under `results/`, or `None`.
 
@@ -1107,6 +1212,50 @@ def _model(row: sqlite3.Row) -> ModelDescriptor:
         provenance=row["provenance"],
         sha256=row["sha256"],
         registered_utc=row["registered_utc"],
+    )
+
+
+def _device_json(device: Device) -> dict[str, str]:
+    """A resolved device as one JSON object.
+
+    Three fields that are absent together: a run that never started ran nowhere,
+    and three nullable columns can disagree about that (ADR-0084).
+    """
+    return {"kind": str(device.kind), "name": device.name, "torch_name": device.torch_name}
+
+
+def _training_run(row: sqlite3.Row, metrics: tuple[EpochMetrics, ...]) -> TrainingRun:
+    device = json.loads(row["device"]) if row["device"] else None
+    return TrainingRun(
+        run_id=row["run_id"],
+        status=TrainingStatus(row["status"]),
+        dataset=DatasetSpec(
+            root=row["dataset_root"],
+            classes=tuple(json.loads(row["classes"])),
+            train_images=row["train_images"],
+            val_images=row["val_images"],
+        ),
+        config=TrainingConfig(
+            base_model=row["base_model"],
+            epochs=row["epochs"],
+            image_size_px=row["image_size_px"],
+            batch_size=row["batch_size"],
+            device=None if row["requested_device"] is None else DeviceKind(row["requested_device"]),
+            seed=row["seed"],
+            output_directory=row["output_directory"],
+        ),
+        metrics=metrics,
+        weights_path=row["weights_path"],
+        device=None
+        if device is None
+        else Device(
+            kind=DeviceKind(device["kind"]),
+            name=device["name"],
+            torch_name=device["torch_name"],
+        ),
+        started_utc=row["started_utc"],
+        finished_utc=row["finished_utc"],
+        error=row["error"],
     )
 
 

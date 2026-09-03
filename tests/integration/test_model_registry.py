@@ -20,6 +20,7 @@ from nanoscope.core.errors import InvalidParameterError, UnsupportedRequestError
 from nanoscope.core.values import DeviceKind
 from nanoscope.infrastructure.models import registry
 from nanoscope.infrastructure.storage import SqliteProjectRepository
+from nanoscope.infrastructure.storage.project_repository import sha256_of
 
 YOLO = ModelDescriptor(
     model_id="particles-v12",
@@ -95,6 +96,41 @@ class TestAModelIsARecord:
         assert stored.path == str(shared)
         assert stored.is_external
         assert repo.path_of_model(stored) == shared
+
+    def test_a_checksum_is_computed_from_the_file_when_nobody_gave_one(
+        self, repo: SqliteProjectRepository
+    ) -> None:
+        """M8-T04, and this module's oldest rule (ADR-0040): a checksum
+        describes the file the row points at, so it is taken here rather than
+        accepted as an argument. ADR-0050 left it `None` *if nobody computed
+        it*; a run that just wrote the weights is somebody."""
+        from dataclasses import replace
+
+        weights = repo.root / "models" / "run-1" / "best.pt"
+        weights.parent.mkdir(parents=True)
+        weights.write_bytes(b"not a model")
+        stored = repo.register_model(replace(YOLO, path="models/run-1/best.pt", sha256=None))
+
+        assert stored.sha256 == sha256_of(weights)
+        assert repo.get_model("particles-v12").sha256 == stored.sha256
+
+    def test_a_checksum_the_caller_gave_is_kept(self, repo: SqliteProjectRepository) -> None:
+        """Nothing re-reads 137 MB to second-guess a caller who already knows."""
+        from dataclasses import replace
+
+        weights = repo.root / "models" / "shared.pt"
+        weights.parent.mkdir(parents=True, exist_ok=True)
+        weights.write_bytes(b"not a model")
+
+        assert repo.register_model(replace(YOLO, path="models/shared.pt")).sha256 == "a" * 64
+
+    def test_a_model_whose_weights_are_not_here_has_no_checksum(
+        self, repo: SqliteProjectRepository
+    ) -> None:
+        """An absent file is a state, not a hash of nothing (ADR-0025's rule)."""
+        from dataclasses import replace
+
+        assert repo.register_model(replace(YOLO, sha256=None)).sha256 is None
 
     def test_they_survive_the_session(self, tmp_path: Path) -> None:
         with SqliteProjectRepository.create(tmp_path / "Q", "Q") as repo:

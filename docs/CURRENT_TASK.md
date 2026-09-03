@@ -1,101 +1,127 @@
 # CURRENT TASK
 
-**ID:** `M8-T03`
-**Title:** `LocalTrainingProvider` — the first thing in this project that produces a model
-**Milestone:** M8 — Training module, third task
-**Defect:** — · **ADR:** **ADR-0082** (to be written)
+**ID:** `M8-T04`
+**Title:** Training-run persistence: config, metrics, artifacts, provenance
+**Milestone:** M8 — Training module, fourth task
+**Defect:** — · **ADR:** **ADR-0084** (to be written)
 **Branch:** `feat/m8-training`
-**Status:** **planning 2026-08-30.** Not started.
+**Status:** **planning 2026-09-03.** Not started.
 
 ---
 
-## Why this task is third
+## Why this task is fourth
 
-M8-T01 wrote the port and, with it, **fourteen assertions a second implementation must satisfy** —
-`tests/contract/training_provider.py`, run against a fake. M8-T02 built the dataset the port
-consumes. This is the task those two were written for, and the deliverable that judges it is not new
-tests: it is **the existing suite passing with three new fixtures and no new assertions.** If it
-does not, ADR-0080 §1 was wrong and says so itself.
+M8-T01 wrote the port and said, in its own docstring, what this task is for: *"a `Job` is
+in-process and **dies with the process**; a training run has to be findable after a restart
+(M8-T04)."* M8-T03 produced the first model this project has ever made and left the other half of
+ADR-0006's compliance clause open in its own scope list: *"Registering the produced model — M8-T04
+persists the run and registers the `ModelDescriptor`."*
 
-ADR-0006 chose this seam in M0: *"`LocalTrainingProvider` — trains on this machine (ultralytics),
-device resolved by the Device Manager."*
+So today nothing survives the process. `LocalTrainingProvider` keeps its runs in a dict; close the
+application and a six-hour run is a `best.pt` under `models/` with nothing saying what produced it,
+what it trained on, or what it scored. **The weights are on disk and the provenance is in RAM.**
 
 ---
 
 ## What was measured before planning
 
-Not assumed — run, on this machine, against ultralytics 8.4.41:
-
-**1. `on_fit_epoch_end` is the epoch boundary, and `trainer.stop = True` inside it stops the run.**
-The trainer's loop reads `if self.stop: break` immediately after firing that callback. Asked for 8
-epochs, stopped after 2, and `best.pt` was still on disk — which is exactly ADR-0043's *stop at the
-next checkpoint* and ADR-0080's *a cancelled run keeps the epochs it completed*.
-
-**2. The callback fires twice for the last epoch.** Three epochs reported `[0, 1, 2, 2]`: the final
-`val` after the loop fires it again. **The port promises one entry per epoch, in order, never
-sparse** (M8-T01's contract asserts it), so the adapter deduplicates by epoch number. A trap that
-would have shipped as an off-by-one in every chart.
-
-**3. The metric names, read off a real run:**
+**1. A run cancelled before its job starts stays `pending` for ever.** Not read — run, with a
+one-worker `JobRunner` occupied by another job:
 
 ```
-trainer.metrics            metrics/precision(B)  metrics/recall(B)  metrics/mAP50(B)
-                           metrics/mAP50-95(B)   val/box_loss  val/cls_loss  val/dfl_loss
-trainer.label_loss_items() train/box_loss  train/cls_loss  train/dfl_loss
+run status after an immediate cancel: pending
+run status one second later:          pending
 ```
 
-Ultralytics epochs are **0-based**; `EpochMetrics.epoch` is 1-based (M8-T01), so `+ 1`.
+`JobRunner` drops a job whose future cancels before it starts (ADR-0043, and `Job.cancel` says so),
+so `_train` never runs and nothing publishes. The provider's own `_cancel_pending` set closes the
+window between *submit returned* and *there is a handle*, and this is the window **after** it: the
+handle exists, the cancel lands, and the body never does. The contract suite does not catch it —
+`test_start_returns_before_the_training_is_over` cancels and never waits.
 
-**4. A model builds from a YAML that ships with the package** — `yolo11n.yaml` resolves inside
-ultralytics' own `cfg/models/11/`, so a contract run needs no download and no checkpoint.
+It is this task's business because it is exactly the run the record cannot describe: **a snapshot
+that never reaches a terminal state is a `pending` row no restart can resolve**, and to an operator
+it is ADR-0043's own failure mode, a cancel button that appears to do nothing.
 
-**5. It costs 2.7 s.** Three epochs, two training images, one held out, 32 px, CPU. So the contract
-subclass is **`slow` and in the gate**, not hidden behind an environment variable — a test nobody
-runs by default is a test that rots, and this one is affordable.
+**2. `values` is a reserved word in SQLite.** `CREATE TABLE a(values TEXT)` is a syntax error on
+3.50.4. The column is `metrics`.
+
+**3. What a record actually weighs.** A run is one row plus one row per epoch, each carrying at most
+six named floats — `METRIC_BLOCKS` is `train_loss` plus five. Three hundred epochs is three hundred
+short rows. Nothing here is large, and nothing here is recomputable: a run cannot be re-run to get
+its history back, which is ADR-0044's test for *table, not file*.
+
+**4. Where the vocabulary lives.** `METRIC_BLOCKS` is declared once, in `core`, and ADR-0080 named
+its own next change: *"`METRIC_BLOCKS` will need a new block the first time a trainer reports
+something real that is not in it — a learning rate, a per-class mAP."* A column per metric would
+copy that vocabulary into the migration list, where the copy needs a schema version to change.
 
 ---
 
 ## The decisions
 
-**1. The job runner underneath, exactly as ADR-0080 §2 said.**
+**1. The project is the memory; the provider only knows the live run.**
 
-*"The local provider drives it with the `JobRunner` underneath; a remote one polls. What must not
-happen is a second thread policy in the layer ADR-0043 already settled."* So `start` submits to the
-runner, the run's body reports progress through `JobContext.report(epoch, epochs)` — which makes
-M5-T07's job status widget work for training with no new code — and cancellation is the runner's
-flag, **read at the trainer's epoch boundary** rather than raised. Raised would abandon the
-checkpoint; ADR-0080 promised it is kept.
+`ProjectRepository` gains three methods — `save_training_run`, `get_training_run`,
+`list_training_runs` — and the schema gains `training_runs` and `training_epochs` (**v9**).
+`TrainingProvider.status` stays what it is: the live view, from the object that started the run. A
+restart asks the project, not the provider, which is the split ADR-0080 §2 drew when it refused to
+make a run a `Job`.
 
-**2. Metrics are mapped, not forwarded.**
+**2. An epoch is a row and its numbers are JSON in it.**
 
-`metrics/mAP50-95(B)` is ultralytics' name for a quantity ADR-0080 calls `map50_95`. The port
-declared the vocabulary once so two providers cannot spell one quantity two ways (ADR-0031's rule),
-and the adapter is where the translation belongs. `train_loss` and `val_loss` are the **sums** of the
-three components ultralytics reports — a total is what a chart plots, and the split is a
-framework's internal, not a quantity this project has named.
+`training_epochs(run_id, epoch, metrics)`, primary key `(run_id, epoch)`. Not six nullable columns:
+ADR-0080 §4 made a block *present in full or absent in full*, and a wide row is the shape it refused
+one layer up — plus it puts `core`'s vocabulary in the schema, so ADR-0080's predicted new block
+would need a migration to store a number the entity already allows. JSON in a column is the shape
+`annotations.points` (ADR-0072) and `settings.value` (ADR-0047) already use here, and for the same
+reason: read and written whole, never queried by key. `EpochMetrics.__post_init__` validates on the
+way back in, so a row this application cannot name fails at the read rather than becoming a chart.
 
-The `validation` block is present only when it is all there, which is what `val_images == 0` means:
-the run is started with `val=False` and none of the five keys exist.
+**3. The run row is columns, and only the shapes are JSON.**
 
-**3. The device is the manager's answer, and the run records what it got.**
+Status, dataset root, counts, every `TrainingConfig` field, the paths and the two timestamps are
+columns — that is what makes *"which runs used this dataset"* a query rather than a scan. The two
+that are not scalars are: `classes`, a JSON array in index order (`ModelDescriptor.class_map` is
+built from it — `DatasetSpec` says so), and `device`, a JSON object, because a resolved `Device` is
+three fields that are absent together and three nullable columns can disagree about whether a run
+ever started.
 
-`DeviceProvider.select(config.device)` (ADR-0004, PROJECT_RULES §2.6 — nothing else asks torch), and
-`Device.torch_name` is what ultralytics is handed. `TrainingRun.device` carries the resolved one, not
-the requested one, because a run that fell back to CPU took forty times as long for a reason that
-must be in the record (ADR-0049).
+**4. Persistence is a use case, and it hangs off the listener the port already has.**
 
-**4. Artifacts land where the configuration said, and the path is read back.**
+`application/use_cases/training.py::start_training` starts a run through the provider with a
+listener of its own, saves every snapshot, and forwards to the caller's listener. No new thread
+policy, no repository handed to a provider: `infrastructure/training/` stays unable to name storage,
+which is the layering, and the use case is where the policy of *what to keep* belongs (ADR-0041).
 
-`TrainingConfig.output_directory` under the project root, ultralytics' `project` / `name` split
-across it. The path on the run is `trainer.best` **relative to the project root**, read back rather
-than assembled: ultralytics increments the directory name on collision, and a path this adapter
-composed would name a directory the trainer did not use.
+**The snapshot `start` returns is not saved.** It would be a write from the calling thread racing
+the worker's first callback, and the loser is whichever lands last — a `pending` row over a
+`succeeded` one. The port already promises ordered snapshots (M8-T01's contract asserts it), and the
+first one arrives in milliseconds, so the listener is the only writer.
 
-**5. Nothing is wired into the container.**
+**5. A succeeded run registers the model, in the same act.**
 
-ADR-0041's rule, sixth application: the composition root gains a `TrainingProvider` when M8-T05 has
-a window that asks for one. It needs the runner and the device manager, both of which the container
-already holds, so the wiring is five lines whenever it is earned.
+That is ADR-0006's compliance clause — *the trained model is registered as a `ModelDescriptor`* —
+and M8-T03's stated remainder. The caller names it (`model_id`, and the framework whose provider it
+picked), and everything else comes off the run: `path` is `weights_path`, `input_size_px` is
+`config.image_size_px`, `class_map` is `dataset.classes` in index order, and `provenance` is a
+sentence naming the dataset, the counts, the epochs, the base model and the device. **Only
+`SUCCEEDED` registers**, and only with a `weights_path` — a model row pointing at a file a cancelled
+run never wrote is the disagreement ADR-0080 §5 removed by refusing `collect_artifacts()`.
+
+**6. A checksum of a file this project just produced is computed, not asked for.**
+
+`register_model` fills `sha256` when the caller gave none and the file is there. ADR-0050 left it
+`None` *"if nobody computed it"*, and `application` may not touch the filesystem — but `add_image`
+has computed its own checksum since M4-T03 for ADR-0040's reason: *a checksum a caller passes in can
+describe a different file.* Same rule, same layer, one `if`.
+
+**7. A run interrupted by a crash stays `running` in the record.**
+
+It is what was true when the process died. Marking it `failed` on read invents an outcome nobody
+observed — the substitution ADR-0025 and ADR-0033 removed elsewhere — and there is no `resume`
+(ADR-0080's named negative), so nothing can honestly finish it. M8-T05 is what shows a stored run
+whose id no live provider knows; this task states the consequence rather than papering it.
 
 ---
 
@@ -103,27 +129,33 @@ already holds, so the wiring is five lines whenever it is earned.
 
 **In scope**
 
-1. `infrastructure/training/local.py` — `LocalTrainingProvider`
-2. `tests/contract/test_local_training_provider.py` — three fixtures, no new assertions
-3. **ADR-0082**
-4. The import guard from M8-T01 stops being half-vacuous: `infrastructure/training/` now exists
+1. Schema **v9** — `training_runs`, `training_epochs`; `tests/integration/schema_history.py` extended
+2. `ProjectRepository` port + `SqliteProjectRepository`: `save_training_run`, `get_training_run`,
+   `list_training_runs`
+3. `application/use_cases/training.py` — `start_training`, and the descriptor a run produces
+4. `register_model` computes a missing checksum
+5. **The defect in §1 of the measurements** — a run cancelled before its job starts reaches
+   `CANCELLED` — with **one new assertion in the contract suite**, which the fake already satisfies
+6. **ADR-0084** + the ADR index
 
 **Out of scope**
 
-- **Registering the produced model** — M8-T04 persists the run and registers the `ModelDescriptor`
-- **Any UI** — M8-T05
-- **Resumption** — named in ADR-0080's negatives; it needs a stored checkpoint path, which is
-  M8-T04's record
-- **The remote protocol** — M8-T07
+- **Any UI** — M8-T05 has the window; nothing is wired into the container (ADR-0041, seventh
+  application)
+- **Resumption** — still needs more than a stored path, and ADR-0080 named it
+- **Backfilling old runs** — there are none; nothing has ever been persisted
+- **Deleting a run's record or its weights** — no caller, and the deletion policy for a 137 MB
+  artifact is an operator's decision (M8-T06)
 
 ---
 
 ## Definition of done
 
-- [ ] `LocalTrainingProvider` passes `TrainingProviderContract` unchanged
-- [ ] Every epoch reported once, in order, with the vocabulary the port declared
-- [ ] Cancel stops at an epoch boundary and keeps what was trained
-- [ ] ADR-0082 + the ADR index
+- [ ] A finished run, its config, its every epoch and its device survive closing and reopening the project
+- [ ] A succeeded run leaves a registered `ModelDescriptor` pointing at the weights it produced
+- [ ] A run with nothing held out comes back with **no** `validation` block, on every epoch
+- [ ] A run cancelled the instant it starts reaches a terminal state, and the contract says so
+- [ ] ADR-0084 + the ADR index
 - [ ] `make check` green, golden byte-identical
 - [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M8-T03: the first thing in this project that produces a model`
+- [ ] Commit: `M8-T04: a run the project remembers, and the model it produced`

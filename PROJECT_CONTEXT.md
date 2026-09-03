@@ -73,14 +73,18 @@ AFM-analysis/
 │   │                                   #   analysis.py (M4-T05), export.py (M4-T11),
 │   │                                   #   display.py (M5-T05), statistics.py (M6-T06),
 │   │                                   #   annotations.py: labels out and back (M7-T09),
+│   │                                   #   training.py (M8-T04): a run recorded and the model
+│   │                                   #   it produced registered (ADR-0084),
 │   │                                   #   preprocessing.py gained
 │   │                                   #   preprocess_image + the named defaults (M6-T01)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
-│   │   ├── storage/database.py         # schema version + migrations (M4-T02), v6/v7/v8 (M7-T03…T05)
+│   │   ├── storage/database.py         # schema version + migrations (M4-T02), v6/v7/v8 (M7-T03…T05),
+│   │   │                               #   v9: training_runs + training_epochs (M8-T04)
 │   │   ├── storage/masks.py            # a painted mask as a PNG (M7-T04)
-│   │   ├── storage/project_repository.py # images, results, annotations, settings, exports
+│   │   ├── storage/project_repository.py # images, results, annotations, settings, exports,
+│   │   │                               #   training runs and their epochs (M8-T04)
 │   │   ├── storage/app_settings.py     # ~/.config/nanoscope/settings.json (M4-T10)
 │   │   ├── device/manager.py           # the only place that asks torch about hardware (M4-T12)
 │   │   ├── models/                     # yolo.py, sam2.py, registry.py (M4-T13) — heavy imports
@@ -119,15 +123,17 @@ AFM-analysis/
 │   │                                   #   import_graph, project_format, database, jobs,
 │   │                                   #   commands, settings, device, log sinks,
 │   │                                   #   measurement docs vs schema (M7-T10),
-│   │                                   #   training entities (M8-T01) — 866 tests
+│   │                                   #   training entities (M8-T01) — 881 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
-│   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 148 tests, incl. the whole-layer
-│   │                                   #   walkthrough and the entry point
-│   ├── gui/                            # headless Qt tests (M5-T02…M7-T09) — 368 tests
+│   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 196 tests, incl. the whole-layer
+│   │                                   #   walkthrough, the entry point, and a training run that
+│   │                                   #   survives closing the project (M8-T04)
+│   ├── gui/                            # headless Qt tests (M5-T02…M7-T09) — 403 tests
 │   ├── contract/                       # the suite every TrainingProvider passes, plus the fake
 │   │                                   #   that satisfies it (M8-T01, ADR-0080) — M8-T03 adds
-│   │                                   #   one file with three fixtures and no new assertions
+│   │                                   #   one file with three fixtures and no new assertions;
+│   │                                   #   M8-T04 adds the fifteenth assertion, satisfied unchanged
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat,
 │                                       #   Measurements (M7-T10), ADR/, audit/
@@ -778,6 +784,8 @@ Also enforced, and each proven to fail on a real violation:
 | A training picture equals the inference picture, and the split leaks no scan | `tests/integration/test_dataset_builder.py` |
 | Both `TrainingProvider`s pass one suite; training and inference cannot import each other | `tests/contract/`, `tests/unit/test_import_graph.py` |
 | Every `TrainingProvider` behaves the same, and a run that claims weights has them | `tests/contract/training_provider.py` |
+| Every run reaches a terminal state, including the one cancelled before it began | `tests/contract/training_provider.py`, `tests/unit/test_training_cancellation.py` |
+| A finished run and its every epoch survive closing and reopening the project | `tests/integration/test_training_history.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
 

@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from nanoscope.application.jobs import Job, JobContext, JobRunner
+from nanoscope.application.jobs import Job, JobContext, JobRunner, JobState
 from nanoscope.core.entities.training import (
     DatasetSpec,
     EpochMetrics,
@@ -138,6 +138,7 @@ class LocalTrainingProvider:
         job = self._jobs.submit(
             f"Training {config.base_model} for {config.epochs} epoch(s)",
             lambda context: self._train(context, run.run_id, selection.device.torch_name, listener),
+            listener=lambda finished: self._job_changed(finished, run.run_id, listener),
         )
         with self._lock:
             self._by_run[run.run_id] = job
@@ -170,6 +171,27 @@ class LocalTrainingProvider:
         #: drives its run with `JobRunner` underneath, and what must not happen
         #: is a second thread policy beside the one ADR-0043 settled.
         job.cancel()
+
+    def _job_changed(
+        self,
+        job: Job,
+        run_id: str,
+        listener: Callable[[TrainingRun], None] | None,
+    ) -> None:
+        """End a run whose body never ran.
+
+        `JobRunner` **drops** a job cancelled before it starts (ADR-0043), so
+        `_train` is never called and nothing publishes — measured: a run
+        cancelled the instant it was started stayed `pending` for ever, which is
+        a terminal state no restart can resolve and, on screen, ADR-0043's own
+        failure mode of a cancel button that appears to do nothing.
+
+        Only that case. A job cancelled while it runs is ended by the body, at
+        the epoch boundary where the checkpoint is, and the guard below keeps
+        this from publishing over it.
+        """
+        if job.state is JobState.CANCELLED and not self.status(run_id).is_finished:
+            self._publish(run_id, TrainingStatus.CANCELLED, listener=listener)
 
     # ── The run ───────────────────────────────────────────────────────────────
 

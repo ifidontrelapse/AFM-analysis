@@ -216,6 +216,61 @@ _V8: tuple[str, ...] = (
     "CREATE INDEX rulers_by_image ON rulers(image_id)",
 )
 
+# What a training run was, after the process that ran it is gone (M8-T04).
+#
+# ADR-0080 wrote the reason into `core/entities/training.py`: a `Job` dies with
+# the process, and a run has to be findable after a restart. The provider's dict
+# is the live view; this is the memory.
+#
+# A run is columns and its epochs are rows, because a run cannot be re-run to get
+# its history back — ADR-0044's test for a table rather than a file, and the
+# opposite answer to the one `measurements_path` gets two migrations above.
+#
+# Two things are JSON and neither is a scalar: `classes`, in index order, which
+# is what a `ModelDescriptor.class_map` is built from, and `device`, whose three
+# fields are absent together — three nullable columns could disagree about
+# whether a run ever started (ADR-0084).
+_V9: tuple[str, ...] = (
+    """
+    CREATE TABLE training_runs (
+        run_id           TEXT    PRIMARY KEY,
+        status           TEXT    NOT NULL,
+        dataset_root     TEXT    NOT NULL,
+        classes          TEXT    NOT NULL,
+        train_images     INTEGER NOT NULL,
+        val_images       INTEGER NOT NULL,
+        base_model       TEXT    NOT NULL,
+        epochs           INTEGER NOT NULL,
+        image_size_px    INTEGER NOT NULL,
+        batch_size       INTEGER,
+        requested_device TEXT,
+        seed             INTEGER,
+        output_directory TEXT    NOT NULL,
+        weights_path     TEXT,
+        device           TEXT,
+        started_utc      TEXT    NOT NULL,
+        finished_utc     TEXT    NOT NULL,
+        error            TEXT    NOT NULL,
+        CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled')),
+        CHECK (weights_path IS NULL OR weights_path NOT LIKE '/%')
+    )
+    """,
+    # One row per completed epoch, and the numbers as JSON in it. Not a column
+    # per metric: `METRIC_BLOCKS` declares the vocabulary once, in `core`, and
+    # ADR-0080 named its own next change — a learning rate, a per-class mAP —
+    # which a column list would turn into a migration. `values` is a reserved
+    # word in SQLite, so the column is `metrics`.
+    """
+    CREATE TABLE training_epochs (
+        run_id  TEXT    NOT NULL REFERENCES training_runs(run_id) ON DELETE CASCADE,
+        epoch   INTEGER NOT NULL,
+        metrics TEXT    NOT NULL,
+        PRIMARY KEY (run_id, epoch),
+        CHECK (epoch >= 1)
+    )
+    """,
+)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1),
     (2, _V2),
@@ -225,6 +280,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (6, _V6),
     (7, _V7),
     (8, _V8),
+    (9, _V9),
 )
 
 #: What this application writes and can read. Derived from the list rather than

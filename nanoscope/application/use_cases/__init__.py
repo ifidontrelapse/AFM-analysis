@@ -37,6 +37,7 @@ from nanoscope.application.use_cases.statistics import (
     numeric_columns,
     summarise,
 )
+from nanoscope.application.use_cases.training import descriptor_for, start_training
 
 __all__ = [
     "AnnotationExport",
@@ -44,6 +45,7 @@ __all__ = [
     "PreprocessingParams",
     "Summary",
     "build_dataset",
+    "descriptor_for",
     "export_annotations",
     "export_measurements",
     "histogram",
@@ -58,5 +60,6 @@ __all__ = [
     "run_analysis",
     "run_pipeline",
     "run_preprocessing",
+    "start_training",
     "summarise",
 ]

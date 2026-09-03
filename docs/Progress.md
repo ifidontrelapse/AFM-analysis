@@ -7,6 +7,103 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-09-03 — M8-T04: a run the project remembers, and the model it produced
+
+**Schema v9, three methods on the port, one use case, and the cancellation defect that planning
+found.** 30 tests, **1514 → 1544** in the suite. mypy unchanged at 6. Delta: **zero, golden
+byte-identical**.
+
+### The state this task started from
+
+M8-T01 wrote this task's reason into the entity it defined — *"a `Job` is in-process and dies with
+the process; a training run has to be findable after a restart"* — and M8-T03 left the other half of
+ADR-0006's compliance clause in its own out-of-scope list.
+
+So: `LocalTrainingProvider` kept its runs in a dict, and closing the application turned six hours of
+training into a `best.pt` under `models/` with nothing saying what produced it, what it trained on,
+how it scored or which device it ran on. **The weights were on disk and the provenance was in RAM.**
+
+### Three things measured before anything was written
+
+| What | Measured |
+|---|---|
+| A run cancelled before its job starts | Stayed `pending` immediately, a second later, and for ever |
+| `values` as a column name | `CREATE TABLE a(values TEXT)` — syntax error, SQLite 3.50.4 |
+| What a record weighs | One row, plus one row per epoch of at most six floats |
+
+The first is a defect, and it is this task's: `JobRunner` **drops** a job cancelled before it starts
+(ADR-0043, and `Job.cancel` says so), so `_train` is never called and nothing publishes. It went
+unnoticed because the contract's first test cancels and never waits — and it is the run this task's
+record cannot describe, since a snapshot that never reaches a terminal state is a row no restart can
+resolve. On screen it is ADR-0043's own failure mode: a cancel button that appears to do nothing.
+
+Fixed where it is — the provider passes a **job** listener too, and a job that reached `CANCELLED`
+with its run unfinished publishes `CANCELLED` on the run — and asserted in the contract's
+**fifteenth** assertion, which the fake satisfied unchanged. `tests/unit/test_training_cancellation.py`
+reproduces it deterministically and without ultralytics: one worker, occupied, so the job is queued
+and then dropped. It fails on the code before the fix.
+
+The third measurement is what decided **table, not file**: a run cannot be re-run to get its history
+back, which is ADR-0044's own test and the opposite answer to the one `measurements_path` gets two
+migrations above.
+
+### The shape of the record
+
+**An epoch is a row and its numbers are JSON in it.** Not a column per metric: ADR-0080 declared the
+vocabulary once, in `core`, and **named its own next change** — *"`METRIC_BLOCKS` will need a new
+block the first time a trainer reports something real that is not in it — a learning rate, a
+per-class mAP."* A column list is that vocabulary copied into the migration file, where a copy needs
+a schema version to change and can disagree in the meantime. It is also the wide-row-with-holes
+shape ADR-0031 refused one layer up. The read goes through `EpochMetrics`, whose constructor already
+refuses an unknown name and a partial block, so a row this application cannot name fails at the read
+rather than becoming a chart.
+
+**The run row is columns**, because *which runs used this dataset* should be a query. Two fields are
+not scalars: `classes`, in index order, and the resolved `device` — three fields that are absent
+**together**, where three nullable columns can disagree about whether a run ever started.
+
+**Persistence is a use case, hanging off the listener the port already has.** No repository reaches
+`infrastructure/training/`, which still cannot name storage, and *what to keep* is a policy, which
+is what a use case is for (ADR-0041). **The snapshot `start` returns is deliberately not written:**
+it would be a write from the calling thread racing the worker's first callback, and the loser is
+whichever lands last — a `pending` row over a `succeeded` one.
+
+### ADR-0006's compliance clause, closed
+
+A succeeded run registers its model in the same act. The caller names it — an operator names their
+model (ADR-0050), and a configuration naming a UUID is one nobody can read — and everything else
+comes off the run: the weights path, the input size, the class map in index order, and a provenance
+sentence naming the dataset, the counts, the epochs, the base model and the device. **Only
+`SUCCEEDED`, and only with weights**, because a model row pointing at a file a cancelled run never
+wrote is exactly the disagreement ADR-0080 §5 removed when it refused a `collect_artifacts()`.
+
+`register_model` now **computes** `sha256` when the caller gave none and the weights are there.
+ADR-0050 left it `None` *"if nobody computed it"*; the rule for who computes one is this module's
+oldest and its docstring already stated it (ADR-0040). One `if`, and a caller who passed one keeps
+it.
+
+So annotations → dataset → weights → a registered `ModelDescriptor`, without leaving the
+application. M8's first exit criterion has everything but its window.
+
+### Stated rather than papered over
+
+**A run interrupted by a crash stays `running` in the record.** It is what was true when the process
+died. Marking it `failed` on read invents an outcome nobody observed — the substitution ADR-0025
+removed for scales and ADR-0033 for heights — and there is no `resume` (ADR-0080's named negative),
+so nothing can honestly finish it. Which means M8-T05's first version has to say something honest
+about a stored run no live provider knows.
+
+Not wired into the composition root: ADR-0041's rule, seventh application. The caller arrives with
+M8-T05, and it is five lines.
+
+### Next
+
+`M8-T05` — the training UI: configuration, live metrics, cancellation. It is the first caller of
+`start_training`, the window that shows what this task stored, and the place where a `running` row
+nobody is running has to read as something other than a run in progress.
+
+---
+
 ## 2026-09-02 — two operator requests, one ADR, and the defect the first request exposed
 
 **A preview where an image is chosen, thumbnails where the project is listed, and the scale a

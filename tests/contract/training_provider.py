@@ -259,6 +259,28 @@ class TrainingProviderContract:
         assert run.epochs_done < config.epochs
         assert run.finished_utc
 
+    def test_a_run_cancelled_before_it_trains_anything_still_ends(
+        self, provider: TrainingProvider, trainable: tuple[DatasetSpec, TrainingConfig]
+    ) -> None:
+        """Every run reaches a terminal state, including the one that never began.
+
+        The fifteenth assertion, added by M8-T04 because persistence is what
+        exposed it: a snapshot that stays `PENDING` for ever is a record no
+        restart can resolve, and on screen it is ADR-0043's own failure mode — a
+        cancel button that appears to do nothing.
+
+        Measured on `LocalTrainingProvider`: a job cancelled before the pool
+        started it is *dropped*, so the body that publishes every other status
+        never ran, and the run stayed `pending` a second, a minute and a restart
+        later. Which terminal state is not asserted — a provider fast enough to
+        finish first has succeeded, honestly.
+        """
+        dataset, config = trainable
+        started = provider.start(dataset, config)
+        provider.cancel(started.run_id)
+
+        assert await_terminal(provider, started.run_id).is_finished
+
     def test_cancelling_an_unknown_run_is_not_an_error(self, provider: TrainingProvider) -> None:
         """The caller is a button that can be pressed twice."""
         provider.cancel("no-such-run")

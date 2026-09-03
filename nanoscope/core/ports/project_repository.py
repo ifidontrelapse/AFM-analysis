@@ -31,6 +31,7 @@ from nanoscope.core.entities.project import (
     Ruler,
     RulerKind,
 )
+from nanoscope.core.entities.training import TrainingRun
 from nanoscope.core.values import Modality
 
 if TYPE_CHECKING:
@@ -240,6 +241,33 @@ class ProjectRepository(Protocol):
         `cv2` (Architecture §3.2, and the division ADR-0073 already made for a
         painted mask).
         """
+        ...
+
+    def save_training_run(self, run: TrainingRun) -> None:
+        """Store a training run, replacing whatever this project knew about it.
+
+        Called with every snapshot the provider publishes, so it takes the whole
+        record each time rather than a delta: a `TrainingRun` is frozen and
+        complete by construction (ADR-0080 §3), and a partial update would need
+        this layer to know which half moved.
+
+        The provider's own memory dies with the process; this is what makes a
+        run findable tomorrow (ADR-0084).
+        """
+        ...
+
+    def get_training_run(self, run_id: str) -> TrainingRun:
+        """One stored run, with its epochs.
+
+        Raises:
+            InvalidParameterError: this project has no run by that id — which is
+                a different answer from `TrainingProvider.status`, whose id space
+                is one process (ADR-0084).
+        """
+        ...
+
+    def list_training_runs(self) -> list[TrainingRun]:
+        """Every run this project has recorded, oldest first."""
         ...
 
     def register_model(self, descriptor: ModelDescriptor) -> ModelDescriptor:
