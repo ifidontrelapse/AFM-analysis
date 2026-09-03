@@ -7,6 +7,104 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-09-03 — M8-T07: the same port, on the other side of a socket
+
+**M8's fourth exit criterion, and the claim the whole milestone was arranged to test.** 52 tests,
+**1600 → 1652** in the suite. mypy unchanged at 6. Delta: **zero, golden byte-identical**.
+
+### What was actually being tested
+
+M8-T01 wrote a port before its adapter and justified it in one sentence: *"let the port be wrong
+now, cheaply, instead of in M8-T07 when a second implementation discovers it."* M8-T03 settled half
+of that — fourteen assertions, a real trainer, three fixtures and no edits. But `LocalTrainingProvider`
+is a thread in this process, and the harder claim was always the other one: that the port describes
+work happening on a machine this application did not start.
+
+**Fifteen assertions, not one of them edited**, now pass against a client that can see none of the
+run it is describing. The port survived a process boundary.
+
+### The protocol is four endpoints, and the contract chose them
+
+ADR-0006 named this task's failure mode in M0 — *"the remote protocol risks being designed for an
+imagined deployment"* — so the size of the protocol was not a judgement call. Three contract
+assertions cannot pass unless bytes actually move:
+
+| Assertion | What it forces |
+|---|---|
+| `(project_root / run.weights_path).is_file()` | the weights come **back** |
+| a worker that cannot read the dataset | it goes **out** |
+| `run.device is not None` | the worker says what **it** ran on |
+
+`POST /runs`, `GET /runs/<id>`, `POST /runs/<id>/cancel`, `GET /runs/<id>/weights`. No
+authentication, no listing, no resumption, no versioning — every one of them a guess about a
+deployment nobody has, and the ADR is where their absence is recorded as a decision.
+
+### Two measurements changed the code
+
+**`dataclasses.asdict` is the quietest possible wrong.** On a `TrainingRun` it does not raise: 501
+valid characters, and `TrainingRun(**json.loads(text))` hands back a snapshot whose `dataset`,
+`config` and `metrics` are dictionaries, comparing unequal to what was sent. And the part that makes
+it dangerous — `TrainingStatus` is a `StrEnum`, so `is_finished` **keeps working on the string**.
+A run like that travels a long way before `run.metrics[0].epoch` raises an `AttributeError`
+somewhere unrelated. So the codec is written, and decoding **reconstructs the entities**: an
+`EpochMetrics` naming a metric this application does not know is refused at the boundary, which is
+ADR-0080 §4's guard reaching the network without being written twice.
+
+**Compressing the upload makes it bigger.** A 40-scan dataset is 5.2 MB on disk and 5.3 MB as
+`tar.gz`, in 0.16 s. It is PNGs and short text. `tar`, then.
+
+### What paid off from three years of small decisions
+
+**ADR-0003 turned out to be the interoperability layer.** Every path in a project is relative to the
+project, decided so the project survives being moved — and that is exactly what lets one string be
+true under two different roots on two different machines. The dataset is uploaded under the same
+relative root the client knows it by, the weights come back to the same relative path the worker
+reports, and **neither side translates a path**. A protocol that had to map them would have been a
+protocol with a bug in it.
+
+### Where this milestone departs from ADR-0043, and why
+
+**Polling is a plain thread.** The local provider drives its run with `JobRunner` because there the
+run *is* the work; here the work is elsewhere and what runs locally is a watcher that sleeps.
+`max_workers` is 2, and a sleeping loop holding one of them for six hours would leave this
+application one worker to import, analyse and export with — a worse version of the cost M8-T05
+already had to state. And `status()` answers from the last snapshot rather than the network: the
+contract polls it every 10 ms, so a provider that made a request per call is one nobody could poll.
+
+**A worker that stops answering ends the run**, with the reason on it. Not `RUNNING` for ever and
+not a silent stall. ADR-0084 §8 is not contradicted — that rule is about a *stored* run nobody is
+watching; this is a live watcher reporting its own failure, which is an observation rather than a
+substitution.
+
+### Found by the tests, twice
+
+**HTTP/1.1 keep-alive means closing the listening socket does not stop an established connection.**
+The test that needed a worker to disappear shut the server down and watched the client go on being
+answered for the whole ten seconds of a 500-epoch run — the handler thread was still serving the
+session's one persistent connection. So the stub gained a `vanish()` that drops the conversation
+mid-sentence, which is what a machine that lost power actually does.
+
+And **`serve_forever`'s default poll interval is 0.5 s**, which `shutdown()` waits for: half a
+second of teardown per test, 18 s across the file, for a loopback socket. 19.6 s → 6.2 s.
+
+### The worker is a fixture, not a product
+
+No worker ships with this project, and the ADR says so. The one in the tests is
+`FakeTrainingProvider` behind `http.server` — stdlib, no dependency — so the only new thing under
+test is the client. **Its root is a different directory**, which is the whole design: with one
+directory the upload and the download are no-ops, the contract still passes, and it proves nothing.
+
+Not wired, and there is no `training.remote_url` setting: that would be the imagined deployment made
+permanent in a file (ADR-0041, eighth application).
+
+### Next
+
+`M8-T08` — the model evaluation report through the M3-T15 harness. It is the last task in the
+milestone; all four exit criteria are already met, and this is the one that makes *compare* mean
+something a record cannot say.
+
+---
+
 ## 2026-09-03 — M8-T06: the model an operator registers is the model the detector loads
 
 **M8's third exit criterion, and the close of W10 nine months after it was named.** 24 tests,

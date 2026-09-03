@@ -94,6 +94,7 @@ Use `TEMPLATE.md` for new records.
 | [0084](ADR-0084-a-run-is-remembered-by-the-project-not-by-the-provider.md) | A training run is remembered by the project, not by the provider | Accepted | 2026-09-03 |
 | [0085](ADR-0085-the-window-that-starts-a-run-is-not-the-one-that-waits-for-it.md) | The window that starts a run is not the one that waits for it | Accepted | 2026-09-03 |
 | [0086](ADR-0086-the-model-a-project-chooses-is-the-model-that-runs.md) | The model a project chooses is the model that runs | Accepted | 2026-09-03 |
+| [0087](ADR-0087-the-protocol-is-what-the-contract-forces-and-nothing-else.md) | The remote protocol is what the contract forces, and nothing else | Accepted | 2026-09-03 |
 
 ## When to write one
 

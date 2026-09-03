@@ -91,7 +91,9 @@ AFM-analysis/
 │   │   ├── device/manager.py           # the only place that asks torch about hardware (M4-T12)
 │   │   ├── models/                     # yolo.py, sam2.py, registry.py (M4-T13) — heavy imports
 │   │   ├── training/                   # local.py (M8-T03) — LocalTrainingProvider. Walled off
-│   │   │                               #   from models/ in both directions (ADR-0006, guarded)
+│   │   │                               #   from models/ in both directions (ADR-0006, guarded);
+│   │   │                               #   remote.py + wire.py (M8-T07) — the same port over
+│   │   │                               #   four endpoints a contract chose (ADR-0087)
 │   │                                   #   are function-local
 │   │   └── imaging/                    # colormap.py, plots.py (matplotlib),
 │   │                                   #   network_input.py (M8-T02) — the one picture both
@@ -128,7 +130,8 @@ AFM-analysis/
 │   │                                   #   import_graph, project_format, database, jobs,
 │   │                                   #   commands, settings, device, log sinks,
 │   │                                   #   measurement docs vs schema (M7-T10),
-│   │                                   #   training entities (M8-T01) — 885 tests
+│   │                                   #   training entities (M8-T01), the wire codec
+│   │                                   #   (M8-T07) — 900 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09), incl. the whole-layer
@@ -138,7 +141,8 @@ AFM-analysis/
 │   ├── contract/                       # the suite every TrainingProvider passes, plus the fake
 │   │                                   #   that satisfies it (M8-T01, ADR-0080) — M8-T03 adds
 │   │                                   #   one file with three fixtures and no new assertions;
-│   │                                   #   M8-T04 adds the fifteenth assertion, satisfied unchanged
+│   │                                   #   M8-T04 adds the fifteenth assertion, satisfied unchanged;
+│   │                                   #   M8-T07 runs all fifteen across a socket — 94 tests
 │   └── characterization/               # the golden: phantoms.py, capture.py, golden/
 ├── docs/                               # STATE, Progress, TASKS, Roadmap, ProjectFormat,
 │                                       #   Measurements (M7-T10), ADR/, audit/
@@ -794,6 +798,7 @@ Also enforced, and each proven to fail on a real violation:
 | Annotations become a registered model from the window, and no model name is in `gui/` | `tests/gui/test_training_dialog.py`, `tests/gui/test_detection_panel.py` |
 | A project cannot be closed under a training run, and closing the window asks first | `tests/gui/test_training_dialog.py` |
 | The weights a run loads are the project's active model, and no path resolves against the cwd | `tests/gui/test_model_management.py` |
+| One suite passes for a provider in this process and one across a socket, unedited | `tests/contract/` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
 

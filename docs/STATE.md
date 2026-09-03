@@ -1,7 +1,7 @@
 # STATE
 
 **Last updated:** 2026-09-03 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
-and five commits from 2026-09-02 folded in) · **Base commit:** `0fd6275`
+and five commits from 2026-09-02 folded in) · **Base commit:** `b7d8221`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -87,8 +87,36 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01`…`M8-T06` are done (ADR-0080…ADR-0082, ADR-0084…ADR-0086). `M8-T07` — the remote
-provider — is next. Three of M8's four exit criteria are met, and W10 is closed.**
+**`M8-T01`…`M8-T07` are done (ADR-0080…ADR-0082, ADR-0084…ADR-0087). `M8-T08` — the evaluation
+report — is the last task. **All four of M8's exit criteria are met**, and W10 is closed.**
+
+**`M8-T07` done 2026-09-03 (ADR-0087) — the same port, on the other side of a socket, and the claim
+this milestone was arranged to test.** M8-T01 wrote a port before its adapter and justified it in
+one sentence: *"let the port be wrong now, cheaply, instead of in M8-T07 when a second
+implementation discovers it."* M8-T03 settled half of that against a real trainer in this process;
+**the fifteen assertions now pass against a client that can see none of the run it describes, not
+one of them edited.** **ADR-0006 named this task's failure mode in M0** — *"the remote protocol
+risks being designed for an imagined deployment"* — so the contract chose the protocol's size: four
+endpoints, each forced by an assertion that cannot pass unless bytes move (the weights come **back**,
+the dataset goes **out**, the worker says what **it** ran on). No auth, no listing, no resumption,
+no versioning. **Two measurements changed the code:** `dataclasses.asdict` + `json.dumps` on a
+`TrainingRun` does **not** raise — 501 valid characters and a reconstruction with a `dict` for
+`dataset`, comparing unequal, and because `TrainingStatus` is a `StrEnum` **`is_finished` keeps
+working**, which is what would let it travel far before failing somewhere unrelated; so the codec is
+written, and decoding reconstructs the entities, which puts ADR-0080 §4's metric guard on the
+network for free. And a 40-scan dataset is **5.2 MB**, of which `tar.gz` makes **5.3 MB** — `tar`,
+not `tar.gz`. **ADR-0003 turned out to be the interoperability layer:** relative paths, decided so a
+project survives being moved, are what let one string be true under two roots on two machines, so
+neither side translates. **The weights are downloaded before `SUCCEEDED` is published** (ADR-0080 §5
+from the other direction). **Polling is a plain thread and `status()` never touches the network** —
+the one departure from ADR-0043, because a sleeping loop holding one of two workers for six hours is
+worse than what M8-T05 had to state. **A worker that stops answering ends the run** with the reason:
+an observation, not ADR-0084 §8's substitution. **Found by the tests:** HTTP/1.1 keep-alive means
+closing the listening socket does not stop an established connection — a "vanished" worker went on
+answering for ten seconds — and `serve_forever`'s 0.5 s default poll cost 18 s of teardown across
+the file. The worker is a **fixture, not a product**: the fake behind `http.server`, on **a
+different root**, because with one directory the transfers are no-ops. Not wired, and no
+`training.remote_url` setting. 52 tests, **1652** in the suite.
 
 **`M8-T06` done 2026-09-03 (ADR-0086) — the model an operator registers is the model the detector
 loads, which is M8's third exit criterion and the close of W10.** M4-T13 ended on *"W10 is not

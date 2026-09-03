@@ -12,5 +12,6 @@ installs neither, can still import this package.
 """
 
 from nanoscope.infrastructure.training.local import LocalTrainingProvider
+from nanoscope.infrastructure.training.remote import RemoteTrainingProvider
 
-__all__ = ["LocalTrainingProvider"]
+__all__ = ["LocalTrainingProvider", "RemoteTrainingProvider"]
