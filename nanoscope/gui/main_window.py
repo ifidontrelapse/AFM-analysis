@@ -32,6 +32,7 @@ from nanoscope.gui.dialogs import (
     ImageChooser,
     ImportOptions,
     LabelSource,
+    ModelsDialog,
     SettingsDialog,
     TrainingDialog,
 )
@@ -335,6 +336,11 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
 
+        self.models_action = QAction("&Models…", self)
+        self.models_action.setToolTip("What this project can detect with, and which model it uses.")
+        self.models_action.triggered.connect(self.manage_models)
+        self.models_action.setEnabled(False)
+
         self.train_action = QAction("Train a &Model…", self)
         self.train_action.setToolTip(
             "Build a dataset from this project's annotations and train on it."
@@ -365,6 +371,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.import_annotations_action)
         file_menu.addSeparator()
         file_menu.addAction(self.train_action)
+        file_menu.addAction(self.models_action)
         file_menu.addSeparator()
         file_menu.addAction(self.settings_action)
         file_menu.addAction(quit_action)
@@ -446,6 +453,14 @@ class MainWindow(QMainWindow):
         self.training_dialog.show()
         self.training_dialog.raise_()
         self.training_dialog.activateWindow()
+
+    def manage_models(self) -> None:
+        """What this project can detect with, and which model it uses (M8-T06).
+
+        Modal, unlike the training window: this asks a question and takes an
+        answer, where that one watches a run (ADR-0085 §1, ADR-0086).
+        """
+        ModelsDialog(self.session, self).exec()
 
     def edit_settings(self) -> None:
         """Open the preferences. The dialog stores and applies; this opens it."""
@@ -558,6 +573,7 @@ class MainWindow(QMainWindow):
         #: Opening the window is not starting a run, so this stays available
         #: while one is going — it is where the Stop button lives.
         self.train_action.setEnabled(has_project)
+        self.models_action.setEnabled(has_project)
 
         #: Labelled by *what they would take back*: "Undo" alone makes an
         #: operator press it to find out (M4-T08 wrote the labels for this).

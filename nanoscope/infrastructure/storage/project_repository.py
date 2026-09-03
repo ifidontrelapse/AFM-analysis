@@ -348,7 +348,9 @@ class SqliteProjectRepository:
             raise InvalidParameterError(f"no image with id {image_id} in {self._root}")
 
     @_serialised
-    def save_analysis(self, image_id: int, result: PipelineResult) -> AnalysisRun:
+    def save_analysis(
+        self, image_id: int, result: PipelineResult, *, model_id: str | None = None
+    ) -> AnalysisRun:
         """Store what an analysis found, and return its index entry (M4-T05).
 
         The split ADR-0042 decided: the run and its detections become rows; the
@@ -367,6 +369,11 @@ class SqliteProjectRepository:
                 key says so, and `PRAGMA foreign_keys` makes the database say it
                 rather than this method.
             result: what `run_pipeline` returned.
+            model_id: the registered model that produced the detections, or
+                `None` for a detector that used none — every `log` run, and
+                every run stored before M8-T06. Named by the caller: the result
+                carries the *path* the detector loaded, and this project's
+                answer to *which model?* is a name (ADR-0050, ADR-0086).
 
         Returns:
             The stored run, with its id and its detections.
@@ -378,8 +385,9 @@ class SqliteProjectRepository:
 
         cursor = self._conn.execute(
             "INSERT INTO analysis_runs "
-            "(image_id, detector, mode, modality, pixel_size_nm, measurements_path, created_utc) "
-            "VALUES (?, ?, ?, ?, ?, NULL, ?)",
+            "(image_id, detector, mode, modality, pixel_size_nm, measurements_path, "
+            "created_utc, model_id) "
+            "VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
             (
                 image_id,
                 result.detector_name,
@@ -387,6 +395,7 @@ class SqliteProjectRepository:
                 str(result.modality),
                 result.pixel_size_nm,
                 datetime.now(UTC).isoformat(timespec="seconds"),
+                model_id,
             ),
         )
         run_id = int(cursor.lastrowid or 0)
@@ -1197,6 +1206,7 @@ def _run(row: sqlite3.Row, detections: tuple[Detection, ...]) -> AnalysisRun:
         pixel_size_nm=row["pixel_size_nm"],
         measurements_path=row["measurements_path"],
         created_utc=row["created_utc"],
+        model_id=row["model_id"],
         detections=detections,
     )
 

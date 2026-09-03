@@ -45,6 +45,15 @@ from nanoscope.gui.viewmodels import SessionViewModel
 #: Where an option is kept on its combo entry.
 _OPTION = Qt.ItemDataRole.UserRole
 
+#: Said when this detector needs registered weights and the project has chosen
+#: none. Names the menu that fixes it, because "greyed out with no explanation"
+#: is the failure M6's third exit criterion exists to prevent, and *"choose a
+#: model"* without saying where is the same failure with more words.
+_NO_ACTIVE_MODEL = (
+    "No model is in use in this project. Pick one under File ▸ Models…, "
+    "or train one under File ▸ Train a Model…"
+)
+
 
 class DetectionPanel(QWidget):
     """Pick a detector and a mode the matrix allows, then run it."""
@@ -102,6 +111,9 @@ class DetectionPanel(QWidget):
 
         session.image_changed.connect(lambda _image: self.reload())
         session.job_changed.connect(lambda _job: self._update_run())
+        #: The active model is a stored preference, so choosing one in the
+        #: Models dialog has to re-enable Run here without a restart (M8-T06).
+        session.settings_changed.connect(self._update_run)
         session.run_stored.connect(self._run_stored)
         self.reload()
 
@@ -142,8 +154,15 @@ class DetectionPanel(QWidget):
         option: DetectorOption | None = self.detector.currentData(_OPTION)
         mode: ModeOption | None = self.mode.currentData(_OPTION)
         runnable = bool(option and option.available and mode and mode.available)
-        self.run.setEnabled(runnable and not self._session.is_busy)
-        self.reason.setText("" if runnable else _why_not(option, mode))
+        #: **Registered is not chosen.** The matrix refuses a detector whose
+        #: framework has no model in this project; a project can have three and
+        #: none in use, and without this that run preprocesses a scan and *then*
+        #: refuses — the late failure M8-T06 exists to remove (ADR-0086).
+        unchosen = bool(option and runnable and self._session.needs_active_model(option.detector))
+        self.run.setEnabled(runnable and not unchosen and not self._session.is_busy)
+        self.reason.setText(
+            _NO_ACTIVE_MODEL if unchosen else ("" if runnable else _why_not(option, mode))
+        )
 
     # ── Running it ────────────────────────────────────────────────────────────
 

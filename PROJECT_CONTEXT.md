@@ -82,7 +82,8 @@ AFM-analysis/
 │   │   ├── storage/loaders.py          # load_afm, load_microscopy_image
 │   │   ├── storage/project_format.py   # the project directory contract (M4-T01)
 │   │   ├── storage/database.py         # schema version + migrations (M4-T02), v6/v7/v8 (M7-T03…T05),
-│   │   │                               #   v9: training_runs + training_epochs (M8-T04)
+│   │   │                               #   v9: training_runs + training_epochs (M8-T04),
+│   │   │                               #   v10: which model produced a run (M8-T06)
 │   │   ├── storage/masks.py            # a painted mask as a PNG (M7-T04)
 │   │   ├── storage/project_repository.py # images, results, annotations, settings, exports,
 │   │   │                               #   training runs and their epochs (M8-T04)
@@ -112,7 +113,8 @@ AFM-analysis/
 │   │   │                               #   label_source.py: where labels came from (M7-T09),
 │   │   │                               #   choose_images.py: the file dialog with a preview pane,
 │   │   │                               #   training.py (M8-T05): the one modeless one — configure
-│   │   │                               #   a run, watch its epochs, stop it (ADR-0085)
+│   │   │                               #   a run, watch its epochs, stop it (ADR-0085),
+│   │   │                               #   models.py (M8-T06): what this project detects with
 │   │   └── panels/                     # project_explorer.py (M5-T04, thumbnails 2026-09-02),
 │   │                                   #   viewer.py (M5-T05),
 │   │                                   #   properties.py (M5-T06), job_status.py (M5-T07),
@@ -126,13 +128,13 @@ AFM-analysis/
 │   │                                   #   import_graph, project_format, database, jobs,
 │   │                                   #   commands, settings, device, log sinks,
 │   │                                   #   measurement docs vs schema (M7-T10),
-│   │                                   #   training entities (M8-T01) — 883 tests
+│   │                                   #   training entities (M8-T01) — 885 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09), incl. the whole-layer
 │   │                                   #   walkthrough, the entry point, and a training run that
 │   │                                   #   survives closing the project (M8-T04) — 202 tests
-│   ├── gui/                            # headless Qt tests (M5-T02…M8-T05) — 427 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M8-T06) — 449 tests
 │   ├── contract/                       # the suite every TrainingProvider passes, plus the fake
 │   │                                   #   that satisfies it (M8-T01, ADR-0080) — M8-T03 adds
 │   │                                   #   one file with three fixtures and no new assertions;
@@ -314,7 +316,7 @@ Defined in `nanoscope/core/entities/`. Current Python fields:
 |---|---|
 | Selection | `detector="log"`, `mode="segment"` |
 | LoG | `log_overlap=0.3`, `log_percentile=20.0`, `log_threshold=None` |
-| YOLO | `yolo_model_path="./checkpoints/best12x.pt"`, `yolo_use_tiling=True`, `yolo_conf=0.5` |
+| YOLO | `yolo_model_path=""`, `yolo_use_tiling=False`, `yolo_conf=0.5` |
 | SAM2 | `sam2_outer_ring_px=5`, `sam2_inner_erode_px=2` |
 | Circular baseline | `measure_outer_px=5`, `measure_inner_erode_px=3` |
 
@@ -476,7 +478,7 @@ Backends:
 
 Both backends scale boxes from model coordinates back to the original image shape. A box becomes a `Detection` whose centre is the box centre and whose radius is half of the smaller box dimension. The raw backend result is retained in `last_result` for external visualization.
 
-Required local weights are normally under `checkpoints/`; the Python default is `./checkpoints/best12x.pt`. The repository also contains `yolov8s-world.pt`, but that file is not the default configured model.
+**There is no default weights file, and that is W10's close (M8-T06, ADR-0086).** `yolo_model_path` was `"./checkpoints/best12x.pt"` until 2026-09-03 — a path resolved against whatever directory the process started in, measured `True` from the repository root, where an untracked checkpoint sits, and `False` from anywhere else. It is now `""`, a run that names no weights is refused with a sentence *before a detector is constructed*, and the path a run actually loads comes from the model this project registered and made active (`models.active`, project-scoped). Weights an operator brings are registered where they are and never copied (ADR-0050).
 
 ## 8. Segmentation and measurement
 
@@ -791,6 +793,7 @@ Also enforced, and each proven to fail on a real violation:
 | A finished run and its every epoch survive closing and reopening the project | `tests/integration/test_training_history.py` |
 | Annotations become a registered model from the window, and no model name is in `gui/` | `tests/gui/test_training_dialog.py`, `tests/gui/test_detection_panel.py` |
 | A project cannot be closed under a training run, and closing the window asks first | `tests/gui/test_training_dialog.py` |
+| The weights a run loads are the project's active model, and no path resolves against the cwd | `tests/gui/test_model_management.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
 

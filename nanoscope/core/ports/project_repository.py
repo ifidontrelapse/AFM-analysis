@@ -101,11 +101,22 @@ class ProjectRepository(Protocol):
         decision, and one this layer is not allowed to make on its own."""
         ...
 
-    def save_analysis(self, image_id: int, result: PipelineResult) -> AnalysisRun:
+    def save_analysis(
+        self, image_id: int, result: PipelineResult, *, model_id: str | None = None
+    ) -> AnalysisRun:
         """Store what an analysis found, and return its index entry.
 
         Where each half of it goes is the adapter's business (ADR-0042): this
         layer knows only that a run is stored whole and comes back whole.
+
+        Args:
+            image_id: the image this ran on.
+            result: what the pipeline returned.
+            model_id: the registered model that produced the detections, or
+                `None` for a detector that used none. Named by the caller
+                rather than read off the result, because a `PipelineResult`
+                carries the *path* the detector loaded and the project's answer
+                is a name (ADR-0086).
         """
         ...
 

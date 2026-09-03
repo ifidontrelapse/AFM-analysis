@@ -103,6 +103,16 @@ class AnalysisRun:
     #: right columns is not a measurement, and writing one would claim it was.
     measurements_path: str | None
     created_utc: str
+    #: Which registered model produced the detections, by the id its operator
+    #: gave it (ADR-0050) — `None` for a `log` run, which used no model, and for
+    #: every run stored before M8-T06.
+    #:
+    #: The id, not the path: a path is where the weights were on the machine
+    #: that ran it, and the id is what this project calls the model. Recorded at
+    #: all because until W10 was closed there was one hardcoded path and nothing
+    #: to record; with a project able to hold two models, *which one found these
+    #: particles?* is otherwise unanswerable (ADR-0086).
+    model_id: str | None = None
     #: What was found, in the order the detector returned it.
     detections: tuple[Detection, ...] = ()
     #: The masks a segmentation produced — **in memory only**. Empty on every

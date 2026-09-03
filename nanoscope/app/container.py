@@ -25,12 +25,12 @@ from nanoscope.application.commands import CommandStack
 from nanoscope.application.jobs import JobRunner
 from nanoscope.application.settings import DEVICE_SETTING, Settings
 from nanoscope.application.use_cases import open_project
-from nanoscope.core.entities.model import ModelTask
+from nanoscope.core.entities.model import ModelFramework, ModelTask
 from nanoscope.core.entities.project import OpenedProject
 from nanoscope.core.ports import ProjectRepository, TrainingProvider
 from nanoscope.core.values import DeviceKind
 from nanoscope.infrastructure.device import DeviceManager
-from nanoscope.infrastructure.models.registry import resolve
+from nanoscope.infrastructure.models.registry import frameworks, resolve
 from nanoscope.infrastructure.storage import JsonSettings, SqliteProjectRepository
 from nanoscope.infrastructure.training import LocalTrainingProvider
 
@@ -174,6 +174,16 @@ class Nanoscope:
         a project that is no longer open (ADR-0047).
         """
         return Settings(self.application_settings, self.repository)
+
+    def loadable_frameworks(self) -> tuple[ModelFramework, ...]:
+        """Which frameworks this build can load (M8-T06).
+
+        Here because the registry is `infrastructure` and the GUI may not import
+        it (Architecture §3.2). One line, and it is the same reason `repository`
+        is typed as the port: a container that hands out concrete adapters makes
+        the rule unenforceable.
+        """
+        return frameworks()
 
     def segmentation_predictor(self) -> object | None:
         """The predictor a `segment` run needs, built once (M6-T04, ADR-0064).

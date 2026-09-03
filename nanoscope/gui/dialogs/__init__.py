@@ -19,6 +19,7 @@ third exit criterion rules out (M8-T05).
 from nanoscope.gui.dialogs.choose_images import ImageChooser
 from nanoscope.gui.dialogs.import_options import ImportOptions
 from nanoscope.gui.dialogs.label_source import LabelSource
+from nanoscope.gui.dialogs.models import ModelsDialog
 from nanoscope.gui.dialogs.settings import SettingsDialog
 from nanoscope.gui.dialogs.training import TrainingDialog
 
@@ -26,6 +27,7 @@ __all__ = [
     "ImageChooser",
     "ImportOptions",
     "LabelSource",
+    "ModelsDialog",
     "SettingsDialog",
     "TrainingDialog",
 ]

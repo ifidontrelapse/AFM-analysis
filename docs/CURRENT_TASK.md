@@ -1,147 +1,141 @@
 # CURRENT TASK
 
-**ID:** `M8-T05`
-**Title:** Training UI: configuration, live metrics, cancellation
-**Milestone:** M8 — Training module, fifth task
-**Defect:** — · **ADR:** **ADR-0085** (to be written)
+**ID:** `M8-T06`
+**Title:** Model management UI: import, register, activate, compare
+**Milestone:** M8 — Training module, sixth task
+**Defect:** **W10** (open since M4-T13) · **ADR:** **ADR-0086** (to be written)
 **Branch:** `feat/m8-training`
 **Status:** **planning 2026-09-03.** Not started.
 
 ---
 
-## Why this task is fifth
+## Why this task is sixth
 
-Four tasks built a training module nothing calls. M8-T01 wrote the port, M8-T02 the dataset,
-M8-T03 the trainer, M8-T04 the record — and each one closed on the same sentence: *not wired into
-the composition root (ADR-0041); the caller arrives with M8-T05.* This is that caller, and it is
-the first task in this milestone an operator can see.
+M8-T05 closed the first two of M8's four exit criteria: a model is produced, recorded and
+registered from the window. **The third is this task's, and it is the one that is measurably
+false today:**
 
-Three debts were named by the tasks that created them and come due here:
+> *A trained model is selectable for detection in M6 **with no code change**.*
 
-- **M8-T02:** *"building preprocesses every scan and is not a job — the runner exists, the caller
-  that needs it arrives in M8-T05."*
-- **M8-T04 §8:** a run interrupted by a crash stays `running` in the record, and *"M8-T05 is what
-  shows a stored run whose id no live provider knows."*
-- **ADR-0041's seventh application:** the container constructs no `TrainingProvider`.
+It is false because of a line M4-T13 named and did not close. `PipelineConfig.yolo_model_path`
+still defaults to `"./checkpoints/best12x.pt"`, and M4-T13 said so in its own entry: **W10 is not
+closed by this task, it is made closable** — with M5 named as the payer. M5 did not pay, M6 built
+the detection panel on top of it, and M8-T05 has now made the project produce models that nothing
+can select.
+
+So this task is where **the model an operator registers becomes the model the detector loads.**
 
 ---
 
 ## What was measured before planning
 
-**1. Closing the application during a run blocks for the whole run, and never asks it to stop.**
-`Nanoscope.close()` calls `jobs.shutdown(wait=True)`. Run, with a six-second checkpointed job:
+**1. A registered detection model is not selectable.** A project with `particles-v1` registered,
+driven through the real panel:
 
 ```
-close() took 6.01 s with a running job
-job state after close: succeeded   cancellation asked: False
+detector options:                 [('log', True), ('yolo', True)]
+registered models:                ['particles-v1']
+panel config yolo_model_path:     ./checkpoints/best12x.pt
+does the panel offer to pick one? False
 ```
 
-The window is gone by then — `closeEvent` has run — so this is a process with no UI, no progress
-and no cancel button, for as long as the work takes. Today the longest job is an import of a folder;
-**this task makes the longest job six hours.**
+The capability half is already honest — `yolo` is *available* **because** an `ULTRALYTICS` model is
+registered (`detector_options` checks exactly that). It is the last hop that is missing: the panel
+builds a `PipelineConfig` and never touches `yolo_model_path`, so **every** yolo run in this
+application loads the same hardcoded file.
 
-**And `wait=False` does not fix it**, which was worth running rather than assuming:
+**2. That file is resolved against the working directory.**
 
 ```
-shutdown(wait=False) returned after 0.00 s
-process exited after 5.06 s total
+from the repo root:   ./checkpoints/best12x.pt -> exists: True
+from anywhere else:   ./checkpoints/best12x.pt -> exists: False
 ```
 
-`concurrent.futures` joins its non-daemon threads at interpreter exit, so `wait=False` moves the
-hang from `close()` to exit and buys nothing. The honest fix is to **ask, and cancel** — which
-lands at an epoch boundary, ADR-0043's own promise.
+`checkpoints/best12x.pt` is on this machine and untracked (M1 untracked the weights), which is
+**why nobody has met this**: run from the repository root it silently works. The same project, the
+same button, a different working directory — a different model, or none.
 
-**2. Building the dataset costs 627–651 ms per scan.** Synthetic 512×512 AFM scans, one box each:
+**3. The failure is a raw `FileNotFoundError`, and it arrives late.**
 
-| Scans | `build_dataset` | Per scan |
-|---|---|---|
-| 10 | 6.51 s | 651 ms |
-| 40 | 25.10 s | 627 ms |
+```
+type:              builtins.FileNotFoundError
+is a NanoscopeError: False
+message:           [Errno 2] No such file or directory: 'checkpoints/best12x.pt'
+```
 
-Forty scans is 25 seconds of a frozen window if this is called where the button is. It is a job,
-and M8-T02 said so when it wrote it.
+PROJECT_RULES §3 forbids that. And it is raised by `YOLO(self.model_path)` **inside**
+`_detect_direct` — constructing a `YoloDetector` with a missing file raises nothing at all — so an
+operator waits for a scan to be preprocessed and then gets a bare Python traceback naming a path
+they never chose.
 
-**3. `is_busy` gates ten actions.** `MainWindow._update_actions`: New, Open, Close, Import, Remove,
-four exports, Import annotations, Undo and Redo. A training run in that slot is an application an
-operator cannot annotate, undo or export in for six hours — and the docstring says why the gate
-exists: *"`close_project()` closes the SQLite connection the worker thread is using."*
-
-**4. Nothing supplies a default `base_model`, and the window may not invent one.**
-`TrainingConfig.base_model` is required, every caller today is a test that types one, and
-`TestNoDetectorNameLivesInTheGui` greps `nanoscope/gui/` for the string `yolo` and fails on it
-(PROJECT_RULES §2.5, D-19's lesson).
+**4. `Settings` has a project scope that nothing writes.** `Settings.set(key, value,
+Scope.PROJECT)` has existed since M4-T10, and M5-T09's dialog says why it offered nothing:
+*"the project scope is not offered because this application writes no project-scoped setting yet."*
 
 ---
 
 ## The decisions
 
-**1. A window, not a tenth dock.**
+**1. `yolo_model_path` stops being a default that lies.**
 
-Nine docks exist, and `apply_default_layout`'s docstring carries the measurement that made the
-right-hand group tabbed: *811 px of minimum height against 1 785 for the same five untabbed.* A
-tenth panel competes for that space to ask a question that is not about the selected scan — every
-dock on the right answers *what about this image?*, and training is a project-level act.
+Its default becomes `""`, and a `yolo` run with no weights named is **refused with a sentence**
+before a detector is constructed — which is where D-14's rule already put this class of refusal
+(M2-T10: *an impossible request refuses in milliseconds rather than after a GPU pass*). A path that
+depends on the working directory is not a default, it is a guess about where the process was
+started, and ADR-0025's rule applies unchanged: **an unknown is a state, not a value to invent.**
 
-So: a **modeless** `QDialog` from the menu, closable while the run continues. Modeless because M5's
-third exit criterion rules out the alternative in as many words — *a long-running job shows progress
-and can be cancelled **without freezing the UI*** — and a modal training window is the frozen
-application it is reporting on. Closing it does not stop the run: the run is in the project
-(M8-T04), and the status bar already shows the job without knowing what training is, which is what
-M8-T03 routed progress through `JobContext.report` for.
+**2. `model_id` travels as an argument to `run_analysis`, not as a field on `PipelineConfig`.**
 
-**2. Training does not take the session's job slot. It gets its own.**
+The caller names a model the way an operator does — by the id they gave it (ADR-0050) — and
+`run_analysis` turns it into a path through `repository.path_of_model`, because resolving a
+project-relative path is the repository's job and doing it anywhere else is the rule ADR-0038's
+compliance section names. `run_pipeline` keeps taking a path, so a caller with weights and no
+project — the golden, a notebook — is unaffected.
 
-`is_busy` stays exactly what it is — one short job owning the project's connection — and
-`is_training` is a second question. Only the project-lifecycle actions (New, Open, Close) read
-both; annotating, undoing and exporting stay available while a model trains, because a repository
-write from a worker and one from the main thread are already serialised by one lock, which
-`_serialised`'s docstring says is for exactly this.
+**An argument, because a field would move the golden.** `pipeline.py`'s own docstring says it:
+*"the golden records the sorted field names of both classes, so adding or renaming one here is
+drift"* — and `config_fields` in `baseline.json` is that list. Changing a **default** does not move
+it; adding a field does, and the Roadmap's third sequencing rule is that *a golden update and a use
+case never share a commit*. `run_analysis` already takes `predictor` and `preprocessing` outside the
+config for the same practical reason, so this is the shape that is already here rather than a new
+one.
 
-The cost is stated rather than hidden: `max_workers` is 2, so **with a run going the application has
-one worker instead of two** — an import and an analysis no longer overlap.
+**3. Which model a project detects with is a project-scoped setting.**
 
-**3. The dataset build is a job, and it is the run's first step.**
+`models.active` through `Settings.set(..., Scope.PROJECT)` — the first writer of a scope that has
+waited since M4-T10, and it is the right one by ADR-0047's own test: **a chosen model belongs to
+the project, not to the person.** An operator with two projects has two answers, and putting this
+in the application scope would leak one project's model into every other.
 
-One button, one job: build the dataset, then start the run from inside it. `build_dataset` gains
-`progress: JobContext | None = None` — **the parameter `import_images` already has, by that name**,
-rather than a second way of saying the same thing. Twenty-five seconds is not a spinner's worth of
-silence, and it is the only part of this an operator can usefully cancel.
+**4. A run records which model produced it.** Schema **v10**, one column.
 
-The job ends when training *starts*, which is honest: the build is a job and the run is a run, and
-they have different lifetimes, different terminal states and different records.
+Without it, *"which model found these particles?"* is unanswerable the moment a second model is
+registered — and it is the question M8-T08's comparison is made of. It is also the same argument
+M8-T04 made for training runs: the weights are on disk and the provenance is nowhere. `NULL` for
+every existing row and for every `log` run, which is honest: those runs used no model.
 
-**4. Live metrics are a table, and its columns are `METRIC_BLOCKS`'.**
+**5. Importing weights registers them; it does not copy them.**
 
-Not a chart. Six named scalars over an axis of epochs is a legend and an axis choice before it is
-information, and `EpochMetrics` is already the shape of a row. The vocabulary is read off
-`METRIC_BLOCKS` rather than typed here, for ADR-0031's reason one layer on: a widget with its own
-column list is the copy that drifts, and ADR-0080 has already promised the vocabulary will grow.
+ADR-0050 already decided this and stated the consequence — an absolute path to a 137 MB checkpoint
+is kept as it is, and *the project opens elsewhere with that model unavailable*. A dialog that
+quietly copied gigabytes into `models/` would be making a storage decision on an operator's behalf;
+one that refuses external weights would force it. The import asks for the id, the task and the
+framework — **the three things a `.pt` file does not say** — which is `ImportOptions`' shape from
+M5-T07 and `LabelSource`'s from M7-T09, for the third time.
 
-A run with nothing held out shows no validation columns, because there is no validation block —
-ADR-0082's distinction, visible.
+**6. *Compare* is the records, not a run of them.**
 
-**5. The starting point is a choice the application offers, not a name the window types.**
+Side by side: what each model was trained on, on how many images, its input size, its classes, when
+it was registered, and whether the file is still there. **Not a score** — comparing models by
+running them is M8-T08's evaluation report through the M3-T15 harness, and a comparison this task
+invented would be the second answer to that question.
 
-`application/use_cases/training.py` gains `starting_points(repository)`: the framework's own fresh
-start, plus every registered `DETECT` model, **by the id its operator gave it** (ADR-0050). The
-window renders what it is handed. That is where `capabilities.py` already keeps detector names, and
-it is the only place this one can live — measurement 4.
+**7. A model whose file is gone is shown, not hidden.**
 
-**6. A stored run no live provider knows is shown as interrupted, and is not called failed.**
-
-M8-T04 §8 decided the record; this decides the sentence. The history lists what the project stored
-(`list_training_runs`), and a `RUNNING` row whose id `TrainingProvider.status` refuses is labelled
-*interrupted — this process is not running it*. Not `failed`: nobody observed a failure, which is
-the substitution ADR-0025 and ADR-0033 removed elsewhere, and there is no `resume` to offer.
-
-**7. Closing the application during a run asks first.**
-
-The measured defect, fixed where an operator is: `closeEvent` asks when a run is live, and closing
-cancels it. Cancelling lands at an epoch boundary — ADR-0043 §3's honest limit, and the same
-sentence `JobStatus` already shows — so the window says *stopping*, not *stopped*.
-
-Fixed in the window rather than the container because the container has no operator to ask, and
-`wait=False` there was measured to buy nothing.
+ADR-0040's rule, met from the model side: the row is real and the file is not, which is exactly what
+`check_integrity` reports for images. Hiding it turns *"that model is on the other machine"* into
+*"that model never existed"*, and the active one being missing is a refusal an operator has to be
+able to see the reason for.
 
 ---
 
@@ -149,34 +143,34 @@ Fixed in the window rather than the container because the container has no opera
 
 **In scope**
 
-1. `Nanoscope` constructs a `LocalTrainingProvider` for the open project (ADR-0041, seventh)
-2. `SessionViewModel`: `train`, `cancel_training`, `training_runs`, `starting_points`,
-   `is_training`, and a `training_changed` signal marshalled off the worker thread (ADR-0058)
-3. `build_dataset(progress=...)` — the M8-T02 debt, with `import_images`' parameter
-4. `application/use_cases/training.py::starting_points`
-5. `nanoscope/gui/dialogs/training.py` — configuration, the live epoch table, the history, cancel
-6. `MainWindow`: the menu item, `is_training` in `_update_actions`, and `closeEvent` asking
-7. **ADR-0085** + the ADR index
+1. `PipelineConfig.yolo_model_path` defaults to `""`; `run_pipeline` refuses a yolo run with no
+   weights **before** constructing a detector — **W10 closed**, and the golden does not move
+2. `run_analysis(..., model_id=...)` resolves the id → the weights path through the repository
+3. Schema **v10**: `analysis_runs.model_id`; `schema_history.py` extended
+4. `models.active`, project-scoped, and the session methods that read and write it
+5. `nanoscope/gui/panels/models.py` (or a dialog): list, import, activate, compare, and what is
+   missing
+6. The detection panel uses the active model, and says so when there is none
+7. **ADR-0086** + the ADR index
 
 **Out of scope**
 
-- **Model management UI** — import, register, activate, compare is M8-T06
-- **A chart** — decision 4; the table is the deliverable, and a chart is an addition to it
-- **Resumption** — still ADR-0080's named negative, and still nothing can honestly finish a run
-- **Deleting a run or its weights** — M8-T06, and unchanged from M8-T04's reasoning
-- **The remote provider** — M8-T07; this window talks to the port, so it does not care
+- **Running a comparison** — M8-T08's evaluation report, and decision 6
+- **Copying weights into the project** — ADR-0050 decided it and stated the consequence
+- **Deleting weights from disk** — a 137 MB artifact is an operator's decision; unregistering is not
+- **Segmentation model selection** — M6-T04 takes the first `SEGMENT` model, and changing that rule
+  is a second activation with no second caller asking for it yet
 
 ---
 
 ## Definition of done
 
-- [ ] Annotations → dataset → weights → a registered model, **from the window**, with no code change
-- [ ] The build reports progress and can be cancelled; the run reports epochs and can be cancelled
-- [ ] A run with nothing held out shows no validation columns
-- [ ] A stored run nobody is running reads as interrupted, not as failed
-- [ ] Closing the window during a run asks, and closing cancels it
-- [ ] The application stays usable while a model trains, and the project cannot be closed under it
-- [ ] ADR-0085 + the ADR index
+- [ ] A model trained in M8-T05 is selected for detection **with no code change** — M8's third criterion
+- [ ] No path in this application resolves against the working directory
+- [ ] A yolo run with no model refuses with a sentence, before any file is read
+- [ ] A stored run says which model produced it
+- [ ] A model whose weights are missing is listed as missing, and cannot be activated silently
+- [ ] ADR-0086 + the ADR index
 - [ ] `make check` green, golden byte-identical
-- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`
-- [ ] Commit: `M8-T05: the window that turns annotations into a model`
+- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Backlog.md` (W10 closed)
+- [ ] Commit: `M8-T06: the model an operator registers is the model the detector loads`

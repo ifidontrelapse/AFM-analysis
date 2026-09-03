@@ -35,6 +35,7 @@ from nanoscope.core.entities import (
     PipelineConfig,
     PreprocessingResult,
 )
+from nanoscope.core.errors import MissingFileError
 from nanoscope.core.ports import ProjectRepository
 from nanoscope.core.values import Modality
 from nanoscope.infrastructure.storage import load_microscopy_image
@@ -46,6 +47,7 @@ def run_analysis(
     config: PipelineConfig,
     predictor: object | None = None,
     preprocessing: PreprocessingParams | None = None,
+    model_id: str | None = None,
 ) -> AnalysisRun:
     """Run the pipeline over one of the project's images and store the result.
 
@@ -67,6 +69,18 @@ def run_analysis(
             this function always did — and passing it is what stops a scan
             *previewed* at one opening scale being *analysed* at another
             without anything saying so (M6-T02).
+        model_id: which registered model the detector should load, by the id its
+            operator gave it (ADR-0050). Resolved to a path **here**, because
+            `repository.path_of_model` is the only thing allowed to join a
+            project root to a relative path (ADR-0038), and recorded on the run
+            so that *which model found these particles?* stays answerable once a
+            project has two (ADR-0086).
+
+            An argument rather than a field on `PipelineConfig`: the golden
+            records that dataclass's field **names**, and the Roadmap's third
+            sequencing rule keeps a golden update out of a use case's commit.
+            `predictor` and `preprocessing` travel the same way for the same
+            practical reason.
 
     Returns:
         The stored run, with its detections and the path to its measurements.
@@ -76,9 +90,27 @@ def run_analysis(
         UnsupportedRequestError: the file's extension is one this application
             cannot analyse, or the (modality, detector, mode) combination does
             not exist — the second checked by `run_pipeline` before inference.
+            Also a detector that needs weights when `model_id` names none.
         MissingFileError: the image's file is gone. That is the dangling row
             `check_integrity` reports (ADR-0040), met from the other side.
     """
+    #: Resolved before the file is read, so a run naming a model this project
+    #: does not have costs nothing — the same placement `validate_request` gets
+    #: for the same reason (D-14, M2-T10).
+    if model_id is not None:
+        descriptor = repository.get_model(model_id)
+        if not repository.path_of_model(descriptor).is_file():
+            #: The row is real and the file is not: ADR-0040's dangling-row
+            #: report, met from the model side. Refused here rather than left to
+            #: a framework's `FileNotFoundError` halfway through a run, which is
+            #: what this application did until M8-T06 (PROJECT_RULES §3).
+            raise MissingFileError(
+                f"the weights for model {model_id!r} are not at "
+                f"{repository.path_of_model(descriptor)}. A model registered on another "
+                "machine, or a file that has been moved"
+            )
+        config = replace(config, yolo_model_path=str(repository.path_of_model(descriptor)))
+
     record = repository.get_image(image_id)
     #: The repository resolves it. Joining `root` and a relative path here would
     #: be a project path built outside `infrastructure/storage`, which ADR-0038's
@@ -115,7 +147,7 @@ def run_analysis(
         )
 
     result = run_pipeline(data, config, predictor=predictor)
-    run = repository.save_analysis(image_id, result)
+    run = repository.save_analysis(image_id, result, model_id=model_id)
     #: The masks travel back with the run they came from, and **only** with that
     #: one: the repository stores none, so a run read back later has an empty
     #: tuple and an overlay drawn from it would be showing something the project

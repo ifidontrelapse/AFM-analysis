@@ -1,7 +1,7 @@
 # STATE
 
 **Last updated:** 2026-09-03 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
-and five commits from 2026-09-02 folded in) · **Base commit:** `9fcbf21`
+and five commits from 2026-09-02 folded in) · **Base commit:** `0fd6275`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -70,8 +70,9 @@ three of five lifecycle use cases, the SQLite log sink) — the same judgement M
 ports, and by now a pattern worth naming: *a task written before the layer beneath it existed is a
 hypothesis, and checking it is part of doing it.* Tests 478 → **828**, schema version **5**, mypy
 unchanged at 6. Left open on purpose: **W10 made closable rather than closed** (the registry
-exists; `PipelineConfig` keeps its path until M5's composition root uses it) and **B-068**, which
-needs an operator's view. Milestone summary in `docs/Progress.md`.
+exists; `PipelineConfig` keeps its path until M5's composition root uses it) — **closed 2026-09-03
+by M8-T06**, three milestones after M5 was named as its payer — and **B-068**, which needs an
+operator's view. Milestone summary in `docs/Progress.md`.
 
 **M3 closed 2026-08-09** on the operator's decision — 25 of 26 tasks, ADR-0014…ADR-0037, all five
 exit criteria met, tests 119 → 478, mypy 20 → 6, and **every defect the July audit reproduced
@@ -86,8 +87,36 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01`…`M8-T05` are done (ADR-0080…ADR-0082, ADR-0084, ADR-0085). `M8-T06` — model
-management — is next. Two of M8's four exit criteria are met.**
+**`M8-T01`…`M8-T06` are done (ADR-0080…ADR-0082, ADR-0084…ADR-0086). `M8-T07` — the remote
+provider — is next. Three of M8's four exit criteria are met, and W10 is closed.**
+
+**`M8-T06` done 2026-09-03 (ADR-0086) — the model an operator registers is the model the detector
+loads, which is M8's third exit criterion and the close of W10.** M4-T13 ended on *"W10 is not
+closed by this task, it is made closable"* with M5 named as the payer; M5 did not pay, M6 built the
+detection panel on top of it, and M8-T05 made the project produce models nothing could select.
+**Measured, with a model registered:** the panel offered the framework-backed detector as available
+— that half was already honest, since the matrix checks for a registered model — and then ran
+`./checkpoints/best12x.pt` anyway, because the panel never touched the weights path. That path
+resolved **against the working directory** (`True` from the repository root, where an untracked
+checkpoint sits, `False` from anywhere else), which is exactly why nobody had met it; and with the
+file absent the failure was a raw `FileNotFoundError` out of the framework's loader — not a
+`NanoscopeError`, PROJECT_RULES §3 — **after** the scan was preprocessed, because constructing the
+detector with a missing file raises nothing. **The default is now `""`**, and a run that needs
+weights and names none refuses with a sentence *before a detector is built* (M2-T10's placement,
+D-14's reason). **`model_id` travels as an argument to `run_analysis`, not as a field:** the golden
+records `PipelineConfig`'s field **names**, and the Roadmap's third sequencing rule keeps a golden
+update out of a use case's commit — changing a *default* moves nothing. **`models.active` is
+project-scoped**, the **first writer of a scope offered since M4-T10** and the right one by
+ADR-0047's own test; an id this project does not have is refused rather than stored. **Schema v10:
+a run records which model produced it** — `NULL` for `log` runs and older rows, which is honest, and
+it matters now because with one hardcoded path there was nothing to record. **Importing registers
+weights where they are and never copies them** (ADR-0050's decision and its stated cost), asking for
+the id, the task and the framework — the three things a weights file does not say. ***Compare* is
+the records, not a run of them** — a score here would be D-19's drifting copy of M8-T08's report. **A
+model whose weights are gone is listed as missing** rather than hidden, and **registered is not
+chosen:** the panel disables Run and names the menu that fixes it. **Found while writing it:** two
+docstrings under `gui/` named a framework, and the §2.5 grep caught both. 24 tests, **1600** in the
+suite.
 
 **`M8-T05` done 2026-09-03 (ADR-0085) — the window that turns annotations into a model, and the
 caller four tasks were waiting for.** Each of them ended on *not wired into the composition root

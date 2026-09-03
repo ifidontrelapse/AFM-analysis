@@ -7,6 +7,108 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-09-03 — M8-T06: the model an operator registers is the model the detector loads
+
+**M8's third exit criterion, and the close of W10 nine months after it was named.** 24 tests,
+**1576 → 1600** in the suite. mypy unchanged at 6. Delta: **zero, golden byte-identical**.
+
+### A weakness that outlived three milestones
+
+M4-T13 built the model registry and ended its own entry on a sentence: *"W10 is not closed by this
+task, it is made closable"*, with M5 named as the payer. M5 did not pay it. M6 built the detection
+panel on top of it. M8-T05 then made the project produce models — and nothing could select them,
+which is M8's third exit criterion word for word: *a trained model is selectable for detection in M6
+with no code change.*
+
+### What was measured
+
+With `particles-v1` registered in a real project, driven through the real panel:
+
+```
+detector options:                 [('log', True), ('yolo', True)]
+registered models:                ['particles-v1']
+panel config yolo_model_path:     ./checkpoints/best12x.pt
+does the panel offer to pick one? False
+```
+
+The capability half was **already honest**: the framework-backed detector is offered as available
+*because* a matching model is registered. It was the last hop that was missing — the panel built a
+config and never touched the weights path, so every such run in this application loaded one
+hardcoded file.
+
+| What | Measured |
+|---|---|
+| `./checkpoints/best12x.pt` from the repository root | `exists: True` — an untracked checkpoint is there |
+| The same string from anywhere else | `exists: False` |
+| Constructing the detector with a missing file | Raises **nothing** |
+| Detecting with it | `builtins.FileNotFoundError`, **not** a `NanoscopeError` |
+
+The second line is why nobody had met this: run from the repository root, it silently worked. The
+last two are why it was worse than a bad default — the error came out of the framework's loader
+*during* detection, so an operator waited for a scan to be preprocessed and then got a bare
+traceback naming a path they never chose (PROJECT_RULES §3).
+
+### What changed
+
+**The default becomes `""`.** A path that resolves against the directory the process happened to
+start in is not a default; it is a guess about the environment, and ADR-0025's rule applies
+unchanged — an unknown is a state. A run that needs weights and names none is now refused with a
+sentence **before a detector is constructed**, which is where M2-T10 put this class of refusal for
+D-14's reason.
+
+**`model_id` travels as an argument to `run_analysis`, not as a field on `PipelineConfig`.** The
+golden records that dataclass's field **names** — `config_fields` in `baseline.json` — and the
+Roadmap's third sequencing rule keeps a golden update out of a use case's commit. Changing a
+*default* moves nothing; adding a field would have. `predictor` and `preprocessing` already travel
+outside the config for the same practical reason, so this is the shape that was already here.
+
+**Which model a project detects with is a project-scoped setting.** `models.active` is the **first
+writer** of a scope `Settings` has offered since M4-T10 — M5-T09's dialog said so in as many words:
+*"the project scope is not offered because this application writes no project-scoped setting yet."*
+It is the right one by ADR-0047's own test: a chosen model belongs to the project, not to the
+person. Activating an id this project does not have is refused rather than stored.
+
+**Schema v10: a run records which model produced it.** `NULL` for every `log` run and every row
+written before today, which is honest — those runs used no model. It matters now because it did not
+before: with one hardcoded path there was nothing to record, and with a project able to hold three
+models *"which model found these particles?"* is otherwise unanswerable. The same argument ADR-0084
+made one table over.
+
+### The dialog, and the verb that is not what it sounds like
+
+*Import* registers weights that already exist — **where they are, never copied**, which ADR-0050
+decided and whose cost it stated in the same breath. It asks for the id, the task and the framework,
+because a weights file says none of the three: `ImportOptions`' shape from M5-T07 and `LabelSource`'s
+from M7-T09, the third time the same answer is right.
+
+***Compare* is the records.** The table is the comparison — what each model is called, whether it is
+in use, what it does, its input size, its classes, when it was registered, whether the file is there,
+and where it came from. **No score:** what a model *does* to a scan is M8-T08's report through the
+M3-T15 harness, and a second answer invented here is D-19's drifting copy.
+
+**A model whose weights are gone is listed as `missing`**, not hidden — ADR-0040's dangling row from
+the model side, because hiding it turns *"it is on the other machine"* into *"it never existed"*.
+
+**And registered is not chosen.** The matrix refuses a detector whose framework has no registered
+model; a project can have three registered and none in use, and without a second check that run is
+accepted, preprocesses a scan and then refuses. The panel disables Run and **names the menu that
+fixes it** — "greyed out with no explanation" is the failure M6's third exit criterion exists to
+prevent.
+
+### Found while writing it
+
+Two docstrings under `gui/` named a framework — one in the new dialog, one in a helper — and
+`TestNoDetectorNameLivesInTheGui` caught both on the first run. The guard greps the source text, not
+the code, and it is right to: a name in a comment is where a copy starts.
+
+### Next
+
+`M8-T07` — `RemoteTrainingProvider`: the protocol, the client, and the contract tests it has to pass
+**unchanged**. It is the fourth exit criterion, and the suite it must satisfy has existed since
+M8-T01.
+
+---
+
 ## 2026-09-03 — M8-T05: the window that turns annotations into a model
 
 **The caller four tasks were waiting for, and M8's first two exit criteria with it.** 32 tests,

@@ -30,6 +30,16 @@ DEVICE_SETTING = "device"
 COLORMAP_SETTING = "viewer.colormap"
 LOG_LEVEL_SETTING = "log.level"
 
+#: Which registered model this project detects with, by its id (M8-T06).
+#:
+#: **The first key this application writes in the project scope**, which has
+#: existed unused since M4-T10 — M5-T09's dialog says so: *"the project scope is
+#: not offered because this application writes no project-scoped setting yet."*
+#: It is the right scope by ADR-0047's own test: a chosen model belongs to the
+#: project, not to the person, so an operator with two projects has two answers
+#: and neither leaks into the other.
+ACTIVE_MODEL_SETTING = "models.active"
+
 
 class Scope(StrEnum):
     """Which of the two stores a write is aimed at."""

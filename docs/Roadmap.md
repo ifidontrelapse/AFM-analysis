@@ -279,7 +279,7 @@ register, activate, compare); `RemoteTrainingProvider` protocol and client.
 **Exit criteria**
 - [x] Annotations → dataset → trained weights → registered `ModelDescriptor`, without leaving the app — **M8-T05**, and `tests/gui/test_training_dialog.py` presses the button
 - [x] Training runs as a cancellable job; metrics stream to the UI and persist — **M8-T03** stops at an epoch boundary, **M8-T04** stores every epoch, **M8-T05** shows them and asks before closing on one
-- [ ] A trained model is selectable for detection in M6 with no code change
+- [x] A trained model is selectable for detection in M6 with no code change — **M8-T06**, which closed **W10**: the weights path no longer resolves against the working directory, and `models.active` is the project's own answer
 - [ ] `RemoteTrainingProvider` satisfies the same port and is covered by contract tests
 
 **Risk to scientific output:** new models change detections by design. Model comparison

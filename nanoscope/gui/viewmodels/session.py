@@ -43,7 +43,7 @@ from nanoscope.application.commands import (
     UpdateAnnotation,
 )
 from nanoscope.application.jobs import Job, JobContext, JobState
-from nanoscope.application.settings import Scope
+from nanoscope.application.settings import ACTIVE_MODEL_SETTING, Scope
 from nanoscope.application.use_cases.display import (
     DisplayImage,
     Stage,
@@ -60,7 +60,11 @@ from nanoscope.core.entities import (
     RulerKind,
 )
 from nanoscope.core.entities.device import Device
-from nanoscope.core.entities.model import ModelTask
+from nanoscope.core.entities.model import (
+    ModelDescriptor,
+    ModelFramework,
+    ModelTask,
+)
 from nanoscope.core.entities.project import (
     Annotation,
     AnnotationSource,
@@ -926,13 +930,23 @@ class SessionViewModel(QObject):
             if (row.detector, row.mode) == (config.detector, config.mode)
         )
 
+        #: Read on the main thread, before the job: it is one settings lookup,
+        #: and reading it inside the worker would let an operator change the
+        #: active model between pressing Run and the run reading it.
+        model_id = self.active_model if _needs_model(config) else None
+
         def work(context: JobContext) -> AnalysisRun:
             context.report(0, 0, f"{config.mode} with {config.detector}")
             #: Built here, on the worker thread: constructing it reads weights
             #: off a disk, and the main thread is the one drawing (ADR-0064).
             predictor = self._app.segmentation_predictor() if needs_predictor else None
             return use_cases.run_analysis(
-                repository, image_id, config, predictor=predictor, preprocessing=params
+                repository,
+                image_id,
+                config,
+                predictor=predictor,
+                preprocessing=params,
+                model_id=model_id,
             )
 
         name = f"Analysing {self.image_record(image_id).display_name}"  # type: ignore[union-attr]
@@ -1276,12 +1290,154 @@ class SessionViewModel(QObject):
     def remember(self, key: str, value: object) -> None:
         """Store a preference for the **operator**, and say that it changed.
 
-        The application scope, always: this application writes no project-scoped
-        setting yet, and a dialog that guesses the scope is the failure ADR-0047
-        was written to prevent (M5-T09).
+        The application scope, always — a dialog that guesses the scope is the
+        failure ADR-0047 was written to prevent (M5-T09). The one preference
+        that belongs to a project rather than a person has its own method,
+        `activate_model`, for that reason.
         """
         self._app.settings.set(key, value)
         self.settings_changed.emit()
+
+    # ── The models this project has (M8-T06) ─────────────────────────────────
+
+    def models(self) -> list[ModelDescriptor]:
+        """Every model registered here, newest registration first."""
+        repository = self._app.repository
+        if repository is None:
+            return []
+        return sorted(repository.list_models(), key=lambda m: m.registered_utc, reverse=True)
+
+    def model_weights_exist(self, descriptor: ModelDescriptor) -> bool:
+        """Whether the file the row points at is there.
+
+        ADR-0040's dangling-row report, met from the model side: a model
+        registered on another machine, or one whose external checkpoint has
+        moved, is a real row pointing at nothing — **shown as missing rather
+        than hidden**, because hiding it turns *"that model is elsewhere"* into
+        *"that model never existed"* (ADR-0086).
+        """
+        repository = self._app.repository
+        return repository is not None and repository.path_of_model(descriptor).is_file()
+
+    @property
+    def active_model(self) -> str | None:
+        """Which model this project detects with, or `None`.
+
+        Read through `Settings`, so the project's answer wins — which here is
+        the only answer there is: this key is written in the project scope and
+        nowhere else (ADR-0047, ADR-0086).
+        """
+        stored = self._app.settings.get(ACTIVE_MODEL_SETTING)
+        return None if stored is None else str(stored)
+
+    def activate_model(self, model_id: str | None) -> bool:
+        """Make this the model detection loads. **Project scope, always.**
+
+        The first writer of the scope `Settings` has offered since M4-T10, and
+        it is the right one by ADR-0047's own test: a chosen model belongs to
+        the project, not to the person — an operator with two projects has two
+        answers, and the application scope would leak one into the other.
+
+        Args:
+            model_id: the id an operator gave the model, or `None` to detect
+                with nothing until one is chosen.
+
+        Returns:
+            Whether it was stored. `False` with no project open, or when the
+            id names a model this project does not have — refused rather than
+            written, because a stored id nothing resolves is a detection that
+            fails later for a reason nobody can see.
+        """
+        repository = self._app.repository
+        if repository is None:
+            return False
+        if model_id is not None:
+            try:
+                repository.get_model(model_id)
+            except NanoscopeError as refusal:
+                self._refuse(str(refusal))
+                return False
+
+        self._app.settings.set(ACTIVE_MODEL_SETTING, model_id, Scope.PROJECT)
+        logger.info("model %r is now this project's detector", model_id)
+        self.settings_changed.emit()
+        return True
+
+    def frameworks(self) -> tuple[ModelFramework, ...]:
+        """Every framework this build can load, for a dialog to offer.
+
+        The registry's own list (ADR-0005: *adding a model means adding a
+        provider and one registry line*), asked through here because a panel may
+        not import `infrastructure` — Architecture §3.2, and the reason
+        `detector_options` is a session method too.
+        """
+        return self._app.loadable_frameworks()
+
+    def needs_active_model(self, detector: str) -> bool:
+        """Whether this detector cannot run because no model is active here.
+
+        The last hop of W10, guarded one layer earlier than it fails: the matrix
+        already refuses a detector whose framework has **no registered model**,
+        but a project can have three registered and none chosen — and without
+        this that run is accepted, preprocesses a scan, and then refuses. Which
+        is the late failure this whole task is about (ADR-0086).
+        """
+        return (
+            capabilities.DETECTOR_FRAMEWORKS.get(detector) is not None and self.active_model is None
+        )
+
+    def register_model(
+        self,
+        weights: Path | str,
+        *,
+        model_id: str,
+        task: ModelTask,
+        framework: ModelFramework,
+        provenance: str = "",
+    ) -> ModelDescriptor | None:
+        """Register weights that already exist on disk (M8-T06).
+
+        **It does not copy them.** ADR-0050 decided that and stated the
+        consequence in the same breath: an absolute path to a 137 MB checkpoint
+        is kept as it is, and the project opens on another machine with that
+        model unavailable. Copying gigabytes into `models/` on an operator's
+        behalf is a storage decision this layer does not get to make, and
+        refusing external weights would force it.
+
+        The caller states the id, the task and the framework, because **a `.pt`
+        file says none of the three** — the shape `ImportOptions` has had since
+        M5-T07 and `LabelSource` since M7-T09.
+
+        Returns:
+            The stored record, or `None` when there is no project or the file
+            is not there. Re-registering an id **replaces** it, which is what
+            retraining means (ADR-0050).
+        """
+        repository = self._app.repository
+        if repository is None:
+            return None
+        if not Path(weights).is_file():
+            self._refuse(f"there are no weights at {weights}")
+            return None
+
+        try:
+            stored = repository.register_model(
+                ModelDescriptor(
+                    model_id=model_id,
+                    task=task,
+                    framework=framework,
+                    path=str(Path(weights).resolve()),
+                    provenance=provenance,
+                )
+            )
+        except NanoscopeError as refusal:
+            self._refuse(str(refusal))
+            return None
+
+        logger.info("registered model %r from %s", model_id, weights)
+        self.settings_changed.emit()
+        self.reported.emit(f"Registered {model_id}")
+        return stored
 
     def devices(self) -> list[Device]:
         """What this machine can run inference on, best first (ADR-0049).
@@ -1651,6 +1807,19 @@ def _summarise(report: ImportReport | None, *, cancelled: bool) -> str:
     if cancelled:
         line += " — cancelled; what was copied is in the project"
     return line
+
+
+def _needs_model(config: PipelineConfig) -> bool:
+    """Whether this detector loads registered weights (M8-T06).
+
+    Asked of the capability matrix, which already records it per detector:
+    `DETECTOR_FRAMEWORKS` is what makes a framework-backed detector *available
+    only when a model is registered*, and a second answer here would be the
+    duplicated rule M6's third exit criterion exists to prevent — as well as a
+    detector's name written in `gui/`, which PROJECT_RULES §2.5 forbids and a
+    test greps for, this file included.
+    """
+    return capabilities.DETECTOR_FRAMEWORKS.get(config.detector) is not None
 
 
 def _not_none(run: AnalysisRun | None) -> AnalysisRun:

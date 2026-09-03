@@ -271,6 +271,21 @@ _V9: tuple[str, ...] = (
     """,
 )
 
+# Which model produced a run's detections (M8-T06, ADR-0086).
+#
+# Nullable and added empty, like v6 and v7 — and it stays `NULL` for every `log`
+# run, which is honest rather than lossy: those runs used no model. Until now
+# every YOLO run in this application loaded one hardcoded path (W10), so the
+# question this column answers could not be asked; with M8-T05 producing models
+# and M8-T06 letting a project choose between them, *"which model found these
+# particles?"* becomes unanswerable the moment there are two — which is the
+# argument ADR-0084 made one table over for a training run's provenance.
+#
+# The id, not the path. A path is where the weights were on the machine that
+# ran it; the id is what the project calls the model, and it is what
+# `list_models` joins back to (ADR-0050).
+_V10: tuple[str, ...] = ("ALTER TABLE analysis_runs ADD COLUMN model_id TEXT",)
+
 MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (1, _V1),
     (2, _V2),
@@ -281,6 +296,7 @@ MIGRATIONS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (7, _V7),
     (8, _V8),
     (9, _V9),
+    (10, _V10),
 )
 
 #: What this application writes and can read. Derived from the list rather than

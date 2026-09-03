@@ -38,6 +38,7 @@ TABLES_BY_VERSION: dict[int, tuple[str, ...]] = {
     7: (),
     8: ("rulers",),
     9: ("training_runs", "training_epochs"),
+    10: (),
 }
 
 #: What each step added to a table that already existed. **v6 is the first
@@ -49,6 +50,7 @@ TABLES_BY_VERSION: dict[int, tuple[str, ...]] = {
 COLUMNS_BY_VERSION: dict[int, tuple[tuple[str, str], ...]] = {
     6: (("annotations", "points"),),
     7: (("annotations", "mask_path"),),
+    10: (("analysis_runs", "model_id"),),
 }
 
 

@@ -43,8 +43,22 @@ class PipelineConfig:
     log_percentile: float = 20.0
     log_threshold: float | None = None
 
-    # YoloDetector params
-    yolo_model_path: str = "./checkpoints/best12x.pt"
+    # YoloDetector params.
+    #
+    # **Empty by default, and that is the whole of W10** (M4-T13 named it, M8-T06
+    # closed it). It used to be `"./checkpoints/best12x.pt"` — a path resolved
+    # against whatever directory the process happened to start in, to a file
+    # nobody promises exists. Measured: `True` from the repository root, where an
+    # untracked checkpoint sits, and `False` from anywhere else. Same project,
+    # same button, a different answer — and when the file was absent the failure
+    # was a raw `FileNotFoundError` out of `YOLO()`, after the scan had already
+    # been preprocessed.
+    #
+    # A default that guesses where the process was started is not a default. An
+    # unknown is a state (ADR-0025), so this is empty and `run_pipeline` refuses
+    # it with a sentence before a detector is built. `run_analysis` fills it from
+    # the model the project has registered (ADR-0086).
+    yolo_model_path: str = ""
     # False since ADR-0021 (B7): `_prepare_image` produces exactly one
     # `yolo_size` square and the crop shape is the same square, so the tiled
     # backend has always produced a single crop — the direct backend's work,

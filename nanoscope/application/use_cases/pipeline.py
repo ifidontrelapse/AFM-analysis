@@ -102,6 +102,16 @@ def run_pipeline(
         blobs = detector.last_blobs
 
     elif cfg.detector == "yolo":
+        if not cfg.yolo_model_path:
+            # Refused **before the detector is constructed**, which is where
+            # M2-T10 put this class of refusal for D-14's reason: an impossible
+            # request should cost milliseconds, not a preprocessing pass and
+            # then a traceback. Until M8-T06 this could not happen, because the
+            # field defaulted to a path — and that was the defect (W10).
+            raise UnsupportedRequestError(
+                "detector='yolo' names no weights. Register a model in this project "
+                "and make it the active one, or pass yolo_model_path explicitly"
+            )
         detector = YoloDetector(
             model_path=cfg.yolo_model_path,
             use_tiling=cfg.yolo_use_tiling,
