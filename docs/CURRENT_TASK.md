@@ -1,140 +1,122 @@
 # CURRENT TASK
 
-**ID:** `M8-T07`
-**Title:** `RemoteTrainingProvider`: protocol, client, contract tests
-**Milestone:** M8 — Training module, seventh task
-**Defect:** — · **ADR:** **ADR-0087** (to be written)
+**ID:** `M8-T08`
+**Title:** Model evaluation report using the M3-T15 harness
+**Milestone:** M8 — Training module, eighth and last task
+**Defect:** — · **ADR:** **ADR-0088** (to be written)
 **Branch:** `feat/m8-training`
 **Status:** **planning 2026-09-03.** Not started.
 
 ---
 
-## Why this task is seventh
+## Why this task is last, and what it is for
 
-It is **M8's fourth and last exit criterion**:
+All four of M8's exit criteria are met. This is the task that makes the milestone's own warning
+actionable — the Roadmap states it against M8 and not against any single task:
 
-> *`RemoteTrainingProvider` satisfies the same port and is covered by contract tests.*
+> **Risk to scientific output:** new models change detections by design. Model comparison is
+> reported through the M3 evaluation harness.
 
-And it is the task the whole milestone was arranged around. ADR-0080 justified writing a port
-before its adapter in exactly these words: *"let the port be wrong now, cheaply, instead of in
-M8-T07 when a second implementation discovers it."* Fifteen assertions have been waiting since
-M8-T01 for an implementation that is **not in this process**, and the contract suite's own docstring
-says why it polls `status()` rather than waiting on a listener: *"that is what a caller on the other
-side of a network has to do anyway."*
+M8 now produces models (M8-T05), lets a project choose between them (M8-T06) and records which one
+produced a run (M8-T06, schema v10). Nothing yet says **whether the new one is better**, and until
+something does, *"new models change detections by design"* is a licence rather than a
+control.
 
-**ADR-0006 named this task's risk in M0**, in its own Negative section: *"Two implementations of a
-port whose second implementation has no user yet; the remote protocol risks being designed for an
-imagined deployment."* That risk is real and it is not a reason to skip the task — it is the reason
-to keep the protocol to **exactly what the contract forces**, and to say plainly that no worker
-ships with it.
+**And the harness has been waiting for this since M3-T15.** ADR-0032 put it in
+`core/science/evaluation.py` and said why it was not in `tests/`: *"M4's annotation flow and M8's
+training loop need it."* It closed on a sentence this task is the first to be able to answer —
+**"a phantom is not a sample"**. M7 built the sample: hand-drawn boxes on real scans.
 
 ---
 
 ## What was measured before planning
 
-**1. The obvious serialisation is silently wrong.** `dataclasses.asdict` + `json.dumps` on a
-`TrainingRun`:
+**1. A stored run already says which model produced it.** M8-T06 added `analysis_runs.model_id` one
+task ago, and it is what makes this report possible **without loading a single weight**: the project
+keeps every detection a model ever made in this project, beside the annotations that are the truth.
+An evaluation that re-ran inference would need ultralytics, would be out of the gate
+(PROJECT_RULES §6), and would score a *different* run from the one an operator looked at.
+
+**2. A model can be joined to the run that trained it, with no new storage.** M8-T04 registers a
+model with `path = run.weights_path`, so `ModelDescriptor.path` and `TrainingRun.weights_path` are
+the same string. The link exists today; nothing has used it.
+
+**3. Which scans a model never saw is recoverable — until `cache/` is deleted.** Built with
+`val_fraction=0.25` over eight annotated scans:
 
 ```
-asdict + json.dumps: ok, length 501
-reconstructed: dict str
-round-trips equal: False
+spec says:            6 train, 2 val
+val stems on disk:    ['scan1', 'scan4']
+train stems on disk:  ['scan0', 'scan2', 'scan3', 'scan5', 'scan6', 'scan7']
+stems map back to image ids: True
+held-out image ids:   [2, 5]
+DatasetSpec fields:   ['root', 'classes', 'train_images', 'val_images']
 ```
 
-It does not raise. It produces 501 valid characters, and `TrainingRun(**json.loads(text))` hands
-back a run whose `dataset` is a `dict` and whose `status` is a `str` — a snapshot that compares
-unequal to the one that was sent, and that no `is_finished` check reads correctly. **A wire format
-this project can be wrong about quietly** is the thing to write on purpose rather than reach for.
+So the **membership** lives only in the dataset directory, and the **counts** live on the spec.
+That is not an oversight: ADR-0081 put datasets in `cache/` because they are re-creatable and
+safely deletable, and M8-T01 put the counts on the spec *because* of it. The consequence is this
+task's central honesty problem — **after `cache/` is deleted, nothing can say which scans a model
+was trained on.**
 
-The contract already guards it: `run.dataset == dataset` and `run.config == config` are asserted on
-the run `start` returns.
-
-**2. Compressing the upload makes it bigger.** A 40-scan dataset built by M8-T02:
-
-```
-40 scans of 512x512 -> dataset on disk: 5.2 MB
-tar.gz:                                 5.3 MB in 0.16 s
-```
-
-The dataset is PNGs and short text files, so gzip spends CPU to add 0.1 MB. **`tar`, not
-`tar.gz`.**
-
-**3. What the contract forces across a process boundary.** Three assertions cannot pass unless bytes
-actually move, and they are the protocol's whole content:
-
-| Assertion | What it forces |
-|---|---|
-| `(project_root / run.weights_path).is_file()` | the weights come **back** |
-| the fake's own `(self._root / dataset.root).is_dir()` guard | the dataset goes **out** |
-| `run.device is not None` | the worker says what **it** ran on |
-
-And `not Path(run.weights_path).is_absolute()` is what makes both sides able to use the same string:
-a relative path means the same thing under two different roots, which is ADR-0003's rule paying for
-itself on a wire it was not written for.
+**4. The harness scores centres and radii, and a box is neither.** `evaluate_detections` matches a
+detection centre inside a truth radius. The conversion from a box already exists, in
+`infrastructure/models/yolo.py`: centre is the box centre, radius is `min(w, h) / 2`.
 
 ---
 
 ## The decisions
 
-**1. The protocol is four endpoints, and each one is forced by an assertion above.**
+**1. The report scores what the project already stored. It runs no model.**
 
-```
-POST /runs              tar of the dataset + the spec and config as JSON  -> the run
-GET  /runs/<id>         -> the run
-POST /runs/<id>/cancel  -> accepted, always
-GET  /runs/<id>/weights -> the bytes
-```
+For each image: the annotations are the truth, and the detections of a stored `AnalysisRun` are the
+answer. Grouped by `run.model_id`, so two models are two columns over the same scans.
 
-Nothing else. No authentication, no listing, no resumption, no log streaming: each would be designed
-for a deployment nobody has, which is the failure ADR-0006 predicted for this task by name.
+This is what makes it a *report* rather than a second analysis pipeline: no weights, no ultralytics,
+no GPU, in the gate, and — the part that matters scientifically — it scores **the run the operator
+actually looked at**, not a fresh one that might differ.
 
-**2. The wire codec is written, not derived.** `infrastructure/training/wire.py`, one module used by
-both ends, because measurement 1 says the derived one is wrong in a way that does not announce
-itself. Enums by value, `Device` and `EpochMetrics` and the two specs by field, and a decoder that
-**reconstructs the entities** so `EpochMetrics.__post_init__` still refuses a metric this
-application cannot name — which is ADR-0080 §4's guard reaching the network for free.
+**2. Truth is the hand-drawn annotations, and the caller names the scope.**
 
-**3. Relative paths are the interoperability, and they already exist.** The dataset is uploaded
-under the *same relative root* the client knows it by, and the weights come back to the same
-relative path the worker reports. Neither side translates, because ADR-0003 already made every path
-in a project relative to it, and that is what makes one string true under two roots.
+`AnnotationSource.MANUAL` by default. ADR-0044's rule, third site: scoring a model against boxes
+adopted from a detector is scoring it against a detector, and M7-T09 and M8-T05 both made the
+caller say so out loud rather than defaulting into it.
 
-**4. The weights are downloaded before `SUCCEEDED` is published.**
+**3. A score on a scan the model trained on is labelled, not hidden — and never silently averaged
+with the rest.**
 
-The contract asserts that a succeeded run's weights are a file, and a listener that hears
-`SUCCEEDED` first would find them missing for as long as the transfer takes — which is exactly the
-disagreement ADR-0080 §5 removed by refusing `collect_artifacts()`, arriving from the other
-direction. The last status transition is the client's, not the worker's.
+The report marks each image `unseen`, `trained-on` or `unknown`, from the training run found by
+measurement 2 and the dataset directory from measurement 3. **`unknown` when `cache/` is gone**, and
+that is stated rather than guessed: a model whose split cannot be recovered gets a score with the
+provenance of that score attached, which is the same rule ADR-0025 applies to a missing pixel scale.
 
-**5. Polling is a plain thread, and it is the one place this task departs from ADR-0043.**
+Totals are reported **separately for the unseen scans and for all of them**, because those two
+numbers answer different questions and one of them is the only one that means *generalisation*.
 
-`LocalTrainingProvider` drives its run with `JobRunner` because the run *is* the work. Here the work
-is on another machine and what runs locally is a watcher that sleeps. `max_workers` is 2, and a
-sleeping poll loop holding one of them for six hours would leave this application with one worker to
-import, analyse and export with — worse than what M8-T05 already had to state. So a daemon thread,
-and `status()` answers from the **last polled snapshot** rather than the network, which is what the
-contract's own `POLL_S = 0.01` requires of anything that is not to be hammered.
+**4. A box becomes a centre and a radius the same way on both sides.**
 
-**6. A worker that stops answering makes the run `FAILED`, with the reason.**
+`min(w, h) / 2`, which is what a detector's own boxes already become. Using a different rule for the
+truth would make the match tolerance and the radius error describe different circles — and the
+matching rule is *a centre inside the particle*, so the radius **is** the tolerance.
 
-Not `RUNNING` for ever, and not a silent stall. It is the one status this provider decides for
-itself, and it is honest: what is known locally is that the run cannot be observed. ADR-0084 §8's
-rule is not contradicted — that one is about a *stored* run nobody is watching, and this one is
-about a live watcher that has lost its subject.
+**5. Comparison is over the same scans, or it is not a comparison.**
 
-**7. Nothing is wired into the composition root, and there is no setting for a worker's address.**
+Two models scored on two different sets of scans produce two numbers that cannot be subtracted. The
+report's unit is therefore *(model, image)*, and a summary row for a model states **how many images
+it was scored on** beside its precision and recall — because that count is what makes the row
+comparable or not.
 
-ADR-0041's rule for the eighth time, and here it is load-bearing rather than procedural: a
-`training.remote_url` preference would be the imagined deployment ADR-0006 warned about, made
-permanent in a settings file. The provider takes a base URL as a constructor argument; the caller
-that supplies one arrives with a worker.
+**6. `precision` and `recall` stay `None` where the harness returns `None`.**
 
-**8. The worker in the tests is `FakeTrainingProvider` behind `http.server`.**
+Not 0.0, not 1.0, not "—" computed into an average. ADR-0032 deleted the seventh substitute value in
+this project for exactly this, and an aggregate that treats an absent ratio as zero is that value
+coming back through a sum.
 
-Stdlib, no new dependency, and it is a **fixture rather than a product**: this task ships a client,
-not a server. The test's worker root is a **different directory** from the client's project root —
-which is the whole point, because with one directory the upload and the download are no-ops and the
-suite would prove nothing.
+**7. The score lives where *compare* already lives.**
+
+M8-T06 built the models dialog and wrote down what it was not doing: *"**Compare is the records**,
+not a run of them — what a model does to a scan is M8-T08's report."* This is that task, so the
+numbers go into that dialog rather than into a second window an operator has to know to open.
 
 ---
 
@@ -142,31 +124,31 @@ suite would prove nothing.
 
 **In scope**
 
-1. `infrastructure/training/wire.py` — the JSON codec both ends use
-2. `infrastructure/training/remote.py` — `RemoteTrainingProvider`, on `requests` (already a
-   dependency)
-3. `tests/contract/test_remote_training_provider.py` — the **fifteen existing assertions,
-   unchanged**, against a stub worker on a real socket with a separate root
-4. Tests for what only a client can get wrong: a lost worker, a refused start, a cancel that races
-5. **ADR-0087** + the ADR index
+1. `application/use_cases/evaluation.py` — the report: per model, per image, and two totals
+2. Truth from annotations, scope named by the caller; `unseen` / `trained-on` / `unknown` per image
+3. The models dialog shows each model's score, and says what it was scored on
+4. **ADR-0088** + the ADR index
+5. M8 closed: `Roadmap.md`, and the milestone summary in `Progress.md`
 
 **Out of scope**
 
-- **A worker implementation** — this task ships a client and says so; the stub is a test fixture
-- **Wiring, and a stored worker address** — decision 7
-- **Authentication, TLS, multi-tenancy, resumption, log streaming** — every one of them a guess
-  about a deployment nobody has
-- **Uploading the project** — a worker trains on a dataset, which is all the port gives it
+- **Running inference inside the report** — decision 1, and it would put the gate behind a GPU
+- **Segmentation quality (mask IoU)** — the harness scores detection; ADR-0032 says so and the
+  phantoms carried no masks either
+- **Recording the held-out image ids** — measurement 3's gap. Named, and left to an operator's
+  decision, because ADR-0081 chose deletability on purpose and reversing it needs more than this
+- **A significance test** — two precisions on twelve scans is not a study, and dressing it as one is
+  the claim ADR-0032 refused to license
 
 ---
 
 ## Definition of done
 
-- [ ] `RemoteTrainingProvider` passes `TrainingProviderContract` **unchanged** — M8's fourth criterion
-- [ ] The dataset reaches the worker and the weights come back, across two separate roots
-- [ ] A `TrainingRun` survives the wire intact, `dataset` and `config` compared field for field
-- [ ] A worker that stops answering ends the run rather than leaving it running
-- [ ] ADR-0087 + the ADR index
+- [ ] Two models scored over the same scans, from what the project already stored
+- [ ] A scan the model trained on is labelled, and the unseen total is reported separately
+- [ ] A model whose dataset is gone reads `unknown`, never `unseen`
+- [ ] An absent ratio stays absent, in the rows and in the totals
+- [ ] ADR-0088 + the ADR index
 - [ ] `make check` green, golden byte-identical
-- [ ] Docs: `STATE.md`, `Progress.md`, `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`
-- [ ] Commit: `M8-T07: the same port, on the other side of a socket`
+- [ ] Docs: `STATE.md`, `Progress.md` (+ the M8 summary), `TASKS.md`, `PROJECT_CONTEXT.md`, `Roadmap.md`
+- [ ] Commit: `M8-T08: whether the new model is better, from what the project already kept`

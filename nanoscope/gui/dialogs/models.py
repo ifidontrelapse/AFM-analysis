@@ -11,13 +11,18 @@ against whatever directory the process started in: `True` from the repository
 root, where an untracked file sits, and `False` from anywhere else. So M8-T05
 could produce a model and nothing could select it.
 
-**Four verbs, and the fourth is not what it sounds like.** *Import* registers
+**Four verbs, and the fourth arrives in two halves.** *Import* registers
 weights that already exist; *register* is what training does; *activate* writes
-the project-scoped setting a detection run reads. **Compare is the records** —
-what each model was trained on, on how many images, its classes, its input size,
-when it was registered, and whether the file is still there. Comparing models by
-*running* them is M8-T08's evaluation report through the M3-T15 harness, and a
-second answer to that question invented here would be the copy that drifts.
+the project-scoped setting a detection run reads. **Compare** is the records —
+what each model was trained on, its classes, its input size, when it was
+registered, and whether the file is still there — **and, since M8-T08, what each
+one scored** on this project's own scans, against the boxes an operator drew.
+
+That score is read from what is already stored: the annotations are the truth
+and past runs are the answer, so opening this window loads no weights and runs
+no model (ADR-0088). And it is reported **on the scans a model was not trained
+on**, separately from the rest, because only one of those two numbers says
+anything about a scan the model has not seen.
 
 Modal, unlike the training window: this asks a question and takes an answer,
 where that one watches six hours of work (ADR-0085 §1).
@@ -48,6 +53,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from nanoscope.application.use_cases import ModelScore
 from nanoscope.core.entities.model import ModelDescriptor, ModelTask
 from nanoscope.gui.theme import tokens
 from nanoscope.gui.viewmodels import SessionViewModel
@@ -80,6 +86,19 @@ MISSING = "missing"
 #: a table whose one important fact is a shade is a table nobody can screenshot
 #: into a bug report.
 ACTIVE = "in use"
+
+#: What the score table says, in the order the questions are asked: which model,
+#: what it was scored on, how many particles were there, and the three numbers
+#: the harness computes. `Scored on` comes **second** because it is what makes
+#: the rest of the row mean anything (M8-T08, ADR-0088).
+SCORE_COLUMNS = (
+    "Model",
+    "Scored on",
+    "Particles",
+    "Precision",
+    "Recall",
+    "Localisation (px)",
+)
 
 
 class ModelsDialog(QDialog):
@@ -121,11 +140,65 @@ class ModelsDialog(QDialog):
         layout.addWidget(self.table)
         layout.addLayout(buttons)
         layout.addWidget(self.note)
+        layout.addWidget(self._scores_group())
         layout.addWidget(self._import_group())
 
         session.settings_changed.connect(self.reload)
         session.project_changed.connect(lambda _project: self.reload())
         self.reload()
+
+    # ── How each one scores (M8-T08) ──────────────────────────────────────────
+
+    def _scores_group(self) -> QGroupBox:
+        self.scores = QTableWidget(0, len(SCORE_COLUMNS), self)
+        self.scores.setHorizontalHeaderLabels(list(SCORE_COLUMNS))
+        self.scores.verticalHeader().setVisible(False)
+        self.scores.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.scores.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+
+        self.score_note = QLabel("", self)
+        self.score_note.setWordWrap(True)
+        self.score_note.setStyleSheet(f"color: {tokens.TEXT_MUTED};")
+
+        box = QGroupBox("How each one scores here", self)
+        inner = QVBoxLayout(box)
+        inner.addWidget(self.scores)
+        inner.addWidget(self.score_note)
+        box.setToolTip(
+            "Scored against the boxes you drew, on runs this project already\n"
+            "stored — nothing is re-run. Adopted boxes are not counted as truth:\n"
+            "a model scored against a detector's output is confirming itself."
+        )
+        return box
+
+    def reload_scores(self) -> None:
+        """Read the report and fill the table. **Unseen first**, always.
+
+        A model with no unseen scans shows its overall score with the exposure
+        column saying why — which is the point of having the column at all.
+        """
+        report = self._session.evaluation()
+        models = () if report is None else report.models
+        self.scores.setRowCount(len(models))
+        for row, score in enumerate(models):
+            for column, text in enumerate(_score_cells(score)):
+                self.scores.setItem(row, column, QTableWidgetItem(text))
+
+        if not models:
+            self.score_note.setText(
+                "No model has been run on an annotated scan in this project yet. "
+                "Detect with one, then come back."
+            )
+        elif any(not one.exposure_is_known for one in models):
+            self.score_note.setText(
+                "Some scores are over every scan, because the dataset a model trained on "
+                "is no longer in cache/ and this project can no longer say which scans it "
+                "had seen. A score over scans a model was trained on flatters it."
+            )
+        else:
+            self.score_note.setText(
+                "Scored on the scans each model was not trained on, against hand-drawn boxes only."
+            )
 
     # ── Registering weights that already exist ────────────────────────────────
 
@@ -225,6 +298,7 @@ class ModelsDialog(QDialog):
                 self.table.setItem(row, column, item)
             self.table.item(row, 0).setData(_VALUE, model.model_id)
         self._update_note(models, active)
+        self.reload_scores()
         self._update_buttons()
 
     def _update_note(self, models: list[ModelDescriptor], active: str | None) -> None:
@@ -264,6 +338,45 @@ class ModelsDialog(QDialog):
     def _activate(self, model_id: str | None) -> None:
         if self._session.activate_model(model_id):
             self.reload()
+
+
+def _score_cells(score: ModelScore) -> tuple[str, ...]:
+    """One model's score as a row, saying what it is a score *of*.
+
+    It picks the total here rather than taking one: naming a `DetectionMetrics`
+    in this file would be `gui/` importing `core.science`, which Architecture
+    §3.2 forbids and a test caught on the first run. A widget reads fields; it
+    does not need the type.
+
+    An absent ratio is left blank rather than shown as 0.00: a detector that
+    reported nothing has no precision, and a zero there is a measurement it
+    never made (ADR-0032, and ADR-0088 carries the rule into the aggregate).
+    """
+    #: The unseen total when there is one, the overall when there is not — and
+    #: which of the two is on screen is the "Scored on" column, never inferred.
+    metrics = score.unseen or score.overall
+    return (
+        score.model_id,
+        _scored_on(score),
+        "" if metrics is None else str(metrics.n_truth),
+        _ratio(None if metrics is None else metrics.precision),
+        _ratio(None if metrics is None else metrics.recall),
+        _ratio(None if metrics is None else metrics.mean_localisation_error_px, places=2),
+    )
+
+
+def _scored_on(score: ModelScore) -> str:
+    """What the numbers beside this are a score of — never left to be inferred."""
+    if not score.exposure_is_known:
+        return f"every scan ({len(score.images)}) — the split is no longer known"
+    if score.unseen is None:
+        return f"nothing unseen; every scan ({len(score.images)}) it trained on"
+    return f"{score.unseen_images} scan(s) it never saw"
+
+
+def _ratio(value: float | None, *, places: int = 3) -> str:
+    """A number, or **nothing** where the harness had nothing to report."""
+    return "" if value is None else f"{value:.{places}f}"
 
 
 def _cells(model: ModelDescriptor, *, active: str | None, here: bool) -> tuple[str, ...]:

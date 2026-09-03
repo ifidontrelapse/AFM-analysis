@@ -76,6 +76,8 @@ AFM-analysis/
 │   │                                   #   training.py (M8-T04): a run recorded and the model
 │   │                                   #   it produced registered (ADR-0084), and what a run
 │   │                                   #   can start from (M8-T05),
+│   │                                   #   evaluation.py (M8-T08): what each model scored on
+│   │                                   #   the scans it was not trained on (ADR-0088),
 │   │                                   #   preprocessing.py gained
 │   │                                   #   preprocess_image + the named defaults (M6-T01)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
@@ -131,13 +133,14 @@ AFM-analysis/
 │   │                                   #   commands, settings, device, log sinks,
 │   │                                   #   measurement docs vs schema (M7-T10),
 │   │                                   #   training entities (M8-T01), the wire codec
-│   │                                   #   (M8-T07) — 900 tests
+│   │                                   #   (M8-T07) — 902 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
 │   │                                   #   (M4-T03…T15, M5-T01, M5-T09), incl. the whole-layer
 │   │                                   #   walkthrough, the entry point, and a training run that
-│   │                                   #   survives closing the project (M8-T04) — 202 tests
-│   ├── gui/                            # headless Qt tests (M5-T02…M8-T06) — 449 tests
+│   │                                   #   survives closing the project (M8-T04), and what each
+│   │                                   #   model scored (M8-T08) — 217 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M8-T08) — 453 tests
 │   ├── contract/                       # the suite every TrainingProvider passes, plus the fake
 │   │                                   #   that satisfies it (M8-T01, ADR-0080) — M8-T03 adds
 │   │                                   #   one file with three fixtures and no new assertions;
@@ -799,6 +802,7 @@ Also enforced, and each proven to fail on a real violation:
 | A project cannot be closed under a training run, and closing the window asks first | `tests/gui/test_training_dialog.py` |
 | The weights a run loads are the project's active model, and no path resolves against the cwd | `tests/gui/test_model_management.py` |
 | One suite passes for a provider in this process and one across a socket, unedited | `tests/contract/` |
+| A model is scored on the scans it was **not** trained on, and says so when it cannot tell | `tests/integration/test_model_evaluation.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
 

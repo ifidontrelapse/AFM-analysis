@@ -267,7 +267,7 @@ output and get their own tests.
 
 ---
 
-## M8 — Training module (active)
+## M8 — Training module
 
 **Goal.** The operator's own annotations become a model, inside the application.
 
@@ -283,7 +283,11 @@ register, activate, compare); `RemoteTrainingProvider` protocol and client.
 - [x] `RemoteTrainingProvider` satisfies the same port and is covered by contract tests — **M8-T07**: the fifteen assertions written in M8-T01, **not one of them edited**, across a real socket to a worker with its own root
 
 **Risk to scientific output:** new models change detections by design. Model comparison
-is reported through the M3 evaluation harness.
+is reported through the M3 evaluation harness — **M8-T08**, which scores each model on the
+scans it was *not* trained on, from runs the project already stored.
+
+**Status:** ✅ complete (2026-09-03) — eight tasks, ADR-0080…ADR-0088, all four exit
+criteria, and **W10 closed** on the way (M8-T06). The golden did not move once.
 
 ---
 

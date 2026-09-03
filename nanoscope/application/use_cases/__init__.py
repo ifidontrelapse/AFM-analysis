@@ -22,6 +22,12 @@ from nanoscope.application.use_cases.annotations import (
     read_labels,
 )
 from nanoscope.application.use_cases.dataset import DatasetReport, build_dataset
+from nanoscope.application.use_cases.evaluation import (
+    EvaluationReport,
+    ImageScore,
+    ModelScore,
+    evaluate_models,
+)
 from nanoscope.application.use_cases.export import export_measurements
 from nanoscope.application.use_cases.metrology import ruler_length, ruler_profile
 from nanoscope.application.use_cases.pipeline import run_pipeline
@@ -47,11 +53,15 @@ from nanoscope.application.use_cases.training import (
 __all__ = [
     "AnnotationExport",
     "DatasetReport",
+    "EvaluationReport",
+    "ImageScore",
+    "ModelScore",
     "PreprocessingParams",
     "StartingPoint",
     "Summary",
     "build_dataset",
     "descriptor_for",
+    "evaluate_models",
     "export_annotations",
     "export_measurements",
     "histogram",

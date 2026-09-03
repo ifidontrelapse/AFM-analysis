@@ -1,7 +1,7 @@
 # STATE
 
 **Last updated:** 2026-09-03 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
-and five commits from 2026-09-02 folded in) · **Base commit:** `b7d8221`
+and five commits from 2026-09-02 folded in) · **Base commit:** `52906c8`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -10,7 +10,27 @@ and five commits from 2026-09-02 folded in) · **Base commit:** `b7d8221`
 
 ## Current milestone
 
-**M8 — Training module** (opened 2026-08-17)
+**M9 — Release readiness** (opened 2026-09-03). Packaging, docs, v1.0. Nothing started.
+
+**M8 closed 2026-09-03 — eight tasks, ADR-0080…ADR-0088, all four exit criteria, and W10 closed on
+the way (M8-T06).** Tests 1391 → **1673**, schema v8 → **v10**, mypy unchanged at 6, **the golden
+did not move once in eight tasks**. The milestone's own sentence is true now: an operator draws
+boxes, builds a dataset, trains, watches it, registers what came out, chooses it for detection, and
+reads what it scored on the scans it never saw — without leaving the window. Four refrains: **a port
+written before its adapter is only worth it if something can disagree with it** (fifteen assertions,
+satisfied unchanged by a real trainer *and* by a client across a socket); **a decision made for one
+reason pays somewhere else** (ADR-0003's relative paths became the remote protocol's
+interoperability, and ADR-0050's operator-chosen name became a combo box and a project setting);
+**measure before planning** — every task opened with numbers and three of them were unreported
+defects; and **an unknown is a state**, in five of the eight tasks. Left open on purpose: **no
+`resume`** (ADR-0080 named it in M8-T01), **no worker implements the remote protocol** (four
+endpoints a contract chose, provisional and said so), and **once `cache/` is deleted this project
+cannot say which scans a model trained on** — ADR-0081 chose deletability, and M8-T08 reports
+`unknown` rather than reversing it. Milestone summary in `docs/Progress.md`.
+
+### The milestone this one stands on
+
+**M8 — Training module** ✅ (opened 2026-08-17, closed 2026-09-03)
 
 The operator's own annotations become a model, inside the application. **ADR-0006 chose the seam in
 M0 and said why:** training runs for hours instead of seconds, consumes a dataset rather than an
@@ -87,8 +107,28 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01`…`M8-T07` are done (ADR-0080…ADR-0082, ADR-0084…ADR-0087). `M8-T08` — the evaluation
-report — is the last task. **All four of M8's exit criteria are met**, and W10 is closed.**
+**M8 is closed. `M9-T01` has not been selected yet.**
+
+**`M8-T08` done 2026-09-03 (ADR-0088) — whether the new model is better, from what the project
+already kept.** The control for the risk the Roadmap states against the whole milestone: *"new
+models change detections by design. Model comparison is reported through the M3 evaluation
+harness."* Until this it was a licence. **And the harness had waited five milestones** — ADR-0032
+put it in `core/science/` rather than `tests/` because *"M4's annotation flow and M8's training loop
+need it"*, and closed on *a phantom is not a sample*; M7 built the sample. **It runs no model:**
+M8-T06's `analysis_runs.model_id` means the project already holds every detection each model made,
+beside the annotations that are the truth — and re-running inference would score a *different* run
+from the one the operator looked at. **Two joins, neither needing new storage:** model → training
+run on the weights path (M8-T04 registers `path = run.weights_path`), and run → the scans it saw,
+from the dataset's `images/train` stems. **Measured, and it is the honesty problem:** the *counts*
+of a split live on `DatasetSpec` for ever and the *membership* only in a directory ADR-0081 declared
+deletable — so a scan is `unseen`, `trained-on` or **`unknown`**, and the third is an answer, not a
+gap. **Two totals per model**, unseen and overall, because only one is about generalisation; run
+against two models it shows one perfect on the scans it trained on and **recall 0.000** on the two
+it never saw, which is the failure this milestone could otherwise have shipped. **Totals sum counts
+and recompute ratios, never average ratios**; localisation is weighted by true positives; **a median
+of medians is not reported**; an absent ratio stays blank (ADR-0032's seventh substitute value,
+refused again). **Found on the first run:** the layer guard caught the dialog importing
+`core.science` for a type annotation. 21 tests, **1673** in the suite.
 
 **`M8-T07` done 2026-09-03 (ADR-0087) — the same port, on the other side of a socket, and the claim
 this milestone was arranged to test.** M8-T01 wrote a port before its adapter and justified it in

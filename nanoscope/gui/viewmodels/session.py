@@ -1363,6 +1363,26 @@ class SessionViewModel(QObject):
         self.settings_changed.emit()
         return True
 
+    def evaluation(self, *, hand_drawn_only: bool = True) -> use_cases.EvaluationReport | None:
+        """How each model scored on this project's own scans (M8-T08).
+
+        Read from what is already stored — the annotations are the truth and the
+        detections of past runs are the answer — so this loads no weights and
+        costs a few queries, which is why a dialog may call it directly instead
+        of through a job.
+
+        Args:
+            hand_drawn_only: whether adopted boxes count as truth. `True`, and
+                named rather than defaulted where it is called: scoring a model
+                against a detector's output is scoring it against a detector
+                (ADR-0044).
+        """
+        repository = self._app.repository
+        if repository is None:
+            return None
+        sources = (AnnotationSource.MANUAL,) if hand_drawn_only else None
+        return use_cases.evaluate_models(repository, sources=sources)
+
     def frameworks(self) -> tuple[ModelFramework, ...]:
         """Every framework this build can load, for a dialog to offer.
 

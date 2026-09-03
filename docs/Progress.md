@@ -7,6 +7,133 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-09-03 — M8 closed: annotations become a model, and the model gets checked
+
+**Eight tasks, ADR-0080…ADR-0088, all four exit criteria, and W10 closed on the way.** Tests
+1391 → **1673**. Schema v8 → **v10**. mypy unchanged at 6. **The golden did not move once in eight
+tasks.**
+
+The milestone's own sentence, from the Roadmap: *the operator's own annotations become a model,
+inside the application.* They do — draw boxes, build a dataset, train, watch it, register what came
+out, choose it for detection, and read what it scored on the scans it never saw. Without leaving the
+window.
+
+**Four refrains.**
+
+**A port written before its adapter is only worth it if something can disagree with it.** M8-T01
+wrote fifteen assertions against a fake and argued that an unimplemented port is *unfalsifiable*.
+M8-T03 satisfied them with a real trainer, three fixtures and no edits; M8-T07 satisfied them again
+across a socket, from a client that can see none of the run it describes. Not one assertion was
+edited in either task. That is the strongest structural claim this project has made.
+
+**A decision made for one reason pays somewhere else.** ADR-0003 made every path relative so a
+project survives being moved — and that is what let one string be true under two roots on two
+machines in M8-T07, with neither side translating. ADR-0050 made a model's identity *a name an
+operator chose* — and that is what M8-T05 could offer in a combo box and M8-T06 could store in a
+project-scoped setting. M8-T04 registered a model with `path = run.weights_path` for tidiness, and
+M8-T08 found the join it needed already there.
+
+**Measure before planning, and the measurement changes the design.** Every task in this milestone
+opened with numbers, and they were not decoration: a callback firing four times for three epochs
+(M8-T03); 627 ms per scan, so the build is a job (M8-T05); `close()` taking the whole run and
+`wait=False` buying nothing (M8-T05); `values` being a reserved word (M8-T04); a weights path that
+resolves against the working directory (M8-T06); `asdict` producing 501 valid characters and a run
+that is not one (M8-T07). **Three of those were defects nobody had reported.**
+
+**An unknown is a state.** ADR-0025's rule turned up in five of the eight tasks: a run cancelled
+before it began still ends (M8-T04); a crashed run stays `running` rather than being called failed
+(M8-T04); a stored run nobody is watching reads *interrupted* (M8-T05); a weights path defaults to
+nothing rather than to a guess (M8-T06); and a model whose dataset is gone is `unknown`, never
+`unseen` (M8-T08).
+
+**What is left open on purpose.** There is no `resume` — ADR-0080 named it in M8-T01 and nothing
+since has been able to honestly finish a run. No worker implements the remote protocol; it is four
+endpoints a contract chose, and the ADR says it is provisional. And once `cache/` is deleted, this
+project can no longer say which scans a model trained on: ADR-0081 chose deletability on purpose,
+and M8-T08 reports `unknown` rather than reversing it.
+
+---
+
+## 2026-09-03 — M8-T08: whether the new model is better, from what the project already kept
+
+**The control for the risk the Roadmap states against the whole milestone.** 21 tests,
+**1652 → 1673** in the suite. mypy unchanged at 6. Delta: **zero, golden byte-identical**.
+
+### The sentence this task turns into something checkable
+
+> *New models change detections by design. Model comparison is reported through the M3 evaluation
+> harness.*
+
+M8-T05 produces models, M8-T06 lets a project choose one and records which produced a run, and until
+now nothing said whether the new one was better. **And the harness had been waiting five milestones.**
+ADR-0032 put it in `core/science/` rather than `tests/` because *"M4's annotation flow and M8's
+training loop need it"*, and closed on **a phantom is not a sample**. M7 built the sample.
+
+### It runs no model, and that is the design
+
+M8-T06 added `analysis_runs.model_id` one task ago, so the project already holds every detection
+each model made in it, beside the annotations that are the truth. Re-running inference would need
+ultralytics, would put the gate behind a GPU, and — the part that matters — would score a
+**different run** from the one the operator looked at.
+
+Two joins, and neither needed new storage:
+
+| Join | On what | Put there by |
+|---|---|---|
+| model → the run that trained it | `ModelDescriptor.path == TrainingRun.weights_path` | M8-T04 |
+| run → the scans it saw | the dataset's `images/train` stems | M8-T02 |
+
+### The measurement that is the report's honesty problem
+
+```
+spec says:                   6 train, 2 val
+val stems on disk:           ['scan1', 'scan4']
+stems map back to image ids: True
+DatasetSpec fields:          ['root', 'classes', 'train_images', 'val_images']
+```
+
+The **counts** of a split live on the spec for ever. The **membership** lives only in a directory
+ADR-0081 declared safely deletable — and M8-T01 put the counts there *because* of it.
+
+So a scan is `unseen`, `trained-on`, or **`unknown`**, and the third is an answer rather than a gap.
+Calling it `unseen` would invent the one fact this report exists to be careful about, which is
+ADR-0025's rule at its fifth site this milestone. Two totals per model — over the unseen scans, and
+over all of them — because only one of them is about generalisation.
+
+Run against a project with two models, it reads:
+
+```
+v1 | every scan (4) — the split is no longer known | 4 | 1.000 | 1.000
+v2 | 2 scan(s) it never saw                        | 2 |       | 0.000
+```
+
+`v2` is perfect on the scans it trained on and finds nothing on the two it did not. **That is the
+failure this milestone could otherwise have shipped**, visible as exactly what it is.
+
+### Aggregating without lying
+
+Totals **sum the counts and recompute the ratios**. A mean of per-image precisions weights a scan
+with two particles the same as one with two hundred, and it has no denominator to be honest about —
+a scan the harness scored `None` would have to become a number to be included. Localisation errors
+are averaged weighted by true positives, which is what one call over all pairs would have produced.
+And **a median of medians is not reported at all**, because it is not a median; the per-image rows
+keep theirs, where it means what it says.
+
+An absent ratio stays blank on screen. ADR-0032 deleted the seventh substitute value in this project
+for exactly that, and a `0.000` in a precision column is it coming back through a table cell.
+
+### Found on the first run
+
+The layer guard caught `gui/dialogs/models.py` importing `core.science` — for a **type annotation**
+on a helper. Architecture §3.2, and the fix is the right one: a widget reads fields and does not
+need the type.
+
+### Next
+
+**M9 — Release readiness.** M8 is closed; the milestone summary is above.
+
+---
+
 ## 2026-09-03 — M8-T07: the same port, on the other side of a socket
 
 **M8's fourth exit criterion, and the claim the whole milestone was arranged to test.** 52 tests,

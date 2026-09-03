@@ -37,7 +37,13 @@ from nanoscope.core.entities import PipelineConfig
 from nanoscope.core.entities.model import ModelDescriptor, ModelFramework, ModelTask
 from nanoscope.core.errors import MissingFileError, UnsupportedRequestError
 from nanoscope.core.values import Modality
-from nanoscope.gui.dialogs.models import ACTIVE, COLUMNS, MISSING, ModelsDialog
+from nanoscope.gui.dialogs.models import (
+    ACTIVE,
+    COLUMNS,
+    MISSING,
+    SCORE_COLUMNS,
+    ModelsDialog,
+)
 from nanoscope.gui.main_window import MainWindow
 from nanoscope.gui.panels import DetectionPanel
 from nanoscope.gui.viewmodels import SessionViewModel
@@ -370,6 +376,57 @@ class TestWhatTheDialogShows:
         assert "No model is in use" in dialog.note.text()
 
 
+class TestHowEachModelScores:
+    """M8-T06 wrote down what it was not doing: *"Compare is the records, not a
+    run of them — what a model does to a scan is M8-T08's report."* This is that
+    half, in the same window, and it still runs no model: the annotations are the
+    truth and the project's stored runs are the answer (ADR-0088).
+    """
+
+    def test_a_model_nobody_has_run_is_not_a_model_that_scored_badly(
+        self, app: Nanoscope, session: SessionViewModel
+    ) -> None:
+        register(app)
+        dialog = ModelsDialog(session)
+
+        assert dialog.scores.rowCount() == 0
+        assert "No model has been run" in dialog.score_note.text()
+
+    def test_a_score_appears_from_a_stored_run(
+        self, app: Nanoscope, session: SessionViewModel
+    ) -> None:
+        register(app)
+        _annotate_and_detect(app, model_id="particles-v1", found=True)
+        dialog = ModelsDialog(session)
+
+        assert dialog.scores.rowCount() == 1
+        assert _score(dialog, 0, "Model") == "particles-v1"
+        assert _score(dialog, 0, "Recall") == "1.000"
+        assert _score(dialog, 0, "Particles") == "1"
+
+    def test_a_miss_is_visible_as_one(self, app: Nanoscope, session: SessionViewModel) -> None:
+        register(app)
+        _annotate_and_detect(app, model_id="particles-v1", found=False)
+        dialog = ModelsDialog(session)
+
+        assert _score(dialog, 0, "Recall") == "0.000"
+        #: Nothing was reported, so there is no precision — blank, not 0.000.
+        assert _score(dialog, 0, "Precision") == ""
+
+    def test_it_says_the_split_is_no_longer_known(
+        self, app: Nanoscope, session: SessionViewModel
+    ) -> None:
+        """A model this project never trained, or one whose dataset has been
+        deleted from `cache/`: the score is over every scan, and the window says
+        so rather than letting it read as generalisation."""
+        register(app)
+        _annotate_and_detect(app, model_id="particles-v1", found=True)
+        dialog = ModelsDialog(session)
+
+        assert "no longer say which scans" in dialog.score_note.text()
+        assert "every scan" in _score(dialog, 0, "Scored on")
+
+
 class TestTheDetectionPanelSaysWhatIsMissing:
     def test_registered_is_not_chosen(self, app: Nanoscope, session: SessionViewModel) -> None:
         """The matrix refuses a detector whose framework has **no registered
@@ -420,3 +477,44 @@ def _select_framework_detector(panel: DetectionPanel) -> None:
             panel.detector.setCurrentIndex(index)
             return
     raise AssertionError("no detector in this panel needs a registered model")
+
+
+def _annotate_and_detect(app: Nanoscope, *, model_id: str, found: bool) -> None:
+    """One drawn box, and one stored run by `model_id` that finds it or does not.
+
+    `save_analysis(..., model_id=...)` is schema v10's column from M8-T06, which
+    is what makes an evaluation possible without re-running anything.
+    """
+    import pandas as pd
+
+    from nanoscope.core.entities import Detection, PipelineResult
+    from nanoscope.core.entities.project import AnnotationSource
+
+    repository: Any = app.repository
+    image_id = repository.list_images()[0].id
+    repository.add_annotation(
+        image_id, label="particle", box=(10.0, 10.0, 20.0, 20.0), source=AnnotationSource.MANUAL
+    )
+    detections = (
+        [Detection(x_px=15.0, y_px=15.0, radius_px=5.0, radius_nm=None, confidence=0.9)]
+        if found
+        else []
+    )
+    repository.save_analysis(
+        image_id,
+        PipelineResult(
+            detections=detections,
+            masks=[],
+            measurements=pd.DataFrame(),
+            pixel_size_nm=2.0,
+            detector_name="yolo",
+            mode="detect",
+            modality="afm",
+        ),
+        model_id=model_id,
+    )
+
+
+def _score(dialog: ModelsDialog, row: int, column: str) -> str:
+    item = dialog.scores.item(row, SCORE_COLUMNS.index(column))
+    return "" if item is None else item.text()
