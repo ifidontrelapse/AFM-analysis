@@ -7,6 +7,91 @@ A session that changes scientific output states the numerical delta explicitly.
 
 ---
 
+## 2026-09-03 — M8-T05: the window that turns annotations into a model
+
+**The caller four tasks were waiting for, and M8's first two exit criteria with it.** 32 tests,
+**1544 → 1576** in the suite. mypy unchanged at 6. Delta: **zero, golden byte-identical**.
+
+### What this closes
+
+M8-T01 wrote the port, M8-T02 the dataset, M8-T03 the trainer and M8-T04 the record, and each ended
+on the same line: *not wired into the composition root (ADR-0041); the caller arrives with M8-T05.*
+
+It does now, and it is one line in `Nanoscope.open`. What that line buys is ADR-0006's compliance
+clause reaching a person: **annotations → dataset → weights → a registered `ModelDescriptor`,
+without leaving the application**, asserted by a test that presses the button rather than by a
+document. That is M8's first exit criterion; the second — *a cancellable job whose metrics stream to
+the UI and persist* — is met by the three tasks underneath plus this one showing them.
+
+### Four things measured before anything was written
+
+| What | Measured |
+|---|---|
+| `close()` during a run | **6.01 s** for a six-second job, and the job was never asked to stop |
+| `shutdown(wait=False)` instead | Returned in **0.00 s**; the process still took the full **5.06 s** to exit |
+| Building a dataset | **627–651 ms per scan** — 6.51 s for ten 512×512 scans, 25.10 s for forty |
+| `is_busy` | Gates **ten** actions, Undo and every export among them |
+
+The first two are one defect and its obvious non-fix. `Nanoscope.close()` waits for running jobs,
+and `concurrent.futures` joins its threads at interpreter exit anyway — so `wait=False` moves the
+hang from `close()` to exit and buys nothing. Today the longest job is an import of a folder; **this
+task makes the longest job six hours**, with the window already gone. So `closeEvent` asks, and
+closing cancels at the next epoch boundary, and the question says that is what it costs.
+
+### The hole between the two gates, which was not a test artefact
+
+`is_busy` means *one short job owns the project's connection* and gates ten actions. A run is hours,
+and an application an operator cannot annotate or undo in for that long is a training appliance
+rather than a feature — so `is_training` is a second question, and only the three project-lifecycle
+actions read both. The repository's own lock already serialises a worker's writes against the main
+thread's, which is what `_serialised` was written for.
+
+Then the tests found the seam between them. `start_training` **deliberately does not write the
+snapshot `start` returns** (ADR-0084 §4: a calling-thread write racing the worker's first callback
+loses a `succeeded` row to a `pending` one), so nothing knew a run existed until its **first epoch
+callback** — milliseconds for the fake, *minutes* for a real trainer. In that window `is_training`
+said no, Stop was disabled, and **Close Project was enabled**, which closes the SQLite connection the
+run is writing through.
+
+Closed by adopting that snapshot as **local state only**, and only when nothing about the run has
+arrived yet — ADR-0084 §4's own rule applied to memory instead of the database. It took a test
+written against a fake with 20 ms epochs to see a defect whose real width is minutes.
+
+### The rest
+
+**M8-T02's debt paid where it was named.** `build_dataset` takes `progress: JobContext | None` — the
+parameter `import_images` already has, by that name, because two names for one seam is how a second
+thread policy starts. It **raises where an import breaks**: a stopped import is a project with fewer
+scans, which is a visible state; a stopped build is a training set quietly missing whatever came
+after the button, and nothing downstream could tell.
+
+**A block nothing measured is a hidden column, not one of blanks.** ADR-0082 made `validation` mean
+*a held-out set existed*, so a run with nothing held out has no precision to show — and a
+`precision` header over five empty cells is a question an operator spends the run wondering about,
+while a `0.000` there is a score nobody computed. The columns themselves come from `METRIC_BLOCKS`,
+so ADR-0080's predicted new block appears on screen the day it is added to `core`.
+
+**The window names no model.** `base_model` is required, and `gui/` is grepped for those words
+(PROJECT_RULES §2.5, D-19's lesson), so `starting_points` offers a fresh start plus this project's
+own detectors **by the ids their operator gave them** — a list of checkpoint filenames is one nobody
+can choose from.
+
+**M8-T04 §8, displayed.** A stored `running` run whose id no live provider knows reads as
+*interrupted*, with a tooltip saying nothing here can honestly claim it finished. Never *failed*:
+nobody observed a failure.
+
+**Stated, not hidden:** `max_workers` is 2, so with a run going the application has one worker
+instead of two. Not raised speculatively — ADR-0043 put the number there *to be set when there is
+something to measure*.
+
+### Next
+
+`M8-T06` — model management: import, register, activate, compare. The third exit criterion is its
+own (*a trained model is selectable for detection in M6 with no code change*), and this task is what
+makes there be models to manage.
+
+---
+
 ## 2026-09-03 — M8-T04: a run the project remembers, and the model it produced
 
 **Schema v9, three methods on the port, one use case, and the cancellation defect that planning

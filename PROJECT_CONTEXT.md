@@ -74,7 +74,8 @@ AFM-analysis/
 │   │                                   #   display.py (M5-T05), statistics.py (M6-T06),
 │   │                                   #   annotations.py: labels out and back (M7-T09),
 │   │                                   #   training.py (M8-T04): a run recorded and the model
-│   │                                   #   it produced registered (ADR-0084),
+│   │                                   #   it produced registered (ADR-0084), and what a run
+│   │                                   #   can start from (M8-T05),
 │   │                                   #   preprocessing.py gained
 │   │                                   #   preprocess_image + the named defaults (M6-T01)
 │   ├── infrastructure/                 # everything that touches a file, a GPU or a framework
@@ -109,7 +110,9 @@ AFM-analysis/
 │   │   ├── pixmaps.py                  # a uint8 RGB array as a QImage/QPixmap, copied
 │   │   ├── dialogs/                    # import_options.py (M5-T07), settings.py (M5-T09),
 │   │   │                               #   label_source.py: where labels came from (M7-T09),
-│   │   │                               #   choose_images.py: the file dialog with a preview pane
+│   │   │                               #   choose_images.py: the file dialog with a preview pane,
+│   │   │                               #   training.py (M8-T05): the one modeless one — configure
+│   │   │                               #   a run, watch its epochs, stop it (ADR-0085)
 │   │   └── panels/                     # project_explorer.py (M5-T04, thumbnails 2026-09-02),
 │   │                                   #   viewer.py (M5-T05),
 │   │                                   #   properties.py (M5-T06), job_status.py (M5-T07),
@@ -123,13 +126,13 @@ AFM-analysis/
 │   │                                   #   import_graph, project_format, database, jobs,
 │   │                                   #   commands, settings, device, log sinks,
 │   │                                   #   measurement docs vs schema (M7-T10),
-│   │                                   #   training entities (M8-T01) — 881 tests
+│   │                                   #   training entities (M8-T01) — 883 tests
 │   ├── integration/                    # a real project directory + database: lifecycle, results,
 │   │                                   #   annotations, undo, durability, settings, export
-│   │                                   #   (M4-T03…T15, M5-T01, M5-T09) — 196 tests, incl. the whole-layer
+│   │                                   #   (M4-T03…T15, M5-T01, M5-T09), incl. the whole-layer
 │   │                                   #   walkthrough, the entry point, and a training run that
-│   │                                   #   survives closing the project (M8-T04)
-│   ├── gui/                            # headless Qt tests (M5-T02…M7-T09) — 403 tests
+│   │                                   #   survives closing the project (M8-T04) — 202 tests
+│   ├── gui/                            # headless Qt tests (M5-T02…M8-T05) — 427 tests
 │   ├── contract/                       # the suite every TrainingProvider passes, plus the fake
 │   │                                   #   that satisfies it (M8-T01, ADR-0080) — M8-T03 adds
 │   │                                   #   one file with three fixtures and no new assertions;
@@ -786,6 +789,8 @@ Also enforced, and each proven to fail on a real violation:
 | Every `TrainingProvider` behaves the same, and a run that claims weights has them | `tests/contract/training_provider.py` |
 | Every run reaches a terminal state, including the one cancelled before it began | `tests/contract/training_provider.py`, `tests/unit/test_training_cancellation.py` |
 | A finished run and its every epoch survive closing and reopening the project | `tests/integration/test_training_history.py` |
+| Annotations become a registered model from the window, and no model name is in `gui/` | `tests/gui/test_training_dialog.py`, `tests/gui/test_detection_panel.py` |
+| A project cannot be closed under a training run, and closing the window asks first | `tests/gui/test_training_dialog.py` |
 | Training and inference do not import each other (ADR-0006) | `tests/unit/test_import_graph.py` |
 | Invalid requests are rejected *before* a detector is constructed | `tests/unit/test_capabilities.py` |
 

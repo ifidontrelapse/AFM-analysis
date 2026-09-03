@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from nanoscope.core.entities.model import ModelDescriptor, ModelFramework, ModelTask
 from nanoscope.core.entities.training import (
@@ -35,6 +36,70 @@ from nanoscope.core.errors import InvalidParameterError
 from nanoscope.core.ports import ProjectRepository, TrainingProvider
 
 logger = logging.getLogger(__name__)
+
+#: What a run starts from when the project has nothing of its own to fine-tune.
+#: The framework's own small detector, downloaded on first use.
+#:
+#: **It is named here and it may not be named one layer up.** `gui/` is grepped
+#: for these words by `TestNoDetectorNameLivesInTheGui` — PROJECT_RULES §2.5, and
+#: D-19 is what the other outcome looks like — so a window that offered *"start
+#: from yolo11n"* would be the deleted React client's copied matrix, one
+#: milestone later. `application` is where `capabilities.py` already keeps
+#: detector names, and `TrainingConfig.base_model` is *"passed through, never
+#: interpreted"*, so this is a string on its way to a provider rather than a
+#: decision this layer is making about a framework.
+FROM_SCRATCH = "yolo11n.pt"
+
+
+@dataclass(frozen=True)
+class StartingPoint:
+    """Weights a run can begin from, as something an operator can choose between.
+
+    Two kinds and one shape: the framework's own starter, and each model this
+    project has already registered — offered **by the id its operator gave it**
+    (ADR-0050: *an operator names their model*), because a combo box listing
+    checkpoint filenames is one nobody can choose from.
+    """
+
+    #: What to show. Never a filename for a registered model.
+    label: str
+    #: What goes into `TrainingConfig.base_model`.
+    base_model: str
+    #: The provenance of the model this fine-tunes, or "" for a fresh start.
+    #: Shown as the explanation of what an entry actually is.
+    detail: str = ""
+
+
+def starting_points(repository: ProjectRepository) -> tuple[StartingPoint, ...]:
+    """What this project can start a run from: a fresh model, then its own.
+
+    Fresh first, because it is the answer for a project that has never trained
+    and the one that cannot be wrong. Fine-tuning comes after it, newest
+    registration first — the model an operator just made is the one they are
+    most likely to want to improve.
+
+    Only `DETECT` models: a segmentation model is imported rather than trained
+    here (M8-T06), and starting a detector from one is a run that fails four
+    seconds in with a framework's error message instead of this layer's sentence.
+    """
+    fresh = StartingPoint(
+        label="A fresh model",
+        base_model=FROM_SCRATCH,
+        detail="starts from the framework's own weights; downloaded once, on first use",
+    )
+    trained = [
+        StartingPoint(
+            label=f"Fine-tune {model.model_id}",
+            base_model=model.path,
+            detail=model.provenance or "registered in this project",
+        )
+        for model in sorted(
+            (m for m in repository.list_models() if m.task is ModelTask.DETECT),
+            key=lambda m: m.registered_utc,
+            reverse=True,
+        )
+    ]
+    return (fresh, *trained)
 
 
 def start_training(

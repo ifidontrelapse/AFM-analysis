@@ -68,6 +68,7 @@ from nanoscope.core.entities.project import (
     ImportReport,
     OpenedProject,
 )
+from nanoscope.core.entities.training import TrainingConfig, TrainingRun, TrainingStatus
 from nanoscope.core.errors import NanoscopeError
 from nanoscope.core.values import Modality
 
@@ -150,6 +151,19 @@ class SessionViewModel(QObject):
     #: filtering by name is work nobody has asked for (M5-T09).
     settings_changed = Signal()
 
+    #: A training run published a snapshot — `TrainingRun`, frozen and complete
+    #: (ADR-0080 §3). **Emitted from the provider's thread and delivered on this
+    #: one**, which is the whole of the marshalling and the reason this class is
+    #: a `QObject` (ADR-0058 §1): the port promises its listener runs on the
+    #: worker, and a widget touched from there is a crash that happens later,
+    #: somewhere else.
+    #:
+    #: Separate from `job_changed` because a run is not a `Job` — ADR-0080 §2
+    #: refused that identity and duplicated five state names to keep it, and a
+    #: snapshot carries what a handle cannot: the epochs, the device, the
+    #: weights (M8-T05).
+    training_changed = Signal(object)
+
     def __init__(self, app: Nanoscope, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._app = app
@@ -175,9 +189,14 @@ class SessionViewModel(QObject):
         #: Without this, an import refreshes the project and reports its outcome
         #: once per progress report it ever made.
         self._settled: Job | None = None
+        #: The live run, as of its last snapshot. `None` before the first one
+        #: and after a project closes — never *stale*, because every snapshot
+        #: replaces it whole.
+        self._training: TrainingRun | None = None
         #: Its own listener, on the main thread: the queued signal above is
         #: what makes reading the repository here safe.
         self.job_changed.connect(self._job_changed)
+        self.training_changed.connect(self._training_changed)
 
     # ── What is true right now ────────────────────────────────────────────────
 
@@ -1052,6 +1071,187 @@ class SessionViewModel(QObject):
         self._stage = Stage.RAW
         self.preview_changed.emit(None)
 
+    # ── Training a model from what was drawn (M8-T05) ─────────────────────────
+
+    def starting_points(self) -> tuple[use_cases.StartingPoint, ...]:
+        """What a run can begin from: a fresh model, then this project's own.
+
+        Asked of the application rather than assembled here — a window that
+        listed checkpoint names would be PROJECT_RULES §2.5's violation and
+        D-19's defect one milestone later (`TestNoDetectorNameLivesInTheGui`
+        greps this package for them).
+        """
+        repository = self._app.repository
+        return () if repository is None else use_cases.starting_points(repository)
+
+    @property
+    def training(self) -> TrainingRun | None:
+        """The live run, as of its last snapshot, or `None`.
+
+        The **live** one. What this project has recorded is a different question
+        with a different answer after a restart, and `training_runs` is where it
+        is asked (ADR-0084 §1).
+        """
+        return self._training
+
+    @property
+    def is_training(self) -> bool:
+        """Whether a run this window started is still going.
+
+        **A second question from `is_busy`, deliberately.** `is_busy` means *one
+        short job owns the project's connection*, and it gates ten actions
+        including Undo and every export. A run is hours, and an application an
+        operator cannot annotate or undo in for that long is not a training
+        feature, it is a training appliance — so this gates only what would pull
+        the project out from under the trainer (M8-T05, and `_serialised` is why
+        the rest is safe: one lock, and writes from two threads are already
+        serialised).
+        """
+        return self._training is not None and not self._training.is_finished
+
+    def train(
+        self,
+        config: TrainingConfig,
+        *,
+        model_id: str,
+        hand_drawn_only: bool,
+        val_fraction: float,
+        seed: int = 0,
+    ) -> Job | None:
+        """Build a dataset from the annotations and train a model from it.
+
+        **One button, one job, two lifetimes.** The job is the *build* — 627 ms
+        per scan, measured, which is 25 s for forty and a window that stops
+        repainting if it happens where the button is (M8-T02 named this debt and
+        left it for its caller). It ends when training *starts*; the run then
+        outlives it, reports through `training_changed`, and is recorded in the
+        project by `start_training` (ADR-0084 §4).
+
+        Args:
+            config: what to train and for how long. Built by the caller because
+                `base_model` is a name this layer may not write.
+            model_id: what the produced model is called in this project. An
+                operator names their model (ADR-0050).
+            hand_drawn_only: exclude boxes adopted from a detector. **Named by
+                the caller, never defaulted** — ADR-0044's rule and M7-T09's
+                reading of it: *a model trained on its own output is confirming
+                itself*, and a default that quietly includes them is how a
+                training set stops being able to tell.
+            val_fraction: how much to hold out, by image. `0.0` is legal and
+                means every epoch reports no validation block (ADR-0082).
+            seed: which shuffle. Recorded in `data.yaml`, because two runs that
+                split differently cannot be compared.
+
+        Returns:
+            The build job, or `None` when there is no project, something is
+            already running, or a run is already going.
+        """
+        repository = self._app.repository
+        provider = self._app.training
+        if repository is None or provider is None or self.is_busy or self.is_training:
+            return None
+
+        sources = (AnnotationSource.MANUAL,) if hand_drawn_only else None
+
+        def work(context: JobContext) -> TrainingRun:
+            report = use_cases.build_dataset(
+                repository,
+                sources=sources,
+                val_fraction=val_fraction,
+                seed=seed,
+                progress=context,
+            )
+            for name, why in report.skipped:
+                #: Counted and carried on by the builder; said out loud here,
+                #: because "18 of 20 scans" is a number an operator has to see
+                #: before they read the model's score (ADR-0040's obligation).
+                logger.warning("not in the dataset: %s (%s)", name, why)
+            context.report(0, config.epochs, "starting the run")
+            return use_cases.start_training(
+                repository,
+                provider,
+                report.spec,
+                config,
+                model_id=model_id,
+                #: **The provider's thread**, marshalled by the queued signal —
+                #: which is what this class is a `QObject` for (ADR-0058 §1).
+                listener=self.training_changed.emit,
+            )
+
+        self._job = self._app.jobs.submit(
+            "Building the training dataset", work, self.job_changed.emit
+        )
+        return self._job
+
+    def cancel_training(self) -> None:
+        """Ask the run to stop. **Ask** — at an epoch boundary (ADR-0043 §3).
+
+        What was trained is kept: the provider sets a flag rather than raising,
+        because raising out of a framework callback abandons the checkpoint a
+        cancelled run is promised (ADR-0082). Safe to press twice, and safe when
+        nothing is running — the port says `cancel` never raises.
+        """
+        run, provider = self._training, self._app.training
+        if run is not None and provider is not None:
+            provider.cancel(run.run_id)
+
+    def training_runs(self) -> list[TrainingRun]:
+        """Every run this **project** recorded, newest first.
+
+        Not the provider's: its ids die with the process, and the whole of
+        ADR-0084 is that the project is the memory. A `RUNNING` row here that no
+        live provider knows is a run interrupted by a crash — shown as that, and
+        never as `failed`, because nobody observed a failure (ADR-0084 §8).
+        """
+        repository = self._app.repository
+        if repository is None:
+            return []
+        return list(reversed(repository.list_training_runs()))
+
+    def is_live(self, run: TrainingRun) -> bool:
+        """Whether a stored run is one this process is actually running.
+
+        The question M8-T04 §8 left for this task. A stored `RUNNING` row is
+        either a run going on right now or the record of a process that died
+        mid-epoch, and only the provider can tell them apart.
+        """
+        provider = self._app.training
+        if provider is None or run.is_finished:
+            return False
+        try:
+            return not provider.status(run.run_id).is_finished
+        except NanoscopeError:
+            #: The id belongs to a process that is gone. `status` refusing is
+            #: the answer, not an error to show (ADR-0084 §1).
+            return False
+
+    def _training_changed(self, run: TrainingRun) -> None:
+        """On the **main** thread, because the signal above is queued.
+
+        Which is what makes this safe: it reads the repository, and a repository
+        read from two threads at once is what ADR-0043 §7 had to fix once.
+        """
+        self._training = run
+        if not run.is_finished:
+            return
+
+        logger.info("training run %s %s after %d epoch(s)", run.run_id, run.status, run.epochs_done)
+        if run.status is TrainingStatus.FAILED:
+            self.failed.emit(run.error or "the training run failed and said nothing")
+            return
+        if run.status is TrainingStatus.SUCCEEDED:
+            #: The model is already registered — `start_training` does it inside
+            #: the same callback, before this one runs (ADR-0084 §5) — so a
+            #: panel reacting to this finds it in `list_models()`.
+            self.reported.emit(
+                f"Trained {run.epochs_done} epoch(s); the model is registered "
+                f"and the weights are at {run.weights_path}"
+            )
+            return
+        self.reported.emit(
+            f"Training stopped after {run.epochs_done} epoch(s); nothing was registered"
+        )
+
     # ── Preferences, for the panels that may not reach the container ──────────
 
     def preference(self, key: str, default: object = None) -> object:
@@ -1165,6 +1365,10 @@ class SessionViewModel(QObject):
 
     def close_project(self) -> None:
         self._app.close_project()
+        #: The run went with the provider the container just dropped. Its
+        #: record is in the project's database and comes back when that project
+        #: does; what cannot survive is a *live* handle to it (ADR-0084 §1).
+        self._training = None
         self._set_project(None)
         self.history_changed.emit()
 
@@ -1297,6 +1501,24 @@ class SessionViewModel(QObject):
         if not job.is_finished or job is not self._job or job is self._settled:
             return
         self._settled = job
+
+        if job.state is JobState.SUCCEEDED and isinstance(job.result, TrainingRun):
+            #: The snapshot `start` returned, adopted as **local state only** —
+            #: ADR-0084 §4 refuses to *write* it, because a calling-thread write
+            #: racing the worker's first callback loses a `succeeded` row to a
+            #: `pending` one. The same rule applies to memory, so it is adopted
+            #: only when nothing about this run has arrived yet:
+            #:
+            #: Without it there is a hole between *the run started* and *the
+            #: first epoch reported* — minutes, for a real trainer — in which
+            #: `is_training` says no, Stop is disabled and **Close Project is
+            #: enabled**, which closes the SQLite connection the run is writing
+            #: through. The two gates meet here: the build is `is_busy`, the run
+            #: is `is_training`, and this is the handoff (M8-T05).
+            if self._training is None or self._training.run_id != job.result.run_id:
+                self._training = job.result
+                self.training_changed.emit(job.result)
+            return
 
         if job.state is JobState.SUCCEEDED and isinstance(job.result, use_cases.AnnotationExport):
             logger.info("%s finished: %s", job.name, job.result.directory)

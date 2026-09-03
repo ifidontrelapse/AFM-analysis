@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from nanoscope.app.container import Nanoscope
+from nanoscope.application.jobs import Job, JobCancelled, JobContext
 from nanoscope.application.use_cases import build_dataset
 from nanoscope.application.use_cases.dataset import DATASET_FILE, IMAGES_DIRECTORY, TRAIN, VAL
 from nanoscope.core.entities.project import AnnotationSource
@@ -353,3 +354,45 @@ def test_a_provider_accepts_what_the_builder_produced(app: Nanoscope, project: P
     assert run.dataset.root == spec.root
     assert not run.is_finished
     provider.cancel(run.run_id)
+
+
+class TestBuildingIsAJob:
+    """M8-T02 named this debt in its own docstring and left it for M8-T05.
+
+    **Measured, which is why it is a job at all:** preparing a scan costs 627 ms
+    — 6.51 s for ten 512x512 scans, 25.10 s for forty — so a build on the thread
+    that draws is a window that stops repainting for half a minute.
+    """
+
+    def test_it_reports_one_step_per_scan(self, app: Nanoscope) -> None:
+        job = Job("building")
+        seen: list[tuple[int, int, str]] = []
+        job._listener = lambda one: seen.append(
+            (one.progress.done, one.progress.total, one.progress.message)
+        )
+
+        build_dataset(repo_of(app), progress=JobContext(job))
+
+        counted = [(done, total) for done, total, _message in seen]
+        assert (0, SCANS) in counted
+        assert (SCANS - 1, SCANS) in counted
+        #: Named, not numbered: "preparing tuesday.spm" is what an operator
+        #: reads while a bar moves, and a bar with no name is a bar.
+        assert any("preparing" in message for _done, _total, message in seen)
+
+    def test_a_cancelled_build_produces_nothing(self, app: Nanoscope) -> None:
+        """**Raises where `import_images` breaks**, and the difference is what a
+        partial result means. A stopped import is a project with fewer scans in
+        it. A stopped build is a training set quietly missing whatever came
+        after the button, and nothing downstream could tell.
+        """
+        job = Job("building")
+        job.cancel()
+
+        with pytest.raises(JobCancelled):
+            build_dataset(repo_of(app), progress=JobContext(job))
+
+    def test_without_a_job_it_still_builds(self, app: Nanoscope) -> None:
+        """`None` is a caller that is not a job — every test here, and the
+        headless entry point."""
+        assert build_dataset(repo_of(app), progress=None).spec.train_images

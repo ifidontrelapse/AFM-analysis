@@ -28,7 +28,13 @@ from PySide6.QtWidgets import QDockWidget, QFileDialog, QLabel, QMainWindow, QMe
 
 from nanoscope.app.logging import attach_view_log, detach_view_log
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.gui.dialogs import ImageChooser, ImportOptions, LabelSource, SettingsDialog
+from nanoscope.gui.dialogs import (
+    ImageChooser,
+    ImportOptions,
+    LabelSource,
+    SettingsDialog,
+    TrainingDialog,
+)
 from nanoscope.gui.panels import (
     AnnotatePanel,
     DetectionPanel,
@@ -94,6 +100,10 @@ class MainWindow(QMainWindow):
         #: second layer signal was added beside the first. A third would have
         #: been the same mistake again (M7-T08, ADR-0077).
         self.session.history_changed.connect(self._update_actions)
+        #: A run starting and a run ending change what may be pressed, and
+        #: neither is a `Job` this window would otherwise hear about — ADR-0080
+        #: §2 kept the two apart on purpose (M8-T05).
+        self.session.training_changed.connect(self._training_changed)
 
         #: The log reaches the screen through one handler, attached by `app/`
         #: because that is the only layer allowed to attach one (ADR-0051), and
@@ -128,6 +138,11 @@ class MainWindow(QMainWindow):
         #: the launcher, which maximises when it did not (`gui/launcher.py`).
         self.restored_geometry = False
         self._restore_layout()
+
+        #: Kept rather than made per press: it is modeless, so a second press
+        #: while a run is going must raise the window that is watching it and
+        #: not open a second one beside it (M8-T05).
+        self.training_dialog: TrainingDialog | None = None
 
     # ── Building ──────────────────────────────────────────────────────────────
 
@@ -320,6 +335,13 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.undo_action)
         edit_menu.addAction(self.redo_action)
 
+        self.train_action = QAction("Train a &Model…", self)
+        self.train_action.setToolTip(
+            "Build a dataset from this project's annotations and train on it."
+        )
+        self.train_action.triggered.connect(self.open_training)
+        self.train_action.setEnabled(False)
+
         self.settings_action = QAction("Se&ttings…", self)
         self.settings_action.triggered.connect(self.edit_settings)
 
@@ -341,6 +363,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.export_hand_drawn_action)
         file_menu.addAction(self.export_annotations_action)
         file_menu.addAction(self.import_annotations_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.train_action)
         file_menu.addSeparator()
         file_menu.addAction(self.settings_action)
         file_menu.addAction(quit_action)
@@ -408,6 +432,20 @@ class MainWindow(QMainWindow):
             modality=choice.modality,
             pixel_size_nm=choice.pixel_size_nm,
         )
+
+    def open_training(self) -> None:
+        """Show the training window, or raise the one already open (M8-T05).
+
+        `show()` and not `exec()`: it is the one modeless dialog in this
+        application, because M5's third exit criterion says a long job is
+        watched *without freezing the UI*, and a modal window over six hours of
+        training is that freeze with a progress bar on it.
+        """
+        if self.training_dialog is None:
+            self.training_dialog = TrainingDialog(self.session, self)
+        self.training_dialog.show()
+        self.training_dialog.raise_()
+        self.training_dialog.activateWindow()
 
     def edit_settings(self) -> None:
         """Open the preferences. The dialog stores and applies; this opens it."""
@@ -483,6 +521,9 @@ class MainWindow(QMainWindow):
     def _run_changed(self, _run: object) -> None:
         self._update_actions()
 
+    def _training_changed(self, _run: object) -> None:
+        self._update_actions()
+
     def _update_actions(self) -> None:
         """One place decides what can be pressed, because three signals change it.
 
@@ -497,9 +538,16 @@ class MainWindow(QMainWindow):
         """
         busy = self.session.is_busy
         has_project = self.session.project is not None
-        self.new_action.setEnabled(not busy)
-        self.open_action.setEnabled(not busy)
-        self.close_action.setEnabled(not busy and has_project)
+        #: **Two questions, not one.** `is_busy` is one short job owning the
+        #: project's connection; `is_training` is a run that lasts hours. Only
+        #: the three that would pull the project out from under the trainer read
+        #: both — an operator can annotate, undo and export while a model
+        #: trains, because the repository's own lock already serialises the two
+        #: writers (M8-T05, and `_serialised` says so).
+        occupied = busy or self.session.is_training
+        self.new_action.setEnabled(not occupied)
+        self.open_action.setEnabled(not occupied)
+        self.close_action.setEnabled(not occupied and has_project)
         self.import_action.setEnabled(not busy and has_project)
         self.remove_action.setEnabled(not busy and self.session.image_id is not None)
         self.export_run_action.setEnabled(not busy and self.session.run is not None)
@@ -507,6 +555,9 @@ class MainWindow(QMainWindow):
         self.export_hand_drawn_action.setEnabled(not busy and has_project)
         self.export_annotations_action.setEnabled(not busy and has_project)
         self.import_annotations_action.setEnabled(not busy and has_project)
+        #: Opening the window is not starting a run, so this stays available
+        #: while one is going — it is where the Stop button lives.
+        self.train_action.setEnabled(has_project)
 
         #: Labelled by *what they would take back*: "Undo" alone makes an
         #: operator press it to find out (M4-T08 wrote the labels for this).
@@ -663,9 +714,42 @@ class MainWindow(QMainWindow):
         self._app.settings.set(STATE_SETTING, _encode(self.saveState()))
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 — Qt's name
+        """Ask before walking away from a run, then close.
+
+        **Measured, and this is why it asks.** `Nanoscope.close()` calls
+        `jobs.shutdown(wait=True)`, so a six-second job made `close()` take
+        6.01 s and was never asked to stop — with a training run that is hours
+        of a process with no window, no progress and no cancel button. And
+        `wait=False` fixes nothing: it returned in 0.00 s and the process still
+        took the full 5.06 s to exit, because `concurrent.futures` joins its
+        threads at interpreter exit.
+
+        So the honest thing is to ask, and to cancel on the way out — which
+        lands at the next epoch boundary, which is all ADR-0043 ever promised.
+        """
+        if self.session.is_training and not self._confirm_abandoning_the_run():
+            event.ignore()
+            return
+        #: Asked, not awaited. What was trained by the boundary is kept, and
+        #: nothing is registered — a cancelled run has no weights to register
+        #: (ADR-0084 §5).
+        self.session.cancel_training()
         self.save_layout()
         detach_view_log()
         super().closeEvent(event)
+
+    def _confirm_abandoning_the_run(self) -> bool:
+        """Whether to close anyway. The question, and what it costs to say yes."""
+        answer = QMessageBox.question(
+            self,
+            "A model is still training",
+            "Closing stops the run at its next epoch boundary, so the window may "
+            "stay a little longer.\n\nWhat was trained by then is kept on disk and "
+            "recorded in the project, but no model is registered.\n\nClose anyway?",
+            QMessageBox.StandardButton.Close | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return answer == QMessageBox.StandardButton.Close
 
 
 def _summarise(opened: OpenedProject) -> str:

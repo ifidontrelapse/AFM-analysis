@@ -27,11 +27,12 @@ from nanoscope.application.settings import DEVICE_SETTING, Settings
 from nanoscope.application.use_cases import open_project
 from nanoscope.core.entities.model import ModelTask
 from nanoscope.core.entities.project import OpenedProject
-from nanoscope.core.ports import ProjectRepository
+from nanoscope.core.ports import ProjectRepository, TrainingProvider
 from nanoscope.core.values import DeviceKind
 from nanoscope.infrastructure.device import DeviceManager
 from nanoscope.infrastructure.models.registry import resolve
 from nanoscope.infrastructure.storage import JsonSettings, SqliteProjectRepository
+from nanoscope.infrastructure.training import LocalTrainingProvider
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,10 @@ class Nanoscope:
         #: Built on demand and kept: loading weights is seconds of disk and GPU,
         #: and a second run must not pay it again (M6-T04).
         self._predictor: object | None = None
+        #: Made when a project opens, because every path a run reports is
+        #: relative to that project's root (M8-T03). Typed as the port for the
+        #: reason `repository` is: the GUI may not import `infrastructure`.
+        self.training: TrainingProvider | None = None
 
     # ── The open project ──────────────────────────────────────────────────────
 
@@ -87,6 +92,11 @@ class Nanoscope:
         self.close_project()
 
         self.repository = SqliteProjectRepository.open(project_dir)
+        #: ADR-0041's seventh application, and the sentence four tasks ended on:
+        #: *the caller arrives with M8-T05.* One line, and it is the last one —
+        #: M8-T01 wrote the port, M8-T02 the dataset, M8-T03 this adapter and
+        #: M8-T04 the record, none of them reachable from the window until now.
+        self.training = LocalTrainingProvider(self.repository.root, self.jobs, self.devices)
         attach_project_log(self.repository.root)
         opened = open_project(self.repository)
 
@@ -144,6 +154,10 @@ class Nanoscope:
         detach_project_log()
         self.repository.close()
         self.repository = None
+        #: A provider whose runs are keyed to a project that is closed knows
+        #: nothing this application can use; the runs themselves are in that
+        #: project's database (ADR-0084), which is the half that survives.
+        self.training = None
         #: A predictor belongs to the project whose model produced it.
         self._predictor = None
         #: The history goes with the project: undo is a session, and a stack

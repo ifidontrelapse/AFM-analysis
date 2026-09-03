@@ -277,8 +277,8 @@ metrics; training UI with live metrics and cancellation; model management UI (im
 register, activate, compare); `RemoteTrainingProvider` protocol and client.
 
 **Exit criteria**
-- [ ] Annotations → dataset → trained weights → registered `ModelDescriptor`, without leaving the app
-- [ ] Training runs as a cancellable job; metrics stream to the UI and persist
+- [x] Annotations → dataset → trained weights → registered `ModelDescriptor`, without leaving the app — **M8-T05**, and `tests/gui/test_training_dialog.py` presses the button
+- [x] Training runs as a cancellable job; metrics stream to the UI and persist — **M8-T03** stops at an epoch boundary, **M8-T04** stores every epoch, **M8-T05** shows them and asks before closing on one
 - [ ] A trained model is selectable for detection in M6 with no code change
 - [ ] `RemoteTrainingProvider` satisfies the same port and is covered by contract tests
 

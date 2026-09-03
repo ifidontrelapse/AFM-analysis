@@ -28,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
+from nanoscope.application.jobs import JobContext
 from nanoscope.application.use_cases.annotations import LABELS_DIRECTORY, _to_label
 from nanoscope.application.use_cases.display import load_for_display
 from nanoscope.application.use_cases.preprocessing import preprocess_image
@@ -82,6 +83,7 @@ def build_dataset(
     val_fraction: float = DEFAULT_VAL_FRACTION,
     seed: int = 0,
     directory_name: str | None = None,
+    progress: JobContext | None = None,
 ) -> DatasetReport:
     """Turn the project's annotations into a dataset directory under `cache/`.
 
@@ -102,11 +104,26 @@ def build_dataset(
         directory_name: what to call it under `cache/`. Defaults to a timestamped
             name, so building twice does not overwrite the dataset a run is
             still training from.
+        progress: the job this is running inside, reported to once per scan and
+            checked for cancellation between them (M8-T05). The debt M8-T02
+            named when it wrote this function: **preparing a scan costs 627 ms**
+            — measured over forty 512x512 scans, 25.1 s for the batch — so on a
+            main thread this is a window that stops repainting. `None` is a
+            caller that is not a job, which is every test and the headless
+            entry point.
+
+            `JobContext`, and the parameter is called `progress`, because that
+            is what `import_images` already takes and calls it: two names for
+            one seam is how a second thread policy starts.
 
     Returns:
         The spec a `TrainingProvider` takes, and what was written.
 
     Raises:
+        JobCancelled: `progress` reported a cancellation between two scans. No
+            spec is returned and nothing is registered; the half-written
+            directory is under `cache/`, which is deletable by definition
+            (PROJECT_RULES §5, ADR-0081's reason for putting it there).
         AnalysisFailedError: no annotation of those kinds exists, or none of the
             scans carrying them could be prepared. An empty dataset is
             indistinguishable from *"nothing was drawn"*, which is a different
@@ -138,7 +155,18 @@ def build_dataset(
     boxes = 0
     skipped: list[tuple[str, str]] = []
 
-    for record, kept in per_image:
+    for index, (record, kept) in enumerate(per_image):
+        if progress is not None:
+            #: **Raises where `import_images` breaks**, and the difference is
+            #: what a partial result means. A stopped import is a project with
+            #: fewer scans in it, which is a state an operator can see and the
+            #: report describes. A stopped build is a training set quietly
+            #: missing the scans that came after the button, and nothing
+            #: downstream can tell — so a cancelled build produces no spec at
+            #: all, and the job ends `CANCELLED` rather than succeeding with
+            #: something smaller than was asked for.
+            progress.raise_if_cancelled()
+            progress.report(index, len(per_image), f"preparing {record.display_name}")
         try:
             picture = _picture_of(repository, record)
         except (AnalysisFailedError, InvalidParameterError, OSError) as refusal:
@@ -167,6 +195,9 @@ def build_dataset(
             "nothing to build: none of the annotated scans could be prepared — "
             + "; ".join(f"{name} ({why})" for name, why in skipped)
         )
+
+    if progress is not None:
+        progress.report(len(per_image), len(per_image), "writing the manifest")
 
     written = repository.write_cache_text(
         f"{root}/{DATASET_FILE}",

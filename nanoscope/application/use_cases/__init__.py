@@ -37,12 +37,18 @@ from nanoscope.application.use_cases.statistics import (
     numeric_columns,
     summarise,
 )
-from nanoscope.application.use_cases.training import descriptor_for, start_training
+from nanoscope.application.use_cases.training import (
+    StartingPoint,
+    descriptor_for,
+    start_training,
+    starting_points,
+)
 
 __all__ = [
     "AnnotationExport",
     "DatasetReport",
     "PreprocessingParams",
+    "StartingPoint",
     "Summary",
     "build_dataset",
     "descriptor_for",
@@ -61,5 +67,6 @@ __all__ = [
     "run_pipeline",
     "run_preprocessing",
     "start_training",
+    "starting_points",
     "summarise",
 ]

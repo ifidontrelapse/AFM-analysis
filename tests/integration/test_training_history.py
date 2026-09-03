@@ -20,9 +20,14 @@ from pathlib import Path
 
 import pytest
 
-from nanoscope.application.use_cases.training import descriptor_for, start_training
+from nanoscope.application.use_cases.training import (
+    FROM_SCRATCH,
+    descriptor_for,
+    start_training,
+    starting_points,
+)
 from nanoscope.core.entities.device import Device
-from nanoscope.core.entities.model import ModelFramework, ModelTask
+from nanoscope.core.entities.model import ModelDescriptor, ModelFramework, ModelTask
 from nanoscope.core.entities.training import (
     DatasetSpec,
     EpochMetrics,
@@ -341,3 +346,59 @@ class TestWhatARunSaysAboutItsModel:
         assert "8 training image(s)" in provenance
         assert "2 held out" in provenance
         assert "CPU" in provenance
+
+
+class TestWhatARunCanStartFrom:
+    """The window may not name a model, so the application offers the choices.
+
+    PROJECT_RULES §2.5 is checked rather than reviewed — `gui/` is grepped for
+    those words — and `TrainingConfig.base_model` is required, so without this
+    the window would have nothing to put in it (M8-T05).
+    """
+
+    def test_a_project_with_no_models_can_still_start(self, repo: SqliteProjectRepository) -> None:
+        points = starting_points(repo)
+
+        assert [one.base_model for one in points] == [FROM_SCRATCH]
+        assert points[0].detail
+
+    def test_its_own_models_are_offered_by_the_name_their_operator_gave(
+        self, repo: SqliteProjectRepository
+    ) -> None:
+        """ADR-0050: *an operator names their model.* A list of checkpoint
+        filenames is one nobody can choose from."""
+        repo.register_model(
+            ModelDescriptor(
+                model_id="particles-v13",
+                task=ModelTask.DETECT,
+                framework=ModelFramework.ULTRALYTICS,
+                path="models/first/weights/best.pt",
+                provenance="trained on Tuesday",
+            )
+        )
+
+        points = starting_points(repo)
+
+        assert [one.base_model for one in points] == [
+            FROM_SCRATCH,
+            "models/first/weights/best.pt",
+        ]
+        assert "particles-v13" in points[1].label
+        assert points[1].detail == "trained on Tuesday"
+
+    def test_a_segmentation_model_is_not_something_to_fine_tune(
+        self, repo: SqliteProjectRepository
+    ) -> None:
+        """It is imported rather than trained here (M8-T06), and starting a
+        detector from one is a run that fails four seconds in with a
+        framework's error message instead of this layer's sentence."""
+        repo.register_model(
+            ModelDescriptor(
+                model_id="sam",
+                task=ModelTask.SEGMENT,
+                framework=ModelFramework.SAM2,
+                path="models/sam.pt",
+            )
+        )
+
+        assert [one.base_model for one in starting_points(repo)] == [FROM_SCRATCH]

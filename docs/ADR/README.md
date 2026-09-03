@@ -92,6 +92,7 @@ Use `TEMPLATE.md` for new records.
 | [0082](ADR-0082-a-validation-block-means-a-held-out-set-existed.md) | A validation block means a held-out set existed, not that a validation pass ran | Accepted | 2026-08-30 |
 | [0083](ADR-0083-the-scale-a-file-states-is-the-scale-the-project-records.md) | The scale a file states is the scale the project records | Accepted | 2026-09-02 |
 | [0084](ADR-0084-a-run-is-remembered-by-the-project-not-by-the-provider.md) | A training run is remembered by the project, not by the provider | Accepted | 2026-09-03 |
+| [0085](ADR-0085-the-window-that-starts-a-run-is-not-the-one-that-waits-for-it.md) | The window that starts a run is not the one that waits for it | Accepted | 2026-09-03 |
 
 ## When to write one
 

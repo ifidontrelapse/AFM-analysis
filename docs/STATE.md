@@ -1,7 +1,7 @@
 # STATE
 
 **Last updated:** 2026-09-03 · **Branch:** `feat/m8-training` (three usability fixes from 2026-08-30
-and five commits from 2026-09-02 folded in) · **Base commit:** `f52b9d4`
+and five commits from 2026-09-02 folded in) · **Base commit:** `9fcbf21`
 
 > This file is mandatory and must be updated at the end of **every** development session.
 > Read it first when a session starts.
@@ -86,8 +86,38 @@ criteria met; the fifth has two known exceptions filed as **B-054**. Milestone s
 
 ## Current task
 
-**`M8-T01`…`M8-T04` are done (ADR-0080…ADR-0082, ADR-0084). `M8-T05` — the training UI — is
-next, and it is the first caller of everything the four built.**
+**`M8-T01`…`M8-T05` are done (ADR-0080…ADR-0082, ADR-0084, ADR-0085). `M8-T06` — model
+management — is next. Two of M8's four exit criteria are met.**
+
+**`M8-T05` done 2026-09-03 (ADR-0085) — the window that turns annotations into a model, and the
+caller four tasks were waiting for.** Each of them ended on *not wired into the composition root
+(ADR-0041); the caller arrives with M8-T05*, and it is one line in `Nanoscope.open`. What it buys is
+**M8's first exit criterion**: annotations → dataset → weights → a registered `ModelDescriptor`
+without leaving the application, asserted by a test that presses the button. **A window, not a tenth
+dock, and modeless** — `apply_default_layout` measured what a tenth panel costs (811 px against
+1 785), every dock on the right answers *what about this scan?*, and a modal window over a six-hour
+run is the frozen application M5's third exit criterion rules out in as many words. **Training is a
+different question from `is_busy`**, which gates ten actions including Undo: `is_training` gates only
+the three that would pull the project out from under the trainer, and the repository's own lock
+already makes the rest safe. **The handoff between those two gates was a real hole:**
+`start_training` deliberately does not write the snapshot `start` returns (ADR-0084 §4), so nothing
+knew a run existed until its **first epoch callback** — minutes, for a real trainer — and in that
+window Stop was disabled and **Close Project was enabled**, closing the connection the run writes
+through. Fixed by adopting that snapshot as *local state only*, and only when nothing newer has
+arrived. **M8-T02's debt paid where it was named:** `build_dataset` takes `progress`, the parameter
+`import_images` already has, because a scan costs **627 ms** to prepare and forty are 25.1 s — and it
+**raises where an import breaks**, since a stopped build is a training set quietly missing whatever
+came after the button. **A block nothing measured is a hidden column, not one of blanks** (ADR-0082's
+distinction, on screen), and the columns come from `METRIC_BLOCKS` so ADR-0080's predicted new block
+appears the day it is added to `core`. **The window names no model:** `starting_points` offers a
+fresh start plus this project's own detectors by their operator-given ids (ADR-0050), because
+`base_model` is required and `gui/` is grepped for those words. **M8-T04 §8 displayed:** a stored
+`running` run no live provider knows reads as *interrupted*, never as failed. **And the measured
+defect this task creates:** `Nanoscope.close()` waits for running jobs — 6.01 s for a six-second job,
+never asked to stop — and `wait=False` buys nothing (0.00 s to return, 5.06 s to exit, because
+`concurrent.futures` joins its threads at exit), so `closeEvent` **asks** and closing cancels at the
+next epoch boundary. Stated, not hidden: with a run going the application has one worker instead of
+two. 32 tests, **1576** in the suite.
 
 **`M8-T04` done 2026-09-03 (ADR-0084) — a run the project remembers, and the model it produced.**
 M8-T01 wrote the reason into the entity it defined (*"a `Job` dies with the process; a training run
