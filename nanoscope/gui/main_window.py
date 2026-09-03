@@ -70,11 +70,21 @@ PROJECT_DOCK = "Project"  # M5-T04
 PROPERTIES_DOCK = "Properties"  # M5-T06
 LOG_DOCK = "Log"  # M5-T08
 PREPROCESSING_DOCK = "Preprocessing"  # M6-T01
-DETECTION_DOCK = "Detection"  # M6-T02
+#: Both verbs, because the panel does both: the mode chosen at the top of it
+#: decides whether particles are counted or measured. The dock's
+#: `objectName` is unchanged, so a layout stored under the old title comes
+#: back where it was — Qt keys `restoreState` on that, not on the label.
+DETECTION_DOCK = "Detection Analysis"  # M6-T02
 MEASUREMENTS_DOCK = "Measurements"  # M6-T05
 STATISTICS_DOCK = "Statistics"  # M6-T06
 ANNOTATE_DOCK = "Annotate"  # M7-T02
 PROFILE_DOCK = "Profile"  # M7-T06
+
+#: How narrow the right-hand column may get, in pixels: what its tab bar asks
+#: for with every panel named, measured rather than guessed (465 px at the
+#: application's font) plus room for the frame. Re-measure it when a dock is
+#: renamed — the longest title is what this number is made of.
+RIGHT_DOCK_PX = 490
 
 
 class MainWindow(QMainWindow):
@@ -220,6 +230,14 @@ class MainWindow(QMainWindow):
         )
         self._bottom = (measurements_dock, profile_dock, self.log_dock)
         self._left = (project_dock,)
+        #: Wide enough for the five tab labels to stand in one row. Tabbing the
+        #: right-hand group is what makes the default layout fit (below), and
+        #: the cost is a tab bar that Qt elides into arrows when the column is
+        #: narrower than its labels — a panel an operator has to scroll to is a
+        #: panel they do not know is there. A floor rather than a size, so it
+        #: holds for a layout restored from `settings.json` too.
+        for dock in self._right:
+            dock.setMinimumWidth(RIGHT_DOCK_PX)
         self.apply_default_layout()
 
     def apply_default_layout(self) -> None:

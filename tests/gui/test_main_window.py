@@ -298,13 +298,17 @@ class TestTheLayoutIsRemembered:
         the screen come back untouched. A layout is a preference (ADR-0047)."""
         window = MainWindow(app)
         window.restored_geometry = True
-        window.resize(900, 900)
+        #: Its own minimum, not a number written here: the right-hand column has
+        #: a floor of its own (`RIGHT_DOCK_PX`), and a test that resized below it
+        #: would be asserting that Qt honours a size it is not allowed to take.
+        fits = window.minimumSizeHint().expandedTo(QSize(900, 900))
+        window.resize(fits)
         tabbed = window.minimumSizeHint()
 
         window._reject_a_layout_that_does_not_fit(QSize(2048, 1152))
 
         assert window.restored_geometry
-        assert (window.width(), window.height()) == (900, 900)
+        assert window.size() == fits
         assert window.minimumSizeHint() == tabbed
 
     def test_an_unreadable_geometry_is_not_a_restored_one(self, app: Nanoscope) -> None:

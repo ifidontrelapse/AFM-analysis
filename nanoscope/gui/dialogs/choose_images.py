@@ -49,6 +49,11 @@ PREVIEW_PX = 320
 #: operator resizes back every time.
 PANE_PX = 260
 
+#: How wide the dialog opens. Qt's default width is picked for a dialog with
+#: three columns, and this one has a fourth: at that width the pane takes its
+#: PANE_PX out of the file list, which is the column an operator is reading.
+WIDTH_PX = 1000
+
 #: Shown before anything is highlighted, and for a directory.
 NOTHING_SELECTED = "Select a file to preview it."
 
@@ -66,6 +71,7 @@ class ImageChooser(QFileDialog):
         super().__init__(parent, "Import Images")
         self.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         self.setFileMode(QFileDialog.FileMode.ExistingFiles)
+        self.resize(WIDTH_PX, self.height())
 
         self.picture = QLabel(self)
         self.picture.setAlignment(Qt.AlignmentFlag.AlignCenter)

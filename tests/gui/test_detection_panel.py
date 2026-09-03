@@ -87,6 +87,24 @@ def entries(combo: object) -> list[tuple[str, bool]]:
     ]
 
 
+def register(session: SessionViewModel) -> None:
+    """Give the project a model for the framework detector, so it is offered."""
+    repository = session._app.repository
+    assert repository is not None
+    weights = repository.root / "models" / "knobs.pt"
+    weights.parent.mkdir(exist_ok=True)
+    weights.write_bytes(b"not really weights")
+    repository.register_model(
+        ModelDescriptor(
+            model_id="knobs",
+            task=ModelTask.DETECT,
+            framework=ModelFramework.ULTRALYTICS,
+            path="models/knobs.pt",
+        )
+    )
+    session.settings_changed.emit()
+
+
 class TestTheOptionsAreTheMatrix:
     def test_the_rows_offered_are_the_rows_that_exist(self) -> None:
         for modality in ("afm", "sem", "tem"):
@@ -124,21 +142,22 @@ class TestTheOptionsAreTheMatrix:
         assert not panel.run.isEnabled()
 
 
-class TestAnUnavailableEntrySaysWhy:
-    def test_a_detector_with_no_registered_model_is_disabled_and_explains_itself(
+class TestWhatIsNotOfferedIsExplained:
+    def test_a_detector_with_no_registered_model_is_not_offered_and_the_panel_says_why(
         self, session: SessionViewModel
     ) -> None:
-        """ "You need to register a model" is a different sentence from "this
-        application cannot do that", so the entry is offered and disabled rather
-        than hidden (ADR-0050)."""
+        """ "You need to register a model" is still a different sentence from
+        "this application cannot do that" (ADR-0050) — it is now a sentence on
+        screen rather than a greyed row with a tooltip. What cannot run is not
+        on the list; what would put it there is written under the list."""
         panel = DetectionPanel(session)
         session.select_image(image_ids(session)[0])
 
-        disabled = [text for text, enabled in entries(panel.detector) if not enabled]
+        offered = [text for text, _ in entries(panel.detector)]
 
-        assert disabled, "one detector needs weights this fresh project has none of"
-        index = [text for text, _ in entries(panel.detector)].index(disabled[0])
-        assert "register" in panel.detector.itemData(index, 3)  # ToolTipRole
+        assert len(offered) < len(detector_options("afm")), "one needs weights this project lacks"
+        assert "is registered in this project" in panel.missing.text()
+        assert "File ▸ Models…" in panel.missing.text()
 
     def test_registering_a_model_makes_it_available(self, session: SessionViewModel) -> None:
         repository = session._app.repository
@@ -158,7 +177,45 @@ class TestAnUnavailableEntrySaysWhy:
 
         panel = DetectionPanel(session)
 
-        assert all(enabled for _text, enabled in entries(panel.detector))
+        assert len(entries(panel.detector)) == len(detector_options("afm"))
+        assert panel.missing.text() == "" or "is registered" not in panel.missing.text()
+
+    def test_registering_one_reaches_a_panel_that_is_already_open(
+        self, session: SessionViewModel
+    ) -> None:
+        """The operator's order, not the test's: the panel is open on a scan,
+        and the model is registered from the Models dialog while it is. Before
+        this, the options were built once per *image* — so the way to reach a
+        newly registered detector was to select a different scan and come back,
+        which nothing on screen said."""
+        session.select_image(image_ids(session)[0])
+        panel = DetectionPanel(session)
+        before = len(entries(panel.detector))
+
+        weights = session._app.repository.root / "models" / "late.pt"
+        weights.parent.mkdir(exist_ok=True)
+        weights.write_bytes(b"not really weights")
+        session.register_model(
+            weights, model_id="late", task=ModelTask.DETECT, framework=ModelFramework.ULTRALYTICS
+        )
+
+        assert len(entries(panel.detector)) == before + 1
+
+    def test_an_unrelated_preference_does_not_reset_the_choice(
+        self, session: SessionViewModel
+    ) -> None:
+        """Rebuilding on every settings change is what makes the test above
+        pass; keeping the selection is what stops it from being a worse bug —
+        a colormap chosen in Settings must not put the detector back."""
+        session.select_image(image_ids(session)[0])
+        panel = DetectionPanel(session)
+        last = panel.mode.count() - 1
+        panel.mode.setCurrentIndex(last)
+        chosen = panel.mode.currentText()
+
+        session.remember("viewer.colormap", "viridis")
+
+        assert panel.mode.currentText() == chosen
 
     def test_segmentation_is_refused_with_its_reason(self, session: SessionViewModel) -> None:
         """The matrix says the mode needs a predictor; a fresh project has no
@@ -167,11 +224,8 @@ class TestAnUnavailableEntrySaysWhy:
         panel = DetectionPanel(session)
         session.select_image(image_ids(session)[0])
 
-        texts = [text for text, enabled in entries(panel.mode) if not enabled]
-        index = [text for text, _ in entries(panel.mode)].index("segment")
-
-        assert "segment" in texts
-        assert "registered" in panel.mode.itemData(index, 3)
+        assert "segment" not in [text for text, _ in entries(panel.mode)]
+        assert "segmentation needs a model" in panel.missing.text().lower()
 
     def test_the_panel_opens_on_something_that_can_run(self, session: SessionViewModel) -> None:
         """A combo opening on a disabled entry is a combo whose Run button is
@@ -181,6 +235,73 @@ class TestAnUnavailableEntrySaysWhy:
 
         assert panel.run.isEnabled()
         assert panel.config() is not None
+
+
+class TestTheKnobsBelongToWhatIsChosen:
+    """The blob parameters were on screen for every detector until M8-T09. A
+    number that does nothing is a number an operator spends an afternoon on."""
+
+    def test_the_detector_brings_its_own(self, session: SessionViewModel) -> None:
+        session.select_image(image_ids(session)[0])
+        register(session)
+        panel = DetectionPanel(session)
+
+        shown: dict[str, set[str]] = {}
+        for index in range(panel.detector.count()):
+            panel.detector.setCurrentIndex(index)
+            shown[panel.detector.itemText(index)] = set(panel._spins)
+
+        assert shown["log"] == {"log_overlap", "log_percentile"}
+        assert shown[next(name for name in shown if name != "log")] == {"yolo_conf"}
+
+    def test_the_mode_brings_the_measurement_ones(self, session: SessionViewModel) -> None:
+        """`baseline` measures; `detect` counts. The ring is the measurement's."""
+        session.select_image(image_ids(session)[0])
+        panel = DetectionPanel(session)
+        panel.mode.setCurrentIndex([text for text, _ in entries(panel.mode)].index("detect"))
+        counting = set(panel._spins)
+
+        panel.mode.setCurrentIndex([text for text, _ in entries(panel.mode)].index("baseline"))
+
+        assert "measure_outer_px" not in counting
+        assert {"measure_outer_px", "measure_inner_erode_px"} <= set(panel._spins)
+
+    def test_a_tuned_value_reaches_the_request(self, session: SessionViewModel) -> None:
+        session.select_image(image_ids(session)[0])
+        panel = DetectionPanel(session)
+
+        panel._spins["log_overlap"].setValue(0.75)
+        config = panel.config()
+
+        assert config is not None
+        assert config.log_overlap == 0.75
+
+    def test_a_tuned_value_survives_the_detector_being_changed_and_back(
+        self, session: SessionViewModel
+    ) -> None:
+        """Rebuilding the rows must not quietly restore a default the operator
+        overrode — the panel rebuilds on every settings change (M8-T09)."""
+        session.select_image(image_ids(session)[0])
+        register(session)
+        panel = DetectionPanel(session)
+        panel._spins["log_overlap"].setValue(0.75)
+
+        panel.detector.setCurrentIndex(1)
+        panel.detector.setCurrentIndex(0)
+
+        assert panel._spins["log_overlap"].value() == 0.75
+
+    def test_a_whole_number_stays_whole(self, session: SessionViewModel) -> None:
+        """`PipelineConfig` types the ring in pixels as `int`, and a float there
+        is a value nothing else in the pipeline would have produced."""
+        session.select_image(image_ids(session)[0])
+        panel = DetectionPanel(session)
+        panel.mode.setCurrentIndex([text for text, _ in entries(panel.mode)].index("baseline"))
+
+        config = panel.config()
+
+        assert config is not None
+        assert isinstance(config.measure_outer_px, int)
 
 
 class TestRunningIt:

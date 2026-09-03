@@ -132,16 +132,15 @@ def settle(job: Job | None) -> None:
 
 
 class TestTheModeBecomesAvailable:
-    def test_without_a_model_it_is_refused(self, session: SessionViewModel) -> None:
+    def test_without_a_model_it_is_not_offered(self, session: SessionViewModel) -> None:
+        """Not on the list, and said so underneath — a mode that cannot be
+        picked is not a mode, and the sentence is what tells an operator that
+        registering a model is what puts it there."""
         session.select_image(image_ids(session)[0])
         panel = DetectionPanel(session)
 
-        modes = {
-            panel.mode.itemText(i): panel.mode.model().item(i).isEnabled()
-            for i in range(panel.mode.count())
-        }
-
-        assert modes["segment"] is False
+        assert "segment" not in [panel.mode.itemText(i) for i in range(panel.mode.count())]
+        assert "segmentation needs a model" in panel.missing.text().lower()
 
     def test_registering_one_makes_it_selectable(self, session: SessionViewModel) -> None:
         """M6-T02's promise, with a date on it."""
@@ -149,12 +148,8 @@ class TestTheModeBecomesAvailable:
         session.select_image(image_ids(session)[0])
 
         panel = DetectionPanel(session)
-        modes = {
-            panel.mode.itemText(i): panel.mode.model().item(i).isEnabled()
-            for i in range(panel.mode.count())
-        }
 
-        assert modes["segment"] is True
+        assert "segment" in [panel.mode.itemText(i) for i in range(panel.mode.count())]
 
     def test_asking_whether_it_can_segment_loads_nothing(self, session: SessionViewModel) -> None:
         """ADR-0050 made the registry cheap so that this question costs no disk.

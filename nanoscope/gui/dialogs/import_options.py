@@ -41,6 +41,9 @@ from nanoscope.gui.theme import tokens
 #: merely allowed for a folder of them — it is the answer that changes nothing.
 UNKNOWN = "unknown"
 
+#: How wide the dialog opens, in pixels.
+WIDTH_PX = 520
+
 
 @dataclass(frozen=True)
 class ImportChoice:
@@ -56,6 +59,10 @@ class ImportOptions(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Import Images")
+        #: Wide enough for the note below to stand on one line: a sentence
+        #: explaining why a field is being asked about, wrapped into three, is a
+        #: sentence that reads like fine print.
+        self.setMinimumWidth(WIDTH_PX)
 
         self.modality = QComboBox(self)
         for value in Modality:

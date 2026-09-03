@@ -113,15 +113,116 @@ def validate_request(modality: str, detector: str, mode: str, has_predictor: boo
 
 
 @dataclass(frozen=True)
+class Parameter:
+    """One number a detector or a mode is willing to be tuned by.
+
+    Described rather than named, for the reason the options themselves are: a
+    panel that knew *whose* `overlap` this was would be a panel with a detector
+    name in it, and the blob parameters were on screen for a YOLO run until this
+    existed. `field` is the `PipelineConfig` attribute it writes, which is also
+    where its default comes from — no number here is invented twice.
+    """
+
+    field: str
+    label: str
+    minimum: float
+    maximum: float
+    step: float = 1.0
+    #: Zero means a whole number, and a caller may read it as one.
+    decimals: int = 0
+    help: str = ""
+
+
+#: What each detector will be tuned by. Keyed the way `DETECTOR_FRAMEWORKS` is.
+#: `log_threshold` is deliberately absent: its default is `None` — *"estimate
+#: one"* — and a spin box cannot say that (ADR-0025's unknown-is-a-state), so
+#: offering it would mean offering a worse answer than the one already given.
+DETECTOR_PARAMETERS: dict[str, tuple[Parameter, ...]] = {
+    "log": (
+        Parameter(
+            field="log_overlap",
+            label="Blob overlap",
+            minimum=0.0,
+            maximum=1.0,
+            step=0.05,
+            decimals=2,
+            help="How much two blobs may overlap before they count as one.",
+        ),
+        Parameter(
+            field="log_percentile",
+            label="Threshold percentile",
+            minimum=0.0,
+            maximum=100.0,
+            step=1.0,
+            decimals=1,
+            help="The percentile of the blob response used to pick a threshold when none is given.",
+        ),
+    ),
+    "yolo": (
+        Parameter(
+            field="yolo_conf",
+            label="Confidence",
+            minimum=0.0,
+            maximum=1.0,
+            step=0.05,
+            decimals=2,
+            help="How sure the model must be before a box counts as a particle. "
+            "Lower finds more and invents more.",
+        ),
+    ),
+}
+
+#: What each *mode* will be tuned by — the measurement it performs, which is a
+#: property of the mode and not of whatever found the particles.
+MODE_PARAMETERS: dict[str, tuple[Parameter, ...]] = {
+    _BASELINE: (
+        Parameter(
+            field="measure_outer_px",
+            label="Substrate ring (px)",
+            minimum=1.0,
+            maximum=64.0,
+            help="How far around a particle the local substrate is read from.",
+        ),
+        Parameter(
+            field="measure_inner_erode_px",
+            label="Ring gap (px)",
+            minimum=0.0,
+            maximum=64.0,
+            help="How much of that ring is skipped next to the particle, so the "
+            "particle's own slope is not measured as substrate.",
+        ),
+    ),
+    _SEGMENT: (
+        Parameter(
+            field="sam2_outer_ring_px",
+            label="Substrate ring (px)",
+            minimum=1.0,
+            maximum=64.0,
+            help="How far around a mask the local substrate is read from.",
+        ),
+        Parameter(
+            field="sam2_inner_erode_px",
+            label="Ring gap (px)",
+            minimum=0.0,
+            maximum=64.0,
+            help="How much of that ring is skipped next to the mask.",
+        ),
+    ),
+}
+
+
+@dataclass(frozen=True)
 class ModeOption:
     """One mode of one detector, and whether it can run right now."""
 
     mode: str
     available: bool
-    #: Why not — a sentence for an operator, never an error code. An entry
-    #: greyed out with no explanation is the failure this criterion is against,
-    #: not a lesser version of it.
+    #: Why not — a sentence for an operator, never an error code. A mode that is
+    #: not on offer with no explanation is the failure this criterion is
+    #: against, not a lesser version of it.
     reason: str | None = None
+    #: What this mode's measurement will be tuned by.
+    parameters: tuple[Parameter, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -132,6 +233,8 @@ class DetectorOption:
     modes: tuple[ModeOption, ...]
     available: bool
     reason: str | None = None
+    #: What this detector will be tuned by, for a panel to render under it.
+    parameters: tuple[Parameter, ...] = ()
 
 
 #: What each detector needs loaded before it can run, as the framework a
@@ -185,6 +288,7 @@ def detector_options(
                     if row.requires_predictor and not has_predictor
                     else None
                 ),
+                parameters=MODE_PARAMETERS.get(row.mode, ()),
             )
             for row in CAPABILITIES
             if row.modality == modality and row.detector == detector
@@ -195,6 +299,7 @@ def detector_options(
                 modes=modes,
                 available=not needs_model and any(mode.available for mode in modes),
                 reason=reason,
+                parameters=DETECTOR_PARAMETERS.get(detector, ()),
             )
         )
     return tuple(options)

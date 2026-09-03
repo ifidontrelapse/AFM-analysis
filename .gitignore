@@ -42,3 +42,7 @@ htmlcov/
 # .claude/settings.json IS tracked — agent configuration is shared (PROJECT_RULES §7).
 # Only per-machine permission overrides are ignored.
 .claude/settings.local.json
+
+# ── Local project scratch (not shared) ────────────────────────────────────────
+# A project directory created while testing the app locally.
+test project/

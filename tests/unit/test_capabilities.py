@@ -12,10 +12,18 @@ None of this is covered by the characterization golden: it never calls
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import pytest
 
-from nanoscope.application.capabilities import CAPABILITIES, find, validate_request
+from nanoscope.application.capabilities import (
+    CAPABILITIES,
+    DETECTOR_PARAMETERS,
+    MODE_PARAMETERS,
+    find,
+    validate_request,
+)
 from nanoscope.core.entities import MicroscopyData, PipelineConfig, PreprocessingResult
 
 
@@ -40,6 +48,35 @@ class TestTheMatrix:
         # If this number changes, that table needs the same edit — which is the
         # remaining duplication, and it is prose, so it cannot be executed.
         assert len(CAPABILITIES) == 13
+
+
+class TestTheParametersAreRealFields:
+    """A panel sets these by name, so a typo here would be a knob that silently
+    tunes nothing — and `PipelineConfig`'s field names are golden (M2-T02)."""
+
+    def test_every_parameter_names_a_field_of_the_config(self) -> None:
+        fields = {field.name for field in dataclasses.fields(PipelineConfig)}
+        declared = {
+            parameter.field
+            for group in (*DETECTOR_PARAMETERS.values(), *MODE_PARAMETERS.values())
+            for parameter in group
+        }
+
+        assert declared <= fields, declared - fields
+
+    def test_every_default_is_inside_the_range_offered(self) -> None:
+        """The default is the config's own, so a range that excludes it would
+        change the request merely by rendering the panel."""
+        config = PipelineConfig()
+        for group in (*DETECTOR_PARAMETERS.values(), *MODE_PARAMETERS.values()):
+            for parameter in group:
+                value = getattr(config, parameter.field)
+                assert parameter.minimum <= value <= parameter.maximum, parameter.field
+
+    def test_every_detector_declares_its_own(self) -> None:
+        """One list per detector, keyed the way the frameworks are — the blob
+        parameters were on screen for every detector before this existed."""
+        assert set(DETECTOR_PARAMETERS) == {row.detector for row in CAPABILITIES}
 
 
 class TestValidation:
